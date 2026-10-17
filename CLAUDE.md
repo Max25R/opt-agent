@@ -30,11 +30,11 @@ point is a trustworthy evaluation, not a demo.
 1. [x] Setup: src layout, pyproject, `.env` handling, pytest + ruff CI.
 2. [x] LP schema + solver, verified with known answers, plain-arithmetic checks,
    Hypothesis CBC-vs-HiGHS agreement, and metamorphic tests.
-3. [ ] Ground truth from raw annotations (no LLM). NL4Opt's `generation_data/*.jsonl` has
-   human-annotated formulations but **no objective values**. Convert the annotations to
-   our schema, solve them, and record every assumption (integrality isn't annotated:
-   record both LP and integer optima). List unconvertible or suspect problems. Use any
-   third-party answer set only as a cross-check. Walk the owner through 30 dev problems.
+3. [x] Ground truth from raw annotations (no LLM). Done 2026-10-16; the owner's review of
+   `data/nl4opt/ground_truth/DEV_WALKTHROUGH.md` is pending. NL4Opt has formulations but
+   **no answers**. `ground_truth.py` converts them, solves each as an LP and as an
+   all-integer IP, cross-checks with HiGHS and arithmetic, and compares with ORLM.
+   Flagged problems carry a hand review. Counts are in the generated `REPORT.md`.
 4. [ ] LLM formulation via Claude tool use / structured output. The explanation is built
    from solver facts (binding constraints, slacks, shadow prices); every number in it
    must match solver output.
@@ -57,7 +57,26 @@ source .venv/bin/activate
 python -m pytest              # ~50 s; property tests explore new random cases each run
 HYPOTHESIS_PROFILE=ci python -m pytest   # deterministic, as in CI
 ruff check . && ruff format .
+python -m opt_agent.data            # pinned, SHA-256-checked downloads (git-ignored)
+python -m opt_agent.ground_truth    # rebuild data/nl4opt/ground_truth/ (~30 s)
+python scripts/dev_walkthrough.py   # rebuild the 30-problem dev review sheet
 ```
+
+## Ground truth (milestone 3 decisions)
+
+- **Annotation errors are rejected, never repaired.** That covers mentions mapped to the
+  wrong variable, one variable annotated twice, empty terms, and operators that contradict
+  the wording. A repair would be our reading presented as theirs.
+- **Integrality isn't annotated, so both optima are stored** (`lp`, `ip`), and no single
+  answer is picked. It changes the answer for about half the problems. Milestone 6
+  decides how to score: the recommendation is to accept either, plus report the subset
+  where they're equal.
+- `data/nl4opt/reviews.json` is **hand-written input**. Every problem with no optimum, a
+  do-nothing optimum, or an ORLM disagreement must have a review (the report and the tests
+  enforce this). `scorable()` excludes confirmed annotation errors.
+- ORLM's answers (CC BY-NC 4.0) are a cross-check only and are **never committed**.
+- After changing the converter or the solver, rebuild the ground truth.
+  `test_highs_reproduces_every_committed_answer` fails if the data has drifted.
 
 ## Gotchas (learned the hard way)
 
@@ -78,6 +97,8 @@ ruff check . && ruff format .
   variables. That's expected; the random generator bounds integer variables.
 - Don't keep the repo or its `.venv` under iCloud: iCloud hides `.pth` files and
   Python 3.13 then skips them.
+- python.org's macOS Python has no CA certificates, so downloads pass `certifi`'s bundle
+  explicitly (`data.py`).
 
 ## Open decisions (ask the owner)
 
