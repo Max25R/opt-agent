@@ -27,9 +27,10 @@ DEFAULT_LOG = Path("logs/attempts.jsonl")
 class Result(BaseModel):
     problem: str
     outcome: Outcome  # every attempt, and why the loop stopped
-    highs_agrees: bool | None = None  # an independent solver reached the same answer
+    highs_solution: Solution | None = None  # the independent second opinion
+    highs_agrees: bool | None = None  # False is a loud failure: no answer is reported
     check_problems: list[str] = []  # from verify.check_solution: [] means it checks out
-    explanation: Explanation | None = None  # only for optimal solutions
+    explanation: Explanation | None = None  # only for verified answers
 
     @property
     def formulation(self) -> Formulation:
@@ -66,9 +67,10 @@ def run(
     model, solution = result.formulation.model, result.solution
     if solution is None:
         return result
-    result.highs_agrees = same_answer(model, solution, solve_with_highs(model))
+    result.highs_solution = solve_with_highs(model)
+    result.highs_agrees = same_answer(model, solution, result.highs_solution)
     result.check_problems = check_solution(model, solution)
-    if with_explanation and solution.status is Status.OPTIMAL:
+    if with_explanation and result.verified:  # never explain an answer that failed a check
         facts = solver_facts(model, solution)
         result.explanation = explain(problem, model, facts, client, model_id)
     return result
@@ -86,7 +88,14 @@ def render(result: Result) -> str:
         return "\n".join(lines + ["", "No usable model:", f.error])
     lines += ["", *format_model(f.model), ""]
     s = result.solution
+    if result.highs_agrees is False:
+        cbc, highs = _describe(s), _describe(result.highs_solution)
+        return "\n".join(lines + [
+            f"SOLVERS DISAGREE: CBC says {cbc}, HiGHS says {highs}. No answer is reported."
+        ])  # fmt: skip
     lines.append(f"Status: {s.status}")
+    if s.note:
+        lines.append(f"  ({s.note})")
     if s.status is Status.OPTIMAL:
         lines.append(f"Objective: {s.objective:g}")
         lines += [f"  {name} = {value:g}" for name, value in s.values.items()]
@@ -98,6 +107,12 @@ def render(result: Result) -> str:
             flagged = ", ".join(result.explanation.unsupported_numbers)
             lines.append(f"(not backed by the solver's numbers: {flagged})")
     return "\n".join(lines)
+
+
+def _describe(solution: Solution) -> str:
+    if solution.status is Status.OPTIMAL:
+        return f"optimal ({solution.objective:g})"
+    return solution.status.value
 
 
 def _attempt_line(attempt) -> str:

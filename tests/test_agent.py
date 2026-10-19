@@ -1,3 +1,4 @@
+import pytest
 from fakes import (
     BAD_EXPLANATION,
     FISHERY_REPLY,
@@ -6,11 +7,12 @@ from fakes import (
     FakeClient,
     model,
 )
-from problems import FISHERY
+from problems import CBC_FREE_VARIABLE_BUG, FISHERY
 from pytest import approx
 
+from opt_agent import self_correct
 from opt_agent.agent import render, run
-from opt_agent.solver import Status
+from opt_agent.solver import Solution, Status
 
 
 def test_fishery_end_to_end():
@@ -76,3 +78,52 @@ def test_render_lists_the_attempts_and_flags():
     assert "Attempt 1: infeasible" in text and "Attempt 2: optimal" in text
     assert "Stopped: optimal" in text
     assert "flagged revision: deleted constraint 'at most 3'" in text
+
+
+# CBC's recorded answer for CBC_FREE_VARIABLE_BUG: "optimal" at enormous values, though the
+# model is unbounded. c0 is violated by 1, far inside the round-off allowed at that size.
+FALSE_OPTIMUM = Solution(
+    solver="cbc",
+    status=Status.OPTIMAL,
+    objective=-6.25e11,
+    values={"x0": -5e11, "x1": 6.25e11, "x2": 0.0},
+    slacks={"c0": -1.0},
+)
+
+
+@pytest.fixture
+def cbc_claims_a_false_optimum(monkeypatch):
+    monkeypatch.setattr(self_correct, "solve", lambda model: FALSE_OPTIMUM)
+    return CBC_FREE_VARIABLE_BUG.model_dump_json()
+
+
+def test_a_false_optimum_is_caught_by_the_cross_check_not_by_arithmetic(
+    cbc_claims_a_false_optimum,
+):
+    result = run("...", FakeClient(cbc_claims_a_false_optimum), with_explanation=False)
+    assert result.outcome.stopped == "optimal"  # the loop trusts the solver: no revision
+    assert result.solution.status is Status.OPTIMAL  # CBC's claim is what gets reported
+    assert result.check_problems == []  # arithmetic checks feasibility, not optimality
+    assert result.highs_agrees is False  # HiGHS says unbounded
+    assert not result.verified  # so the answer is not verified
+
+
+def test_an_unverified_answer_is_not_explained(cbc_claims_a_false_optimum):
+    client = FakeClient(cbc_claims_a_false_optimum, "An explanation of a wrong answer.")
+    result = run("...", client)
+    assert result.explanation is None
+    assert len(client.requests) == 1  # no explanation call at all
+
+
+def test_a_solver_disagreement_is_reported_as_such(cbc_claims_a_false_optimum):
+    text = render(run("...", FakeClient(cbc_claims_a_false_optimum), with_explanation=False))
+    assert "SOLVERS DISAGREE: CBC says optimal (-6.25e+11), HiGHS says unbounded." in text
+    assert "No answer is reported." in text
+    assert "Objective:" not in text
+
+
+def test_an_overruled_claim_is_shown():
+    """Real CBC on the counterexample: its "optimal" is overruled by an improving ray."""
+    result = run("...", FakeClient(CBC_FREE_VARIABLE_BUG.model_dump_json()), max_attempts=1)
+    assert result.solution.status is Status.UNBOUNDED and result.highs_agrees
+    assert "CBC claimed an optimum, but the objective improves forever" in render(result)

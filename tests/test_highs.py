@@ -1,5 +1,14 @@
-from problems import BLEND, INFEASIBLE, INTEGER_INFEASIBLE, REDDY_MIKKS, WYNDOR, unbounded
+from problems import (
+    BLEND,
+    HIGHS_FREE_VARIABLE_BUG,
+    INFEASIBLE,
+    INTEGER_INFEASIBLE,
+    REDDY_MIKKS,
+    WYNDOR,
+    unbounded,
+)
 from pytest import approx, mark
+from test_metamorphic import reverse_everything
 
 from opt_agent.highs import solve_with_highs
 from opt_agent.solver import Status
@@ -27,3 +36,10 @@ def test_infeasible():
 def test_unbounded(integer):
     # For the MIP, HiGHS answers "infeasible or unbounded"; the zero-objective solve decides.
     assert solve_with_highs(unbounded(integer)).status is Status.UNBOUNDED
+
+
+@mark.parametrize("reverse", [False, True], ids=["as-listed", "reversed"])
+def test_regression_highs_false_optimum_in_a_mip(reverse):
+    """HiGHS reported "optimal" (-144) for this unbounded MIP when listed in reverse."""
+    model = reverse_everything(HIGHS_FREE_VARIABLE_BUG) if reverse else HIGHS_FREE_VARIABLE_BUG
+    assert solve_with_highs(model).status is Status.UNBOUNDED

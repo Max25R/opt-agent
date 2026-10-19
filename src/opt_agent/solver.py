@@ -5,6 +5,7 @@ from enum import StrEnum
 import pulp
 from pydantic import BaseModel
 
+from opt_agent.rays import refutation, refuting_ray
 from opt_agent.schema import Constraint, LPModel, Term
 
 CBC_TIME_LIMIT_SECONDS = 30
@@ -25,6 +26,7 @@ class Solution(BaseModel):
     slacks: dict[str, float] = {}
     # Shadow prices: d(objective)/d(rhs) for each constraint. Pure LPs only; a MIP has none.
     duals: dict[str, float] | None = None
+    note: str | None = None  # e.g. why the solver's own claim was overruled
 
 
 _STATUS_FROM_PULP = {
@@ -39,6 +41,14 @@ _STATUS_FROM_PULP = {
 
 
 def solve(model: LPModel) -> Solution:
+    """CBC's answer. A claimed optimum stands only if no improving ray refutes it (rays.py)."""
+    claimed = _solve_once(model)
+    if claimed.status is Status.OPTIMAL and (ray := refuting_ray(model, _solve_once)):
+        return Solution(solver="cbc", status=Status.UNBOUNDED, note=refutation("CBC", ray))
+    return claimed
+
+
+def _solve_once(model: LPModel) -> Solution:
     problem, pulp_vars = build_problem(model)
     stats = _run_cbc(problem)
     status = _STATUS_FROM_PULP.get(stats.status, Status.ERROR)

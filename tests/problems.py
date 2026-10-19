@@ -159,6 +159,45 @@ CBC_PREPROCESS_BUG = LPModel.model_validate(
     }
 )
 
+# Found by the reordering metamorphic test (2026-10-19). Unbounded: hold x1 = x2 = 0 and let
+# x0 grow; c0 (5*x0 + 4*x1 >= 1) stays satisfied and the objective falls forever. In this
+# variable order CBC reports "Optimal" at x0 = -5e11, x1 = 6.25e11 (objective about -6.25e11)
+# while its own log says "Unscaled problem has dual infeasibilities". Reversed, it's right.
+CBC_FREE_VARIABLE_BUG = LPModel.model_validate(
+    {
+        "variables": [
+            {"name": "x0", "lower": None},
+            {"name": "x1", "lower": None},
+            {"name": "x2"},
+        ],
+        "objective": {"sense": "min", "terms": terms({"x0": -5, "x1": -5, "x2": 1})},
+        "constraints": [
+            {"name": "c0", "terms": terms({"x0": -5, "x1": -4}), "sense": "<=", "rhs": -1}
+        ],
+    }
+)
+
+# Found while investigating the one above (2026-10-19): a MIP where HiGHS reports "optimal"
+# (-144) with the variables and constraints listed in reverse, and "unbounded" as listed.
+# Unbounded: let x0 -> -inf with x3 = x0 / 4; both constraints keep holding and the
+# objective 4*x0 + 5*x3 falls forever.
+HIGHS_FREE_VARIABLE_BUG = LPModel.model_validate(
+    {
+        "variables": [
+            {"name": "x0", "lower": None},
+            {"name": "x1", "lower": -5, "upper": -4, "integer": True},
+            {"name": "x2", "upper": 9, "integer": True},
+            {"name": "x3", "lower": None, "upper": 7},
+        ],
+        "objective": {"sense": "min", "terms": terms({"x0": 4, "x1": 4, "x2": -2, "x3": 5})},
+        "constraints": [
+            {"name": "c0", "terms": terms({"x0": 1, "x3": -2}), "sense": "<=", "rhs": -7},
+            {"name": "c1", "terms": terms({"x1": -1, "x3": 4, "x2": 2, "x0": -1}), "sense": "<=",
+             "rhs": 18},
+        ],
+    }
+)  # fmt: skip
+
 # Feasible as an LP (x = 0.5) but not with x integer.
 INTEGER_INFEASIBLE = LPModel.model_validate(
     {

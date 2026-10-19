@@ -129,6 +129,16 @@ python -m pytest -m live -s         # the tests that call the real API (not in C
   3-variable MIP (`CBC_PREPROCESS_BUG` in `tests/problems.py`).
 - **CBC's infeasible/unbounded labels are unreliable**, so both solvers settle them with a
   zero-objective feasibility solve.
+- **Both solvers can claim a false optimum** when free variables let the objective run away,
+  in one variable order only (`CBC_FREE_VARIABLE_BUG`, `HIGHS_FREE_VARIABLE_BUG`). CBC's log
+  says "Unscaled problem has dual infeasibilities". `-scaling off` fixes that case but caused
+  new false optima (3 in 4000 random models), so don't use it. Instead, every claimed optimum
+  must survive an improving-ray check (`rays.py`): the same solver looks for a ray in a
+  bounded LP, and any ray it finds is verified by arithmetic.
+- **A CBC/HiGHS disagreement is a loud failure:** `Result.verified` is False, nothing is
+  explained (only verified answers are), and the CLI prints "SOLVERS DISAGREE". The
+  arithmetic check alone wouldn't catch a false optimum: it checks feasibility, not
+  optimality.
 - CBC reports values to ~8 significant digits, so tolerances scale with the size of the
   terms being added (`verify.tolerance_for`).
 - CBC can time out (status `error`) proving integer infeasibility over unbounded integer

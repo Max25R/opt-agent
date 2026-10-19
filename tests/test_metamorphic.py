@@ -4,8 +4,9 @@ None of these needs a known answer for the original problem, only the math relat
 two answers.
 """
 
-from hypothesis import assume, given, settings
+from hypothesis import assume, example, given, settings
 from hypothesis import strategies as st
+from problems import CBC_FREE_VARIABLE_BUG
 from strategies import lp_models
 
 from opt_agent.schema import LPModel, Objective, Term
@@ -47,6 +48,7 @@ def test_adding_a_redundant_constraint_changes_nothing(model):
 
 @SETTINGS
 @given(lp_models())
+@example(CBC_FREE_VARIABLE_BUG)  # CBC called it optimal in one variable order only
 def test_reordering_changes_nothing(model):
     assert_same_answer(model, reverse_everything(model))
 

@@ -53,7 +53,7 @@ local run. In CI (`HYPOTHESIS_PROFILE=ci`) they replay a fixed set, so CI is det
 
 ## How the solver layer is verified
 
-The solver's own word isn't trusted. Each solution is checked four independent ways:
+The solver's own word isn't trusted. Each solution is checked five independent ways:
 
 1. **Known answers:** textbook problems (Wyndor Glass, Reddy Mikks) and hand-solved ones,
    including shadow prices checked against finite differences.
@@ -63,6 +63,9 @@ The solver's own word isn't trusted. Each solution is checked four independent w
    (via SciPy) must agree on the status and the optimal objective.
 4. **Metamorphic relations:** scaling the objective, flipping min/max, adding a redundant
    constraint, or reordering everything must change the answer in a known way.
+5. **No false optima:** a claimed optimum stands only if the same solver finds no improving
+   ray (a direction along which the objective improves forever). A ray that's found is
+   checked by arithmetic. When CBC and HiGHS still disagree, no answer is reported.
 
 Problems these checks found, each with a regression test:
 
@@ -73,6 +76,10 @@ Problems these checks found, each with a regression test:
   Preprocessing is now off.
 - CBC can't always prove integer infeasibility over unbounded integer variables. It times
   out and reports `error` rather than guessing.
+- With free variables, CBC (on an LP) and HiGHS (on a MIP) each claimed "optimal" for an
+  unbounded model, but only in one variable order. Found by the reordering test; fixed by
+  the improving-ray check, not by changing solver settings (turning off CBC's scaling
+  caused new false optima).
 
 ## How the agent works
 
@@ -126,6 +133,7 @@ src/opt_agent/
   solver.py        # schema -> PuLP -> CBC; status, values, slacks, duals
   highs.py         # independent cross-check solver (SciPy's HiGHS, no PuLP)
   verify.py        # solver-free arithmetic checks of a solution
+  rays.py          # is a claimed optimum real? looks for an improving ray, checked by arithmetic
   data.py          # pinned, checksummed dataset downloads
   nl4opt.py        # NL4Opt annotation -> our schema, with every judgment call noted
   integrality.py   # integer or continuous? the label type and the rule for unlabeled problems

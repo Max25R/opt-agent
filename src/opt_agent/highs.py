@@ -7,6 +7,7 @@ translation, or in CBC itself, very unlikely to go unnoticed.
 import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, milp
 
+from opt_agent.rays import refutation, refuting_ray
 from opt_agent.schema import LPModel, Term
 from opt_agent.solver import Solution, Status
 
@@ -16,6 +17,15 @@ _INFEASIBLE, _UNBOUNDED, _INFEASIBLE_OR_UNBOUNDED = 2, 3, 4
 
 
 def solve_with_highs(model: LPModel) -> Solution:
+    """HiGHS's answer, with the same rule as CBC: a claimed optimum stands only if no
+    improving ray, found by HiGHS itself, refutes it."""
+    claimed = _solve_once(model)
+    if claimed.status is Status.OPTIMAL and (ray := refuting_ray(model, _solve_once)):
+        return Solution(solver="highs", status=Status.UNBOUNDED, note=refutation("HiGHS", ray))
+    return claimed
+
+
+def _solve_once(model: LPModel) -> Solution:
     sign = -1.0 if model.objective.sense == "max" else 1.0  # milp always minimizes
     costs = sign * _row(model.objective.terms, model)
     result = _run_milp(model, costs)

@@ -1,5 +1,6 @@
 from problems import (
     BLEND,
+    CBC_FREE_VARIABLE_BUG,
     CBC_PREPROCESS_BUG,
     HARD_INTEGER_INFEASIBLE,
     INFEASIBLE,
@@ -85,6 +86,11 @@ def test_regression_cbc_preprocessing_bug():
     assert s.status is Status.OPTIMAL
     assert s.objective == approx(0.2)
     assert s.values == approx({"x0": 0, "x1": 0.6, "x2": 1})
+
+
+def test_regression_cbc_false_optimum_with_free_variables():
+    """CBC reported "Optimal" (objective about -6.25e11) for this unbounded LP."""
+    assert solve(CBC_FREE_VARIABLE_BUG).status is Status.UNBOUNDED
 
 
 def test_cbc_times_out_instead_of_guessing(monkeypatch):
