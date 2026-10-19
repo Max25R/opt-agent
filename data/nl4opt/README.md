@@ -4,9 +4,13 @@
   `49f1e0d` and checked by SHA-256. Re-fetch with `python -m opt_agent.data`.
 - `ground_truth/` (committed, generated): our models and answers, built from the raw
   annotations by `python -m opt_agent.ground_truth`. `REPORT.md` summarizes them.
-  `DEV_WALKTHROUGH.md` comes from `python scripts/dev_walkthrough.py`.
 - `reviews.json` (committed, hand-written): the verdict for every problem the automatic
   checks flag, each with the reason, checked against the problem text.
+- `integrality.json` (committed, hand-written): integer or continuous, for every problem
+  where that choice changes the answer. The label picks the ground-truth answer.
+- `ground_truth/DEV_WALKTHROUGH.md` is the sheet the owner reviewed on 2026-10-16. Their
+  corrections are applied in the two hand-written files above, so the sheet itself is
+  kept as the record of what was reviewed.
 
 The problem texts and annotations come from the
 [NL4Opt competition](https://github.com/nl4opt/nl4opt-competition) and are used under its

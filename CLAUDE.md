@@ -30,14 +30,18 @@ point is a trustworthy evaluation, not a demo.
 1. [x] Setup: src layout, pyproject, `.env` handling, pytest + ruff CI.
 2. [x] LP schema + solver, verified with known answers, plain-arithmetic checks,
    Hypothesis CBC-vs-HiGHS agreement, and metamorphic tests.
-3. [x] Ground truth from raw annotations (no LLM). Done 2026-10-16; the owner's review of
-   `data/nl4opt/ground_truth/DEV_WALKTHROUGH.md` is pending. NL4Opt has formulations but
-   **no answers**. `ground_truth.py` converts them, solves each as an LP and as an
-   all-integer IP, cross-checks with HiGHS and arithmetic, and compares with ORLM.
-   Flagged problems carry a hand review. Counts are in the generated `REPORT.md`.
-4. [ ] LLM formulation via Claude tool use / structured output. The explanation is built
-   from solver facts (binding constraints, slacks, shadow prices); every number in it
-   must match solver output.
+3. [x] Ground truth from raw annotations (no LLM). Done 2026-10-16; the owner confirmed
+   the dev walkthrough and their corrections are applied. NL4Opt has formulations but **no
+   answers**. `ground_truth.py` converts them, solves each as an LP and as an all-integer
+   IP, cross-checks with HiGHS and arithmetic, and compares with ORLM. Flagged problems
+   carry a hand review, and each problem's integrality label picks its answer
+   (`ground_truth.answer`). Counts are in the generated `REPORT.md`.
+4. [x] LLM formulation (2026-10-17). `formulate.py` sends the problem through
+   `messages.create` with structured output (`output_config.format`, using the SDK's
+   public `anthropic.transform_schema(LPModel)`), then validates it with our own
+   `LPModel`, so a bad reply becomes a readable `error` for milestone 5. `explain.py`
+   builds facts from the solver and flags any number in the explanation that isn't a
+   correct rounding of a fact or input. `agent.py` runs the pipeline and has a CLI.
 5. [ ] Self-correction loop (max 3 attempts) on validation errors or infeasible/unbounded
    results. Raw JSONL log of every attempt. Flag "fixes" that delete or loosen
    constraints.
@@ -50,6 +54,17 @@ point is a trustworthy evaluation, not a demo.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
 
+## Claude API notes
+
+- `formulate.DEFAULT_MODEL = "claude-haiku-5-5"`: the owner asked for a small, cheap
+  model for bulk eval runs. Check model IDs and prices in the docs before changing it.
+- Every API call takes a `client` argument, and tests pass `tests/fakes.FakeClient`.
+  Only `tests/test_live.py` (marker `live`, excluded by default and in CI) calls the real
+  API. Run it with `python -m pytest -m live` when `ANTHROPIC_API_KEY` is set.
+- `.env` doesn't exist in this checkout (it's git-ignored); the owner adds their key.
+- `Result.verified` means the solution of Claude's model is optimal and independently
+  confirmed. It says nothing about whether the model matches the text; that's milestone 6.
+
 ## Commands
 
 ```bash
@@ -60,20 +75,33 @@ ruff check . && ruff format .
 python -m opt_agent.data            # pinned, SHA-256-checked downloads (git-ignored)
 python -m opt_agent.ground_truth    # rebuild data/nl4opt/ground_truth/ (~30 s)
 python scripts/dev_walkthrough.py   # rebuild the 30-problem dev review sheet
+python -m opt_agent.agent "problem text"   # needs ANTHROPIC_API_KEY
+python -m pytest -m live            # the one test that calls the real API
 ```
 
 ## Ground truth (milestone 3 decisions)
 
-- **Annotation errors are rejected, never repaired.** That covers mentions mapped to the
-  wrong variable, one variable annotated twice, empty terms, and operators that contradict
-  the wording. A repair would be our reading presented as theirs.
-- **Integrality isn't annotated, so both optima are stored** (`lp`, `ip`), and no single
-  answer is picked. It changes the answer for about half the problems. Milestone 6
-  decides how to score: the recommendation is to accept either, plus report the subset
-  where they're equal.
+- **Annotation errors are rejected, never repaired.** That covers one variable annotated
+  twice, empty terms, two mentions resolving to one variable, and operators that
+  contradict the wording. A repair would be our reading presented as theirs.
+- **Mentions resolve by the variable name they contain** ("economical mobile phone" ->
+  economical). `order_mapping` decides only when the name doesn't, and every override is
+  noted. This rescued 3 problems where `order_mapping` was wrong and changed nothing else.
+- **Integrality:** both optima are stored (`lp`, `ip`), and a per-problem label picks the
+  answer. Wherever integrality changes the answer, the label is a hand label in
+  `data/nl4opt/integrality.json` (source `owner` or `claude`). Elsewhere the rule in
+  `integrality.py` labels it (source `rule`), which agrees with all 9 owner labels. The
+  owner's criteria: countable objects, trips, ads, machines, people and servings are
+  integer; mass, volume, area, time, money and "units of" a substance are continuous.
+  Before using rule labels to grade an agent's integrality choice (not just to pick
+  answers), review them.
 - `data/nl4opt/reviews.json` is **hand-written input**. Every problem with no optimum, a
-  do-nothing optimum, or an ORLM disagreement must have a review (the report and the tests
-  enforce this). `scorable()` excludes confirmed annotation errors.
+  do-nothing optimum, an ORLM disagreement, an unlisted variable, or an overridden
+  `order_mapping` must have a review (the report and the tests enforce this). For an
+  unlisted variable, neither 0 nor 1 is a safe default. `scorable()` excludes annotation
+  errors that change the answer (`answer_affected`); `blind_gradable()` excludes every
+  annotation error. Dev #4 (471112257) is scorable but not blind-gradable (owner's call). Dev reviews are owner-confirmed; test reviews are Claude's, pending
+  confirmation.
 - ORLM's answers (CC BY-NC 4.0) are a cross-check only and are **never committed**.
 - After changing the converter or the solver, rebuild the ground truth.
   `test_highs_reproduces_every_committed_answer` fails if the data has drifted.
@@ -100,7 +128,7 @@ python scripts/dev_walkthrough.py   # rebuild the 30-problem dev review sheet
 - python.org's macOS Python has no CA certificates, so downloads pass `certifi`'s bundle
   explicitly (`data.py`).
 
-## Open decisions (ask the owner)
+## Settled decisions
 
-- License (none yet).
-- Whether to file the CBC preprocessing bug upstream (coin-or/Cbc).
+- No license for this repo (owner's call, 2026-10-16).
+- Don't file the CBC preprocessing bug upstream (owner's call, 2026-10-16).

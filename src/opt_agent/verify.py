@@ -25,6 +25,15 @@ def check_solution(model: LPModel, solution: Solution, tol: float = TOLERANCE) -
     )
 
 
+def same_answer(model: LPModel, a: Solution, b: Solution) -> bool:
+    """Do two solutions of the same model agree on status and, if optimal, objective?"""
+    if a.status != b.status:
+        return False
+    if a.status is not Status.OPTIMAL:
+        return True
+    return abs(a.objective - b.objective) <= tolerance_for(model.objective.terms, b.values)
+
+
 def tolerance_for(terms: list[Term], values: dict[str, float], tol: float = TOLERANCE) -> float:
     """Round-off allowed in a sum of terms.
 

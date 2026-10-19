@@ -1,4 +1,5 @@
 import pytest
+from problems import DUCKS, FISHERY
 from pytest import approx
 
 from opt_agent.ground_truth import as_integer
@@ -12,86 +13,6 @@ from opt_agent.nl4opt import (
     parse_number,
 )
 from opt_agent.solver import Status, solve
-
-# Two real problems from the NL4Opt test split (MIT License), trimmed to the fields we use.
-FISHERY = {
-    "document": (
-        "A fishery wants to transport their catch. They can either use local sled dogs or "
-        "trucks. Local sled dogs can take 100 fish per trip while trucks can take 300 fish per "
-        "trip. The cost per trip for sled dogs is $50 while the cost per trip for a truck is "
-        "$100. The budget is at most $1000 and the number of sled dog trips must be less than "
-        "the number of truck trips. Formulate an LP to maximize the number of fish that can be "
-        "transported."
-    ),
-    "vars": ["sled dogs", "trucks"],
-    "order_mapping": {"sled dogs": 0, "trucks": 1, "truck": 1, "sled dog": 0},
-    "obj_declaration": {
-        "type": "objective",
-        "direction": "maximize",
-        "name": "number of fish",
-        "terms": {"sled dogs": "100", "trucks": "300"},
-    },
-    "const_declarations": [
-        {
-            "type": "linear",
-            "direction": "budget",
-            "limit": "1000",
-            "terms": {"sled dogs": "50", "truck": "100"},
-            "operator": "LESS_OR_EQUAL",
-        },
-        {
-            "type": "xy",
-            "x_var": "sled dog",
-            "direction": "less than",
-            "y_var": "truck",
-            "operator": "LESS_OR_EQUAL",
-        },
-    ],
-}
-
-DUCKS = {
-    "document": (
-        "There has been an oil spill in the ocean and ducks need to be taken to shore to be "
-        "cleaned either by boat or by canoe. A boat can take 10 ducks per trip while a canoe "
-        "can take 8 ducks per trip. Since the boats are motor powered, they take 20 minutes per "
-        "trip while the canoes take 40 minutes per trip. In order to avoid further "
-        "environmental damage, there can be at most 12 boat trips and at least 60% of the trips "
-        "should be by canoe. If at least 300 ducks need to be taken to shore, how many of each "
-        "transportation method should be used to minimize the total amount of time needed to "
-        "transport the ducks?"
-    ),
-    "vars": ["boat", "canoe"],
-    "order_mapping": {"boat": 0, "canoe": 1, "boats": 0, "canoes": 1},
-    "obj_declaration": {
-        "type": "objective",
-        "direction": "minimize",
-        "name": "amount of time",
-        "terms": {"boats": "20", "canoes": "40"},
-    },
-    "const_declarations": [
-        {
-            "type": "upperbound",
-            "direction": "at most",
-            "limit": "12",
-            "var": "boat",
-            "operator": "LESS_OR_EQUAL",
-        },
-        {
-            "type": "ratio",
-            "direction": "at least",
-            "limit": "60%",
-            "var": "canoe",
-            "operator": "GREATER_OR_EQUAL",
-        },
-        {
-            "type": "linear",
-            "direction": "at least",
-            "limit": "300",
-            "terms": {"boat": "10", "canoe": "8"},
-            "operator": "GREATER_OR_EQUAL",
-        },
-    ],
-}
 
 
 def annotation(constraints, objective=None, names=("x", "y"), order_mapping=None, document=""):
@@ -315,7 +236,7 @@ def test_duplicate_entry_in_vars_is_kept_once():
 # ---- annotation errors are rejected, never repaired --------------------------------------
 
 
-def test_rejects_order_mapping_that_contradicts_a_literal_name():
+def test_the_name_in_a_mention_beats_a_wrong_order_mapping():
     """'graduate researcher' mapped to the technicians (a real case from the test split)."""
     ann = annotation(
         [{"type": "lowerbound", "var": "graduate researcher", "limit": "2",
@@ -323,8 +244,32 @@ def test_rejects_order_mapping_that_contradicts_a_literal_name():
         names=("technicians", "graduate researchers"),
         order_mapping={"technicians": 0, "graduate researchers": 1, "graduate researcher": 0},
     )  # fmt: skip
-    with pytest.raises(ConversionError, match="but it names 'graduate researchers'"):
-        convert(ann)
+    assert only_constraint(ann) == ({"graduate researchers": 1}, ">=", 2)
+    assert [n.kind for n in convert(ann).notes] == ["order-mapping-overridden"]
+
+
+def test_a_mention_resolves_to_the_variable_name_it_contains():
+    """'economical mobile phone' -> 'economical', though order_mapping says premium (dev #2)."""
+    ann = annotation(
+        [{"type": "linear", "terms": {"economical mobile phone": "5", "premium mobile phone": "12"},
+          "limit": "150", "operator": "LESS_OR_EQUAL", "direction": "available"}],
+        names=("economical", "premium mobile"),
+        order_mapping={"economical": 0, "premium mobile": 1, "economical mobile phone": 1,
+                       "premium mobile phone": 1},
+    )  # fmt: skip
+    assert only_constraint(ann) == ({"economical": 5, "premium mobile": 12}, "<=", 150)
+
+
+def test_order_mapping_decides_when_the_name_does_not():
+    """'Firemen' names neither variable, so order_mapping decides."""
+    ann = annotation(
+        [{"type": "upperbound", "var": "Firemen", "limit": "9", "operator": "LESS_OR_EQUAL",
+          "direction": "at most"}],
+        names=("firefighters", "volunteer fire patrols"),
+        order_mapping={"firefighters": 0, "volunteer fire patrols": 1, "Firemen": 0},
+    )  # fmt: skip
+    assert only_constraint(ann) == ({"firefighters": 1}, "<=", 9)
+    assert convert(ann).notes == []
 
 
 def test_rejects_two_mentions_of_one_variable():

@@ -3,7 +3,8 @@
 Each problem is converted (nl4opt.py), then solved twice: once with every variable
 continuous (LP) and once with every variable integer (IP), because the annotations don't
 say which is intended. Each solve is cross-checked against HiGHS and plain arithmetic.
-Problems the checks flag carry a hand review from data/nl4opt/reviews.json.
+Problems the checks flag carry a hand review from data/nl4opt/reviews.json, and each
+problem's integrality label (integrality.py) picks which of the two answers is the truth.
 
 Run:  python -m opt_agent.data && python -m opt_agent.ground_truth
 Writes data/nl4opt/ground_truth/{dev,test}.json and REPORT.md. The report is generated
@@ -28,16 +29,21 @@ from opt_agent.data import (
     fetch,
 )
 from opt_agent.highs import solve_with_highs
+from opt_agent.integrality import Integrality, guess
 from opt_agent.nl4opt import ConversionError, Note, convert, load_split
 from opt_agent.schema import LPModel
-from opt_agent.solver import Solution, Status, solve
-from opt_agent.verify import check_solution, tolerance_for
+from opt_agent.solver import Status, solve
+from opt_agent.verify import check_solution, same_answer
 
 GROUND_TRUTH_DIR = DATA_DIR / "nl4opt" / "ground_truth"
 REVIEWS_PATH = DATA_DIR / "nl4opt" / "reviews.json"
+INTEGRALITY_PATH = DATA_DIR / "nl4opt" / "integrality.json"
 SPLITS = {"dev": NL4OPT_DEV, "test": NL4OPT_TEST}
 # ORLM verdicts that mean "someone is wrong here", so the problem needs a hand review.
 DISAGREEMENTS = {"matches neither", "only we find an optimum", "only ORLM finds an optimum"}
+# Judgment calls risky enough to need a hand review. For an unlisted variable, neither
+# coefficient 0 nor the official converter's 1 is safe: the text may say 45 or 150.
+RISKY_NOTES = {"unlisted-variable", "order-mapping-overridden"}
 
 
 class CheckedSolve(BaseModel):
@@ -58,11 +64,14 @@ class Review(BaseModel):
         "ok",  # looked suspicious, but the ground truth is right
     ]
     reason: str
+    confirmed_by_owner: bool = False
+    answer_affected: bool = True  # for annotation errors: does the error change the answer?
 
 
 class Record(BaseModel):
     id: str
     document: str
+    integrality: Integrality  # picks the ground-truth answer: `ip` if integer, else `lp`
     error: str | None = None  # why the annotation couldn't be converted
     notes: list[Note] = []
     model: LPModel | None = None  # every variable continuous
@@ -71,8 +80,15 @@ class Record(BaseModel):
     review: Review | None = None
 
 
-def build_record(problem_id: str, annotation: dict) -> Record:
-    base = {"id": problem_id, "document": annotation["document"]}
+def build_record(problem_id: str, annotation: dict, label: Integrality | None) -> Record:
+    """`label` is the hand label, if any; otherwise the rule decides."""
+    document = annotation["document"]
+    mentions = set(annotation["order_mapping"]) | set(annotation["vars"])
+    base = {
+        "id": problem_id,
+        "document": document,
+        "integrality": label or guess(document, mentions),
+    }
     try:
         conversion = convert(annotation)
     except ConversionError as error:
@@ -103,12 +119,14 @@ def solve_checked(model: LPModel) -> CheckedSolve:
     )
 
 
-def same_answer(model: LPModel, a: Solution, b: Solution) -> bool:
-    if a.status != b.status:
-        return False
-    if a.status is not Status.OPTIMAL:
-        return True
-    return abs(a.objective - b.objective) <= tolerance_for(model.objective.terms, b.values)
+def answer(record: Record) -> CheckedSolve:
+    """The ground-truth answer: the integer solve for whole things, else the LP."""
+    return record.ip if record.integrality.kind == "integer" else record.lp
+
+
+def needs_hand_label(record: Record) -> bool:
+    """Where integrality changes the answer, the label picks the truth, so a rule won't do."""
+    return record.error is None and integrality_matters(record)
 
 
 def integrality_matters(record: Record) -> bool:
@@ -135,14 +153,25 @@ def does_nothing(record: Record) -> bool:
 def needs_review(record: Record, orlm_verdict: str | None) -> bool:
     if record.error is not None:
         return False
-    return lacks_optimum(record) or does_nothing(record) or orlm_verdict in DISAGREEMENTS
+    risky = any(n.kind in RISKY_NOTES for n in record.notes)
+    return risky or lacks_optimum(record) or does_nothing(record) or orlm_verdict in DISAGREEMENTS
 
 
 def scorable(record: Record) -> bool:
-    """Usable as ground truth: converted, and not a confirmed annotation error."""
+    """Usable as ground truth: converted, and no known annotation error changes the answer."""
     return record.error is None and not (
-        record.review and record.review.verdict == "annotation-error"
+        _annotation_error(record) and record.review.answer_affected
     )
+
+
+def blind_gradable(record: Record) -> bool:
+    """Fit for milestone 6's blind-grading packet, which shows graders the annotators'
+    formulation next to the model's: so no known annotation error at all."""
+    return scorable(record) and not _annotation_error(record)
+
+
+def _annotation_error(record: Record) -> bool:
+    return record.review is not None and record.review.verdict == "annotation-error"
 
 
 def orlm_verdicts(records: list[Record], answers: dict[str, str]) -> dict[str, orlm.Verdict]:
@@ -161,6 +190,12 @@ def load_reviews(path: Path) -> dict[tuple[str, str], Review]:
     return {(row["split"], row["id"]): Review(**row) for row in rows}  # extra keys ignored
 
 
+def load_integrality(path: Path) -> dict[tuple[str, str], Integrality]:
+    """(split, problem id) -> hand label."""
+    rows = json.loads(path.read_text())["labels"]
+    return {(row["split"], row["id"]): Integrality(**row) for row in rows}  # extra keys ignored
+
+
 def load_records(path: Path) -> list[Record]:
     return [Record.model_validate(row) for row in json.loads(path.read_text())]
 
@@ -173,10 +208,13 @@ def write_records(records: list[Record], path: Path) -> None:
 
 def main() -> None:
     reviews = load_reviews(REVIEWS_PATH)
+    labels = load_integrality(INTEGRALITY_PATH)
     by_split = {}
     for split, source in SPLITS.items():
         problems = load_split(fetch(source))
-        records = [build_record(pid, annotation) for pid, annotation in problems.items()]
+        records = [
+            build_record(pid, ann, labels.get((split, pid))) for pid, ann in problems.items()
+        ]
         for r in records:
             r.review = reviews.get((split, r.id))
         by_split[split] = records
@@ -205,6 +243,7 @@ def render_report(by_split: dict[str, list[Record]], orlm_answers: dict[str, str
     lines += _summary_section(by_split)
     lines += _rejected_section(by_split)
     lines += _review_section(by_split, verdicts)
+    lines += _integrality_section(by_split, verdicts["test"])
     lines += _notes_section(by_split)
     lines += _does_nothing_section(by_split)
     lines += _orlm_section(by_split["test"], orlm_answers, verdicts["test"])
@@ -231,17 +270,24 @@ def _summary_section(by_split: dict[str, list[Record]]) -> list[str]:
             len(records),
             len(ok),
             sum(scorable(r) for r in records),
+            sum(blind_gradable(r) for r in records),
             sum(r.lp.status is Status.OPTIMAL for r in ok),
             sum(r.ip.status is Status.OPTIMAL for r in ok),
+            sum(answer(r).status is Status.OPTIMAL for r in ok if scorable(r)),
             sum(integrality_matters(r) for r in ok),
             sum(not s.highs_agrees for s in solves),
             sum(bool(s.check_problems) for s in solves),
         ])  # fmt: skip
     header = [
-        "split", "problems", "converted", "scorable", "LP optimal", "IP optimal",
-        "integrality changes the answer", "CBC/HiGHS disagreements", "failed arithmetic checks",
+        "split", "problems", "converted", "scorable", "blind-gradable", "LP optimal", "IP optimal",
+        "scorable with an optimal answer", "integrality changes the answer",
+        "CBC/HiGHS disagreements", "failed arithmetic checks",
     ]  # fmt: skip
-    note = "*Scorable* = converted and not found to be an annotation error by hand review."
+    note = (
+        "*Scorable* = converted, and no annotation error found by hand review changes the "
+        "answer. *Blind-gradable* = scorable with no known annotation error at all. A problem's "
+        "answer is its IP or LP optimum, picked by its integrality label."
+    )
     return ["## Summary", "", *_table(header, rows), note, ""]
 
 
@@ -256,29 +302,83 @@ def _review_section(by_split: dict[str, list[Record]], verdicts: dict[str, dict]
     kinds = list(Review.model_fields["verdict"].annotation.__args__)
     counts = [[k, *(sum(r.review.verdict == k for s, r in reviewed if s == sp) for sp in by_split)]
               for k in kinds]  # fmt: skip
-    rows = [[s, f"`{r.id}`", r.review.verdict, r.review.reason] for s, r in reviewed]
+    rows = [
+        [
+            s,
+            f"`{r.id}`",
+            r.review.verdict,
+            "yes" if r.review.confirmed_by_owner else "",
+            r.review.reason,
+        ]
+        for s, r in reviewed
+    ]
     missing = [
         f"`{r.id}` ({split})"
         for split, rs in by_split.items()
         for r in rs
         if needs_review(r, verdicts[split].get(r.id)) and not r.review
     ]
+    # These verdicts describe a flag ("no optimum", "do-nothing", "ORLM is wrong"), so they go
+    # stale if the flag goes away. Annotation errors can also be found just by reading.
+    flag_verdicts = {"text-has-no-optimum", "degenerate-text", "orlm-error"}
     stale = [
         f"`{r.id}` ({split})"
         for split, r in reviewed
-        if not needs_review(r, verdicts[split].get(r.id)) and r.review.verdict != "ok"
+        if r.review.verdict in flag_verdicts and not needs_review(r, verdicts[split].get(r.id))
     ]
     return [
         "## Hand review",
         "",
-        "Every problem with no optimum, a do-nothing optimum, or an ORLM disagreement is",
-        "checked by hand against the text (`data/nl4opt/reviews.json`).",
+        "Every problem with no optimum, a do-nothing optimum, an ORLM disagreement, an",
+        "unlisted variable, or an overridden order_mapping is checked by hand against the text",
+        "(`data/nl4opt/reviews.json`).",
         "",
         *_table(["verdict", *by_split], counts),
         f"Flagged but not reviewed: {', '.join(missing) or 'none'}.",
         f"Reviewed but no longer flagged: {', '.join(stale) or 'none'}.",
         "",
-        *_table(["split", "id", "verdict", "reason"], rows),
+        *_table(["split", "id", "verdict", "owner-confirmed", "reason"], rows),
+    ]
+
+
+def _integrality_section(by_split: dict[str, list[Record]], test_verdicts: dict) -> list[str]:
+    kinds = [(k, s) for k in ("integer", "continuous") for s in ("owner", "claude", "rule")]
+    counts = [
+        [kind, source, *(sum(r.integrality.kind == kind and r.integrality.source == source
+                             for r in rs) for rs in by_split.values())]
+        for kind, source in kinds
+    ]  # fmt: skip
+    unlabeled = [
+        f"`{r.id}` ({split})"
+        for split, rs in by_split.items()
+        for r in rs
+        if needs_hand_label(r) and r.integrality.source == "rule"
+    ]
+    orlm_kind = {"matches IP only": "integer", "matches LP only": "continuous"}
+    test = {r.id: r for r in by_split["test"]}
+    compared = {i: orlm_kind[v] for i, v in test_verdicts.items() if v in orlm_kind}
+    disagreements = [
+        [f"`{i}`", test[i].integrality.kind, kind, test[i].document[:80]]
+        for i, kind in compared.items()
+        if test[i].integrality.kind != kind
+    ]
+    agreeing = len(compared) - len(disagreements)
+    return [
+        "## Integrality labels",
+        "",
+        "Each problem's label picks its answer (IP for integer, LP for continuous). Where",
+        "integrality changes the answer, the label is a hand label",
+        "(`data/nl4opt/integrality.json`); elsewhere a rule (`integrality.py`) sets it.",
+        "",
+        *_table(["label", "source", *by_split], counts),
+        f"Integrality changes the answer but there's no hand label: "
+        f"{', '.join(unlabeled) or 'none'}.",
+        "",
+        f"Where ORLM's answer matches exactly one of our optima, its implied label agrees with "
+        f"ours in {agreeing} of {len(compared)} test problems. (ORLM's labels came from GPT-4, "
+        "so this is a sanity check, not a score.) Where they differ:",
+        "",
+        *_table(["id", "ours", "ORLM's", "problem"], disagreements),
     ]
 
 

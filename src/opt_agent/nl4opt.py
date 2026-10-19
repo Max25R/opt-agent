@@ -37,6 +37,7 @@ class Note(BaseModel):
         "share-above-1",  # a ratio annotated as "60" for 60%
         "empty-objvar",  # "minimize the total number" with no variables listed
         "duplicate-var",  # `vars` lists the same variable twice
+        "order-mapping-overridden",  # the mention names a different variable than order_mapping
     ]
     detail: str
 
@@ -205,34 +206,49 @@ def _variable_names(annotation: dict, notes: list[Note]) -> list[str]:
     if sorted(by_index) != list(range(len(by_index))):
         raise ConversionError(f"order_mapping indices {sorted(by_index)} aren't 0..n-1")
     names = [by_index[i] for i in range(len(by_index))]
-    singulars = [_singular(n) for n in names]
-    if len(set(singulars)) < len(names):
+    if len({tuple(_words(n)) for n in names}) < len(names):
         raise ConversionError(f"variables {names} include one thing annotated twice")
     return names
 
 
-def _resolve(mention: str, annotation: dict, names: list[str]) -> str:
-    """'truck' -> 'trucks': declarations use any mention; order_mapping indexes them all.
+def _resolve(mention: str, annotation: dict, names: list[str], notes: list[Note]) -> str:
+    """'truck' -> 'trucks': which variable a declaration's mention refers to.
 
-    order_mapping is itself hand-annotated and sometimes wrong (e.g. 'graduate researcher'
-    -> the technicians). A mention that literally is a variable's name, ignoring case and
-    a plural "s", must map to that variable, or the problem is rejected.
+    The variable name the mention contains decides ("economical mobile phone" ->
+    "economical"). order_mapping, which is hand-annotated and sometimes wrong, decides
+    only when the name doesn't (e.g. "Firemen" -> "firefighters").
     """
     index = annotation["order_mapping"].get(mention)
-    if index is None or index >= len(names):
+    by_index = names[index] if index is not None and index < len(names) else None
+    by_name = _named_variable(mention, names)
+    if by_name and by_index and by_name != by_index:
+        detail = f"order_mapping maps {mention!r} to {by_index!r}, but it names {by_name!r}"
+        note = Note(kind="order-mapping-overridden", detail=detail)
+        if note not in notes:
+            notes.append(note)
+    name = by_name or by_index
+    if name is None:
         raise ConversionError(f"unknown variable mention {mention!r}")
-    name = names[index]
-    literal = next((n for n in names if _singular(n) == _singular(mention)), None)
-    if literal is not None and literal != name:
-        raise ConversionError(
-            f"order_mapping maps {mention!r} to {name!r}, but it names {literal!r}"
-        )
     return name
 
 
-def _singular(text: str) -> str:
-    s = text.strip().lower()
-    return s.removesuffix("s")
+def _named_variable(mention: str, names: list[str]) -> str | None:
+    """The one variable whose name appears in the mention, or else the one variable whose
+    name contains the mention. None if that isn't a single variable."""
+    hits = [n for n in names if _contains(mention, n)]
+    if len(hits) != 1:
+        hits = [n for n in names if _contains(n, mention)]
+    return hits[0] if len(hits) == 1 else None
+
+
+def _contains(text: str, phrase: str) -> bool:
+    """Does `text` contain `phrase` as whole words, ignoring case and a plural "s"?"""
+    t, p = _words(text), _words(phrase)
+    return bool(p) and any(t[i : i + len(p)] == p for i in range(len(t) - len(p) + 1))
+
+
+def _words(text: str) -> list[str]:
+    return [w.removesuffix("s") for w in re.findall(r"[a-z0-9]+", text.lower())]
 
 
 def _objective(decl: dict, annotation: dict, names: list[str], notes: list[Note]) -> Objective:
@@ -248,7 +264,7 @@ def _objective(decl: dict, annotation: dict, names: list[str], notes: list[Note]
     else:
         raise ConversionError(f"unknown objective type {decl['type']!r}")
     sense = objective_sense(decl["direction"])
-    return Objective(sense=sense, terms=_terms(pairs, "objective", annotation, names))
+    return Objective(sense=sense, terms=_terms(pairs, "objective", annotation, names, notes))
 
 
 def _constraint(
@@ -286,7 +302,7 @@ def _constraint(
         pairs = [(n, -share) for n in names] + [(decl["var"], 1.0)]
     else:
         raise ConversionError(f"{label}: unknown constraint type {kind!r}")
-    terms = _terms(pairs, label, annotation, names, merging_is_expected=kind == "ratio")
+    terms = _terms(pairs, label, annotation, names, notes, merging_is_expected=kind == "ratio")
     if kind == "linear":
         _note_unlisted(terms, label, names, notes)
     return Constraint(name=label, terms=terms, sense=sense, rhs=rhs)
@@ -306,6 +322,7 @@ def _terms(
     label: str,
     annotation: dict,
     names: list[str],
+    notes: list[Note],
     merging_is_expected: bool = False,
 ) -> list[Term]:
     """Resolve mentions to variables.
@@ -318,7 +335,7 @@ def _terms(
         raise ConversionError(f"{label}: the annotation has no terms")
     coefs: dict[str, float] = {}
     for mention, coef in pairs:
-        name = _resolve(mention, annotation, names)
+        name = _resolve(mention, annotation, names, notes)
         if name in coefs and not merging_is_expected:
             raise ConversionError(f"{label}: two mentions resolve to {name!r}")
         coefs[name] = coefs.get(name, 0.0) + coef

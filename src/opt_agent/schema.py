@@ -9,7 +9,7 @@ JSON object to have fixed keys.
 from collections import Counter
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class StrictModel(BaseModel):
@@ -18,7 +18,7 @@ class StrictModel(BaseModel):
 
 
 class Term(StrictModel):
-    var: str
+    var: str = Field(description="The name of a declared variable")
     coef: float
 
 
@@ -33,22 +33,22 @@ def magnitude(terms: list[Term], values: dict[str, float]) -> float:
 
 
 class Variable(StrictModel):
-    name: str
-    lower: float | None = 0.0  # None means no lower bound
-    upper: float | None = None  # None means no upper bound
-    integer: bool = False
+    name: str = Field(description="What the variable counts or measures, e.g. 'trucks'")
+    lower: float | None = Field(0.0, description="Lower bound, or null for none")
+    upper: float | None = Field(None, description="Upper bound, or null for none")
+    integer: bool = Field(False, description="True if it counts whole things")
 
 
 class Objective(StrictModel):
     sense: Literal["min", "max"]
-    terms: list[Term]
+    terms: list[Term] = Field(description="The linear expression to optimize")
 
 
 class Constraint(StrictModel):
-    name: str
-    terms: list[Term]
+    name: str = Field(description="A short label, e.g. 'budget'")
+    terms: list[Term] = Field(description="The left-hand side")
     sense: Literal["<=", ">=", "=="]
-    rhs: float
+    rhs: float = Field(description="The right-hand side constant")
 
     def slack(self, values: dict[str, float]) -> float:
         """Distance from violation: >= 0 when satisfied, < 0 when violated.
