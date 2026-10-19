@@ -2,9 +2,13 @@
 
 Claude writes the explanation, but only from a fixed set of solver facts: the values, the
 objective, which constraints bind, the slack in the rest, and shadow prices. Afterwards
-every number in the text is checked against those facts and the inputs. A number that
-can't be traced back (a miscalculation, an invented saving) is flagged, not hidden. So is
-an explanation that was refused, cut off, empty, or never arrived (`problem`).
+every number in the text is checked against those facts and the inputs: one that isn't a
+correct rounding of any of them (an invented saving, a difference Claude computed) is
+flagged, not hidden. So is an explanation that was refused, cut off, empty, or never
+arrived (`problem`).
+
+This checks where each number comes from, not whether the sentence using it is true:
+"10 trips move 1,000 fish" passes whenever 10 and 1,000 are both facts or inputs.
 """
 
 import json

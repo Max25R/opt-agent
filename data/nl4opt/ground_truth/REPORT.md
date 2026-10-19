@@ -41,7 +41,7 @@ Used while building the agent, so not scored; the ground truth itself is fine (`
 
 Every problem with no optimum, a do-nothing optimum, an ORLM disagreement, an
 unlisted variable, or an overridden order_mapping is checked by hand against the text
-(`data/nl4opt/reviews.json`).
+(`data/nl4opt/reviews.json`). Claude wrote every review; the owner confirms them.
 
 | verdict | dev | test |
 |---|---|---|
@@ -51,6 +51,8 @@ unlisted variable, or an overridden order_mapping is checked by hand against the
 | ambiguous-text | 0 | 3 |
 | degenerate-text | 3 | 14 |
 | ok | 1 | 4 |
+
+Confirmed by the owner: dev 11 of 12, test 0 of 62. Unconfirmed test reviews are in `review/test_reviews/`.
 
 Flagged but not reviewed: none.
 Reviewed but no longer flagged: none.

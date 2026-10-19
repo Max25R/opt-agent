@@ -63,3 +63,8 @@ def test_the_request_pins_thinking_and_effort():
     assert sent["thinking"] == {"type": "adaptive", "display": "omitted"}
     assert sent["output_config"] == {"effort": "medium"}  # plain text: no output format
     assert explanation.request == sent
+
+
+def test_the_checker_traces_numbers_it_does_not_check_claims():
+    """A known limit, kept visible: both numbers are allowed, so a false sentence passes."""
+    assert unsupported_numbers("6 windows earn a profit of 2.", allowed=[2, 6, 36]) == []

@@ -409,14 +409,22 @@ def _review_section(by_split: dict[str, list[Record]], verdicts: dict[str, dict]
         for split, r in reviewed
         if r.review.verdict in flag_verdicts and not needs_review(r, verdicts[split].get(r.id))
     ]
+    confirmed = ", ".join(
+        f"{split} {sum(r.review.confirmed_by_owner for s, r in reviewed if s == split)} of "
+        f"{sum(s == split for s, _ in reviewed)}"
+        for split in by_split
+    )
     return [
         "## Hand review",
         "",
         "Every problem with no optimum, a do-nothing optimum, an ORLM disagreement, an",
         "unlisted variable, or an overridden order_mapping is checked by hand against the text",
-        "(`data/nl4opt/reviews.json`).",
+        "(`data/nl4opt/reviews.json`). Claude wrote every review; the owner confirms them.",
         "",
         *_table(["verdict", *by_split], counts),
+        f"Confirmed by the owner: {confirmed}. Unconfirmed test reviews are in "
+        "`review/test_reviews/`.",
+        "",
         f"Flagged but not reviewed: {', '.join(missing) or 'none'}.",
         f"Reviewed but no longer flagged: {', '.join(stale) or 'none'}.",
         "",
