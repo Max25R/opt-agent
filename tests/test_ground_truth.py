@@ -29,6 +29,7 @@ from opt_agent.ground_truth import (
 )
 from opt_agent.highs import solve_with_highs
 from opt_agent.solver import Solution
+from opt_agent.strict import strict_constraints, strict_model
 from opt_agent.verify import same_answer
 
 RECORDS = {split: load_records(GROUND_TRUTH_DIR / f"{split}.json") for split in SPLITS}
@@ -42,15 +43,19 @@ def committed(solve) -> Solution:
 
 @pytest.mark.parametrize("split", SPLITS)
 def test_highs_reproduces_every_committed_answer(split):
-    """An independent solver re-derives every LP and IP answer from the committed models.
-
-    This also catches drift: if the code changes but the data files aren't rebuilt.
+    """An independent solver re-derives every LP, IP and strict-reading answer from the
+    committed models. This also catches drift: if the code changes but the data files
+    aren't rebuilt.
     """
     for r in RECORDS[split]:
         if r.error is None:
             assert same_answer(r.model, committed(r.lp), solve_with_highs(r.model)), r.id
             integer = as_integer(r.model)
             assert same_answer(integer, committed(r.ip), solve_with_highs(integer)), r.id
+        if r.strict is not None:
+            tight, changed = strict_model(as_integer(r.model), strict_constraints(r.notes))
+            assert changed == r.strict.changed, r.id
+            assert same_answer(tight, committed(r.strict.ip), solve_with_highs(tight)), r.id
 
 
 @pytest.mark.parametrize("split", SPLITS)

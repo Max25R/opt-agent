@@ -6,7 +6,9 @@ say which is intended. Each solve is cross-checked against HiGHS and plain arith
 Problems the checks flag carry a hand review from data/nl4opt/reviews.json, and each
 problem's integrality label (integrality.py) picks which of the two answers is the truth.
 Test problems used while building the agent are excluded from scoring
-(data/nl4opt/exclusions.json).
+(data/nl4opt/exclusions.json). For integer problems with strict wording ("more than"),
+the answer with that wording read strictly is stored too, and either reading is accepted
+(strict.py, matching_reading).
 
 Run:  python -m opt_agent.data && python -m opt_agent.ground_truth
 Writes data/nl4opt/ground_truth/{dev,test}.json and REPORT.md. The report is generated
@@ -35,6 +37,7 @@ from opt_agent.integrality import Integrality, guess
 from opt_agent.nl4opt import ConversionError, Note, convert, load_split
 from opt_agent.schema import LPModel
 from opt_agent.solver import Status, solve
+from opt_agent.strict import strict_constraints, strict_model
 from opt_agent.verify import check_solution, same_answer
 
 GROUND_TRUTH_DIR = DATA_DIR / "nl4opt" / "ground_truth"
@@ -55,6 +58,13 @@ class CheckedSolve(BaseModel):
     values: dict[str, float] = {}
     highs_agrees: bool
     check_problems: list[str] = []  # from verify.check_solution; [] means it checks out
+
+
+class StrictReading(BaseModel):
+    """The answer with strict wording read strictly (x > y as x >= y + 1)."""
+
+    changed: list[str]  # e.g. "c2_xy: >= 0 became >= 1"
+    ip: CheckedSolve  # strictness only has meaning over integers
 
 
 class Review(BaseModel):
@@ -82,28 +92,32 @@ class Record(BaseModel):
     ip: CheckedSolve | None = None  # the same model with every variable integer
     review: Review | None = None
     excluded: str | None = None  # why it's left out of scoring although its answer is fine
+    strict: StrictReading | None = None  # integer problems with strict wording only
 
 
 def build_record(problem_id: str, annotation: dict, label: Integrality | None) -> Record:
     """`label` is the hand label, if any; otherwise the rule decides."""
     document = annotation["document"]
     mentions = set(annotation["order_mapping"]) | set(annotation["vars"])
-    base = {
-        "id": problem_id,
-        "document": document,
-        "integrality": label or guess(document, mentions),
-    }
+    integrality = label or guess(document, mentions)
+    base = {"id": problem_id, "document": document, "integrality": integrality}
     try:
         conversion = convert(annotation)
     except ConversionError as error:
         return Record(**base, error=str(error))
-    model = conversion.model
+    model, notes = conversion.model, conversion.notes
+    names = strict_constraints(notes)
+    strict = None
+    if names and integrality.kind == "integer":
+        tight, changed = strict_model(as_integer(model), names)
+        strict = StrictReading(changed=changed, ip=solve_checked(tight))
     return Record(
         **base,
-        notes=conversion.notes,
+        notes=notes,
         model=model,
         lp=solve_checked(model),
         ip=solve_checked(as_integer(model)),
+        strict=strict,
     )
 
 
@@ -130,9 +144,41 @@ def answer(record: Record) -> CheckedSolve | None:
     with CBC, or plain arithmetic finds a problem with CBC's solution.
     """
     solve = record.ip if record.integrality.kind == "integer" else record.lp
-    if solve is None or not solve.highs_agrees or solve.check_problems:
-        return None
-    return solve
+    return solve if solve is not None and _trusted(solve) else None
+
+
+def _trusted(solve: CheckedSolve) -> bool:
+    return solve.highs_agrees and not solve.check_problems
+
+
+Reading = Literal["annotated", "strict"]
+
+
+def readings(record: Record) -> dict[Reading, CheckedSolve]:
+    """Every answer a correct model may reach: the annotated reading, and for integer
+    problems with strict wording, the strict one. Untrusted solves are left out."""
+    found: dict[Reading, CheckedSolve] = {}
+    if (annotated := answer(record)) is not None:
+        found["annotated"] = annotated
+    if record.strict is not None and _trusted(record.strict.ip):
+        found["strict"] = record.strict.ip
+    return found
+
+
+def matching_reading(record: Record, status: Status, objective: float | None) -> Reading | None:
+    """Which reading an agent's answer matches, "annotated" first; None if neither. A score
+    records this, so the report can say how many correct answers needed the strict one."""
+    for reading, truth in readings(record).items():
+        if status is truth.status and (
+            status is not Status.OPTIMAL or same_value(objective, truth.objective)
+        ):
+            return reading
+    return None
+
+
+def same_value(a: float, b: float) -> bool:
+    """Equal objectives, up to solver round-off."""
+    return math.isclose(a, b, rel_tol=1e-6, abs_tol=1e-6)
 
 
 def needs_hand_label(record: Record) -> bool:
@@ -147,7 +193,7 @@ def integrality_matters(record: Record) -> bool:
         return True
     if lp.status is not Status.OPTIMAL:
         return False
-    return not math.isclose(lp.objective, ip.objective, rel_tol=1e-6, abs_tol=1e-6)
+    return not same_value(lp.objective, ip.objective)
 
 
 def lacks_optimum(record: Record) -> bool:
@@ -268,6 +314,7 @@ def render_report(by_split: dict[str, list[Record]], orlm_answers: dict[str, str
     lines += _review_section(by_split, verdicts)
     lines += _integrality_section(by_split, verdicts["test"])
     lines += _notes_section(by_split)
+    lines += _strict_section(by_split)
     lines += _does_nothing_section(by_split)
     lines += _orlm_section(by_split["test"], orlm_answers, verdicts["test"])
     return "\n".join(lines) + "\n"
@@ -426,6 +473,38 @@ def _notes_section(by_split: dict[str, list[Record]]) -> list[str]:
     ]
     intro = "Problems affected by each kind of judgment call (details are in the JSON `notes`)."
     return ["## Judgment calls", "", intro, "", *_table(["kind", *by_split], rows)]
+
+
+def _strict_section(by_split: dict[str, list[Record]]) -> list[str]:
+    def show(s: CheckedSolve) -> str:
+        return f"{s.objective:g}" if s.status is Status.OPTIMAL else s.status.value
+
+    with_strict = [(split, r) for split, rs in by_split.items() for r in rs if r.strict]
+    rows = [
+        [split, f"`{r.id}`", show(r.ip), show(r.strict.ip), "; ".join(r.strict.changed)]
+        for split, r in with_strict
+    ]
+    changes = {
+        split: sum(
+            show(r.ip) != show(r.strict.ip) for s, r in with_strict if s == split and scorable(r)
+        )
+        for split in by_split
+    }
+    totals = {split: sum(s == split and scorable(r) for s, r in with_strict) for split in by_split}
+    counts = ", ".join(f"{changes[s]} of {totals[s]} scorable {s} problems" for s in by_split)
+    intro = (
+        'Integer problems whose wording is strict ("more than", "must exceed") but which are '
+        "annotated, and so modeled, as >= or <=. Read strictly, each noted constraint moves by "
+        "the smallest step its left side can take over integers (`strict.py`). Either answer "
+        f"is accepted. The strict reading changes the answer in {counts}."
+    )
+    return [
+        "## Strict wording",
+        "",
+        intro,
+        "",
+        *_table(["split", "id", "annotated (IP)", "strict (IP)", "tightened"], rows),
+    ]
 
 
 def _does_nothing_section(by_split: dict[str, list[Record]]) -> list[str]:

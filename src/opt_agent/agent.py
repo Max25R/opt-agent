@@ -61,17 +61,17 @@ class Result(BaseModel):
         return self.outcome.final.solution  # None if no attempt produced a usable model
 
     @property
-    def verified(self) -> bool:
-        """Solved to optimality, confirmed by HiGHS, and every constraint checks out.
+    def confirmed(self) -> bool:
+        """CBC and HiGHS reach the same verdict and the arithmetic checks pass, whatever the
+        status: "infeasible" and "unbounded" (which needs a certified ray) count too. A
+        time-out or solver error never does. Like `verified`, this is about Claude's model,
+        not about whether the model matches the text."""
+        return self.solution is not None and bool(self.highs_agrees) and not self.check_problems
 
-        This verifies the *solution of Claude's model*, not that the model matches the text.
-        """
-        return (
-            self.solution is not None
-            and self.solution.status is Status.OPTIMAL
-            and bool(self.highs_agrees)
-            and not self.check_problems
-        )
+    @property
+    def verified(self) -> bool:
+        """Confirmed, and optimal: an answer with numbers that can be explained."""
+        return self.confirmed and self.solution.status is Status.OPTIMAL
 
 
 def run(
@@ -113,7 +113,8 @@ def _log_problem(session: Run, tags: Tags | None, result: Result) -> None:
     s = result.solution
     session.write("problem", tags, stopped=result.outcome.stopped,
               attempts=len(result.outcome.attempts), status=s.status.value if s else None,
-              objective=s.objective if s else None, verified=result.verified,
+              objective=s.objective if s else None, confirmed=result.confirmed,
+              verified=result.verified,
               wall_s=round(result.wall_s, 3), latency_s=round(result.latency_s, 3),
               retry_s=round(result.retry_s, 3),
               cached_calls=sum(c.cached for c in result.calls))  # fmt: skip

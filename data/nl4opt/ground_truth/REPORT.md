@@ -176,6 +176,52 @@ Problems affected by each kind of judgment call (details are in the JSON `notes`
 | strict-wording | 13 | 30 |
 | unlisted-variable | 3 | 11 |
 
+## Strict wording
+
+Integer problems whose wording is strict ("more than", "must exceed") but which are annotated, and so modeled, as >= or <=. Read strictly, each noted constraint moves by the smallest step its left side can take over integers (`strict.py`). Either answer is accepted. The strict reading changes the answer in 3 of 12 scorable dev problems, 9 of 25 scorable test problems.
+
+| split | id | annotated (IP) | strict (IP) | tightened |
+|---|---|---|---|---|
+| dev | `-188381292` | 100000 | 100000 | c3_linear: <= 200000 became <= 199500 |
+| dev | `584268166` | 193 | 193 | c2_xy: <= 0 became <= -1 |
+| dev | `690843809` | 212 | 212 | c1_xy: >= 0 became >= 1 |
+| dev | `343813684` | 228 | 227 | c1_xy: >= 0 became >= 1 |
+| dev | `542112273` | 53750 | 54000 | c0_xy: >= 0 became >= 1 |
+| dev | `1122311364` | 240 | 240 | c3_xy: >= 0 became >= 1 |
+| dev | `1206867214` | 71 | 71 | c1_xy: >= 0 became >= 1 |
+| dev | `172061722` | 200 | 200 | c0_xy: <= 0 became <= -1 |
+| dev | `-920265113` | 1970 | 1970 | c1_xy: >= 0 became >= 1 |
+| dev | `-1784457731` | 465 | 465 | c0_xy: >= 0 became >= 1 |
+| dev | `-537539268` | 0 | 10 | c2_xy: >= 0 became >= 1 |
+| dev | `-1910834629` | 320 | 320 | c1_xy: >= 0 became >= 1 |
+| dev | `137282577` | infeasible | infeasible | c2_xy: >= 0 became >= 1 |
+| test | `1117636837` | 3000 | 3000 | c1_xy: <= 0 became <= -1 |
+| test | `-1394927728` | 150000 | infeasible | c3_linear: <= 150000 became <= 149000 |
+| test | `1040407495` | 28250 | 28250 | c0_linear: <= 30000 became <= 29750 |
+| test | `1789644271` | 6 | infeasible | c0_xy: <= 0 became <= -1 |
+| test | `1151835649` | 0 | 26 | c0_xy: >= 0 became >= 1 |
+| test | `1165597365` | infeasible | infeasible | c0_xy: <= 0 became <= -1 |
+| test | `1333247991` | 7 | 7 | c2_xy: <= 0 became <= -1 |
+| test | `1268238141` | 0 | 14 | c2_xy: >= 0 became >= 1 |
+| test | `-950198491` | 2650 | 2650 | c2_xy: <= 0 became <= -1 |
+| test | `-443483964` | 226 | 226 | c0_xy: >= 0 became >= 1 |
+| test | `1862321313` | 1000 | 970 | c2_xy: >= 0 became >= 1 |
+| test | `615752596` | 80 | 76 | c3_xy: >= 0 became >= 1 |
+| test | `201060410` | 800 | 800 | c3_xy: >= 0 became >= 1 |
+| test | `935147725` | 24 | 24 | c2_xy: >= 0 became >= 1 |
+| test | `-1598952138` | 16 | 16 | c0_xy: <= 0 became <= -1 |
+| test | `1815576357` | 160 | 160 | c2_xy: >= 0 became >= 1 |
+| test | `-634192638` | infeasible | infeasible | c2_xy: <= 0 became <= -1 |
+| test | `1461222631` | 690 | 690 | c2_xy: >= 0 became >= 1 |
+| test | `915960254` | 84 | 84 | c0_upperbound: <= 15 became <= 14 |
+| test | `-440570570` | infeasible | infeasible | c1_linear: <= 200 became <= 199 |
+| test | `-169306566` | 56 | 56 | c1_xby: >= 0 became >= 1 |
+| test | `-550351289` | 136 | 143 | c1_xy: >= 0 became >= 1 |
+| test | `-1243268146` | 3200 | 3220 | c1_xy: >= 0 became >= 1 |
+| test | `249236183` | unbounded | unbounded | c2_xy: >= 0 became >= 1 |
+| test | `-685300642` | 0 | 10 | c0_xy: >= 0 became >= 1 |
+| test | `-735986381` | 14 | 14 | c0_xy: >= 0 became >= 1 |
+
 ## Do-nothing optima
 
 The optimum is to make nothing (objective 0), usually "minimize resource use" with no demand to meet. Correct as written, but a degenerate problem.

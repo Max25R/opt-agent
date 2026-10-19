@@ -222,3 +222,37 @@ def test_every_line_of_a_run_is_tagged(tmp_path):
     explanation = lines[2]
     assert explanation["request"]["system"].startswith("Explain the result")
     assert explanation["reply"] == GOOD_EXPLANATION and explanation["problem"] is None
+
+
+def test_an_agreed_infeasible_model_is_confirmed_but_not_verified():
+    result = run("...", FakeClient(INFEASIBLE_REPLY, INFEASIBLE_REPLY))
+    assert result.solution.status is Status.INFEASIBLE
+    assert result.confirmed and not result.verified
+
+
+def test_an_agreed_unbounded_model_is_confirmed():
+    unbounded = model([("at least 1", ">=", 1)], sense="max")
+    result = run("...", FakeClient(unbounded, unbounded))  # Claude stands by it
+    assert result.solution.status is Status.UNBOUNDED and result.confirmed
+
+
+def test_an_optimum_is_confirmed_and_verified():
+    result = run(GAS_PROBLEM, FakeClient(GAS_REPLY), with_explanation=False)
+    assert result.confirmed and result.verified
+
+
+def test_a_disagreement_is_not_confirmed(cbc_claims_a_false_optimum):
+    result = run("...", FakeClient(cbc_claims_a_false_optimum), with_explanation=False)
+    assert not result.confirmed
+
+
+def test_a_time_out_is_never_confirmed(monkeypatch):
+    timed_out = Solution(solver="cbc", status=Status.TIMEOUT)
+    monkeypatch.setattr(self_correct, "solve", lambda model: timed_out)
+    monkeypatch.setattr(self_correct, "solve_with_highs", lambda model: timed_out)
+    result = run("...", FakeClient(GAS_REPLY), with_explanation=False)
+    assert not result.confirmed  # two time-outs don't agree on anything
+
+
+def test_an_api_failure_is_not_confirmed():
+    assert not run("...", FakeClient(status_error(400))).confirmed
