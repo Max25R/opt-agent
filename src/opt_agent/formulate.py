@@ -3,20 +3,20 @@
 Claude answers through structured output: the API guarantees JSON with the shape of our
 schema, and our own validator (schema.py) then checks the meaning, e.g. that every term
 uses a declared variable. A reply that fails either step becomes a readable `error`, which the
-self-correction loop (self_correct.py) sends back to Claude in a `Revision`.
+self-correction loop (self_correct.py) sends back to Claude in a `Revision`. A failed API
+call is an error too (`api_failed`), but not one Claude can fix.
 """
-
-import time
 
 import anthropic
 from pydantic import BaseModel, ValidationError
 
+from opt_agent import api
+from opt_agent.api import CallInfo, TokenUsage
 from opt_agent.schema import LPModel
 
 # Small and cheap, for bulk evaluation runs (the owner's requirement). Swap in
 # "claude-opus-5-5" for the best quality.
 DEFAULT_MODEL = "claude-haiku-5-5"
-MAX_TOKENS = 16_000  # leaves room for thinking, which is on by default for current models
 
 # The schema exactly as the SDK's own parse() helper would send it.
 LP_SCHEMA = anthropic.transform_schema(LPModel)
@@ -55,22 +55,35 @@ def request_text(problem: str, revision: Revision | None = None) -> str:
     )
 
 
-class TokenUsage(BaseModel):
-    input_tokens: int
-    output_tokens: int
-    cache_read_input_tokens: int = 0
-    cache_creation_input_tokens: int = 0
+def build_request(problem: str, model_id: str, revision: Revision | None = None) -> dict:
+    """The whole request, exactly as sent, hashed, cached, and logged."""
+    return {
+        "model": model_id,
+        "max_tokens": api.MAX_TOKENS,
+        "system": SYSTEM_PROMPT,
+        "messages": [{"role": "user", "content": request_text(problem, revision)}],
+        "thinking": api.THINKING,
+        "output_config": {
+            "effort": api.EFFORT,
+            "format": {"type": "json_schema", "schema": LP_SCHEMA},
+        },
+    }
 
 
 class Formulation(BaseModel):
-    request: str  # the user message sent
+    request: dict  # the full request sent (build_request)
     model: LPModel | None  # None if the reply couldn't be used
-    error: str | None  # why not, in words Claude can act on
+    error: str | None  # why not, in words Claude can act on (or the API error)
     raw_text: str  # the reply exactly as received, for the logs
     stop_reason: str | None
     usage: TokenUsage
-    latency_s: float
+    call: CallInfo  # the cache key, tries, latency, and retry time
     model_id: str
+
+    @property
+    def api_failed(self) -> bool:
+        """The call itself failed, after every retry: nothing Claude could revise."""
+        return self.call.error is not None
 
 
 def formulate(
@@ -78,18 +91,16 @@ def formulate(
     client: anthropic.Anthropic,
     model_id: str = DEFAULT_MODEL,
     revision: Revision | None = None,
+    cache: api.Cache | None = None,
 ) -> Formulation:
-    request = request_text(problem, revision)
-    start = time.perf_counter()
-    response = client.messages.create(
-        model=model_id,
-        max_tokens=MAX_TOKENS,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": request}],
-        output_config={"format": {"type": "json_schema", "schema": LP_SCHEMA}},
-    )
-    latency = time.perf_counter() - start
-    text = "".join(block.text for block in response.content if block.type == "text")
+    request = build_request(problem, model_id, revision)
+    response, info = api.call(client, request, cache)
+    if response is None:
+        error = f"the API call failed: {info.error}"
+        return Formulation(request=request, model=None, error=error, raw_text="",
+                           stop_reason=None, usage=api.usage_of(None), call=info,
+                           model_id=model_id)  # fmt: skip
+    text = api.reply_text(response)
     model, error = parse_reply(text, response.stop_reason)
     return Formulation(
         request=request,
@@ -97,18 +108,16 @@ def formulate(
         error=error,
         raw_text=text,
         stop_reason=response.stop_reason,
-        usage=usage_of(response),
-        latency_s=latency,
+        usage=api.usage_of(response),
+        call=info,
         model_id=model_id,
     )
 
 
 def parse_reply(text: str, stop_reason: str | None) -> tuple[LPModel | None, str | None]:
     """(model, None) for a usable reply, else (None, the reason)."""
-    if stop_reason == "refusal":
-        return None, "Claude declined to answer"
-    if stop_reason == "max_tokens":
-        return None, f"the reply was cut off at {MAX_TOKENS} tokens"
+    if stop_reason in api.UNFINISHED:
+        return None, api.UNFINISHED[stop_reason]
     try:
         return LPModel.model_validate_json(text), None
     except ValidationError as error:
@@ -123,13 +132,3 @@ def describe(error: ValidationError) -> str:
         message = e["msg"].removeprefix("Value error, ")
         lines.append(f"{where}: {message}" if where else message)
     return "\n".join(lines)
-
-
-def usage_of(response) -> TokenUsage:
-    u = response.usage
-    return TokenUsage(
-        input_tokens=u.input_tokens,
-        output_tokens=u.output_tokens,
-        cache_read_input_tokens=u.cache_read_input_tokens or 0,
-        cache_creation_input_tokens=u.cache_creation_input_tokens or 0,
-    )

@@ -32,11 +32,18 @@ python -m opt_agent.ground_truth  # rebuild data/nl4opt/ground_truth/ (committed
 Solve a word problem (needs `ANTHROPIC_API_KEY`):
 
 ```bash
-python -m opt_agent.agent "A fishery wants to transport their catch. ..."
+python -m opt_agent.agent "A gas company can transport gas using a pipeline or by train. ..."
 ```
 
-`--attempts 1` turns off self-correction; every attempt is appended to
-`logs/attempts.jsonl` (`--log` to change it).
+(NL4Opt dev problem 439170086. Demos and tests use dev problems only; the two test
+problems used while building the agent are excluded from scoring, see
+`data/nl4opt/exclusions.json`.)
+
+`--attempts 1` turns off self-correction. Each run appends to `logs/attempts.jsonl`
+(`--log` to change it): a header with the git commit and package versions, then one line
+per API call with the full request, its SHA-256, and the reply. Responses are cached by
+that hash in `cache/responses/` (`--cache`, or `--no-cache` to always call the API), so
+re-running a request replays it instead of paying again.
 
 ## Running tests
 

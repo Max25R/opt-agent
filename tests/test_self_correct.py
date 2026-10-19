@@ -1,9 +1,11 @@
 import json
 
 import pytest
-from fakes import FISHERY_REPLY, INFEASIBLE_REPLY, FakeClient, model
+from fakes import GAS_REPLY, INFEASIBLE_REPLY, FakeClient, model, status_error
 
 from opt_agent import self_correct
+from opt_agent.formulate import LP_SCHEMA
+from opt_agent.runs import Run, Tags
 from opt_agent.self_correct import SYSTEM_PROMPT_SHA256, solve_with_revisions
 from opt_agent.solver import Solution, Status
 
@@ -14,8 +16,12 @@ def requests_sent(client: FakeClient) -> list[str]:
     return [r["messages"][0]["content"] for r in client.requests]
 
 
+def logged(path) -> list[dict]:
+    return [json.loads(line) for line in path.read_text().splitlines()]
+
+
 def test_an_optimal_first_attempt_needs_no_revision():
-    client = FakeClient(FISHERY_REPLY)
+    client = FakeClient(GAS_REPLY)
     outcome = solve_with_revisions("the problem", client)
     assert outcome.stopped == "optimal"
     assert len(outcome.attempts) == 1
@@ -23,7 +29,7 @@ def test_an_optimal_first_attempt_needs_no_revision():
 
 
 def test_an_unusable_reply_is_sent_back_with_the_error():
-    client = FakeClient(BAD_REPLY, FISHERY_REPLY)
+    client = FakeClient(BAD_REPLY, GAS_REPLY)
     outcome = solve_with_revisions("the problem", client)
     assert outcome.stopped == "optimal"
     assert len(outcome.attempts) == 2
@@ -100,11 +106,15 @@ def test_the_answer_is_the_last_usable_model():
 def test_every_attempt_is_logged(tmp_path):
     log = tmp_path / "logs" / "attempts.jsonl"
     client = FakeClient(INFEASIBLE_REPLY, model([("at least 5", ">=", 5)]))
-    outcome = solve_with_revisions("the problem", client, log_path=log)
-    first, second = [json.loads(line) for line in log.read_text().splitlines()]
+    outcome = solve_with_revisions("the problem", client, session=Run(log_path=log))
+    first, second = logged(log)
+    assert first["kind"] == second["kind"] == "attempt"
     assert first["run_id"] == second["run_id"] == outcome.run_id
     assert (first["attempt"], first["status"], first["stopped"]) == (1, "infeasible", None)
-    assert first["request"] == "the problem" and first["reply"] == INFEASIBLE_REPLY
+    assert first["request"] == client.requests[0]  # the full request, schema included
+    assert first["request"]["output_config"]["format"]["schema"] == LP_SCHEMA
+    assert first["request_sha256"] == outcome.attempts[0].formulation.call.request_sha256
+    assert first["reply"] == INFEASIBLE_REPLY
     assert first["feedback"].startswith("The solver found the model infeasible")
     assert first["system_prompt_sha256"] == SYSTEM_PROMPT_SHA256
     assert first["usage"]["input_tokens"] == 1200
@@ -129,10 +139,10 @@ def test_a_cbc_mislabel_stops_the_loop_without_feedback(monkeypatch):
 
 def test_both_verdicts_are_logged(tmp_path):
     log = tmp_path / "attempts.jsonl"
-    solve_with_revisions("the problem", FakeClient(FISHERY_REPLY), log_path=log)
-    [line] = [json.loads(x) for x in log.read_text().splitlines()]
+    solve_with_revisions("the problem", FakeClient(GAS_REPLY), session=Run(log_path=log))
+    [line] = logged(log)
     assert (line["status"], line["highs_status"]) == ("optimal", "optimal")
-    assert line["objective"] == line["highs_objective"] == 3000
+    assert line["objective"] == line["highs_objective"] == 251
 
 
 def test_max_attempts_must_be_positive():
@@ -144,8 +154,33 @@ def test_a_time_out_stops_the_loop_without_feedback(monkeypatch):
     """A time-out says nothing about the model, so there's nothing to tell Claude."""
     timed_out = Solution(solver="cbc", status=Status.TIMEOUT, note="CBC hit its time limit")
     monkeypatch.setattr(self_correct, "solve", lambda model: timed_out)
-    client = FakeClient(FISHERY_REPLY)
+    client = FakeClient(GAS_REPLY)
     outcome = solve_with_revisions("the problem", client)
     assert outcome.stopped == "solver error"
     assert outcome.final.feedback is None
     assert len(client.requests) == 1
+
+
+def test_an_api_error_stops_the_loop_and_is_logged(tmp_path):
+    """A failed call is no reply to revise. It's logged like any attempt, so the problem
+    stays in the evaluation's denominator as a failure."""
+    log = tmp_path / "attempts.jsonl"
+    tags = Tags(problem_id="p7", split="dev", condition="self-correction")
+    outcome = solve_with_revisions(
+        "the problem", FakeClient(status_error(400)), session=Run(log_path=log), tags=tags
+    )
+    assert outcome.stopped == "api error"
+    assert outcome.final.feedback is None
+    [line] = logged(log)
+    assert (line["problem_id"], line["split"], line["condition"]) == (
+        "p7",
+        "dev",
+        "self-correction",
+    )
+    assert line["stopped"] == "api error" and line["call"]["tries"] == 1
+    assert line["call"]["error"] == "APIStatusError (400): HTTP 400"
+
+
+def test_solve_time_is_recorded():
+    outcome = solve_with_revisions("the problem", FakeClient(GAS_REPLY))
+    assert outcome.final.solve_s > 0

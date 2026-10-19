@@ -53,3 +53,13 @@ def test_explain_sends_the_facts_and_checks_every_number():
     assert explanation.text == reply
     assert explanation.unsupported_numbers == ["7"]
     assert '"binding"' in client.requests[0]["messages"][0]["content"]
+
+
+def test_the_request_pins_thinking_and_effort():
+    facts = solver_facts(WYNDOR, solve(WYNDOR))
+    client = FakeClient("Make 2 doors and 6 windows.")
+    explanation = explain("Wyndor Glass makes doors and windows.", WYNDOR, facts, client)
+    [sent] = client.requests
+    assert sent["thinking"] == {"type": "adaptive", "display": "omitted"}
+    assert sent["output_config"] == {"effort": "medium"}  # plain text: no output format
+    assert explanation.request == sent

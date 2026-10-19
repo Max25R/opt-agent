@@ -5,21 +5,19 @@ unbounded. Every model is solved by both CBC and HiGHS, and feedback is only sen
 agree. Each revision gets specific feedback (feedback.py). The loop stops at:
 
 - an optimal model;
-- a solver time-out or error, or CBC and HiGHS disagreeing: not Claude's fault, so no
-  revision is asked for;
+- a solver time-out or error, CBC and HiGHS disagreeing, or a failed API call: not
+  Claude's fault, so no revision is asked for. (A failed call still counts: the problem
+  is a failure in the evaluation, never dropped from it.)
 - the attempt limit;
 - the same model again: Claude stands by it, which is the right answer for a problem
   that's infeasible as written;
 - a refusal.
 
-Every attempt is appended to a JSONL log, one line each, with the full request and reply.
+Every attempt is one line in the run's JSONL log (runs.py), with the full request and reply.
 """
 
 import hashlib
-import json
-import uuid
-from datetime import UTC, datetime
-from pathlib import Path
+import time
 from typing import Literal
 
 import anthropic
@@ -29,6 +27,7 @@ from opt_agent.changes import Changes, compare
 from opt_agent.feedback import for_invalid_reply, for_status
 from opt_agent.formulate import DEFAULT_MODEL, SYSTEM_PROMPT, Formulation, Revision, formulate
 from opt_agent.highs import solve_with_highs
+from opt_agent.runs import Run, Tags
 from opt_agent.schema import LPModel
 from opt_agent.solver import Solution, Status, solve
 from opt_agent.verify import same_answer
@@ -38,7 +37,13 @@ MAX_ATTEMPTS = 3
 SYSTEM_PROMPT_SHA256 = hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest()[:12]
 
 StopReason = Literal[
-    "optimal", "attempt limit", "model unchanged", "refused", "solver error", "solvers disagree"
+    "optimal",
+    "attempt limit",
+    "model unchanged",
+    "refused",
+    "solver error",
+    "solvers disagree",
+    "api error",
 ]
 
 
@@ -49,6 +54,7 @@ class Attempt(BaseModel):
     highs_solution: Solution | None = None  # the independent second opinion
     changes: Changes | None = None  # compared with the previous attempt's model
     feedback: str | None = None  # sent for the next attempt; None if the loop stopped here
+    solve_s: float = 0.0  # both solvers, including their checks
 
 
 class Outcome(BaseModel):
@@ -73,16 +79,17 @@ def solve_with_revisions(
     client: anthropic.Anthropic,
     model_id: str = DEFAULT_MODEL,
     max_attempts: int = MAX_ATTEMPTS,
-    log_path: Path | None = None,
+    session: Run | None = None,
+    tags: Tags | None = None,
 ) -> Outcome:
     """max_attempts=1 is the single-shot baseline: no revisions."""
     if max_attempts < 1:
         raise ValueError("max_attempts must be at least 1")
-    run_id = uuid.uuid4().hex
+    session = session or Run()
     attempts: list[Attempt] = []
     revision, last_model = None, None
     for number in range(1, max_attempts + 1):
-        formulation = formulate(problem, client, model_id, revision)
+        formulation = formulate(problem, client, model_id, revision, session.cache)
         attempt, stopped = _judge(number, formulation, last_model)
         if stopped is None and number == max_attempts:
             stopped = "attempt limit"
@@ -91,9 +98,9 @@ def solve_with_revisions(
             attempt = attempt.model_copy(update={"feedback": feedback})
             revision = Revision(previous_reply=formulation.raw_text, feedback=feedback)
         attempts.append(attempt)
-        _log(log_path, run_id, attempt, stopped)
+        _log(session, tags, attempt, stopped)
         if stopped is not None:
-            return Outcome(run_id=run_id, attempts=attempts, stopped=stopped)
+            return Outcome(run_id=session.run_id, attempts=attempts, stopped=stopped)
         last_model = formulation.model or last_model
     raise AssertionError("unreachable: the last attempt always stops the loop")
 
@@ -103,16 +110,20 @@ def _judge(
 ) -> tuple[Attempt, StopReason | None]:
     """Solve the attempt's model with both solvers; say why to stop, or None to revise."""
     attempt = Attempt(number=number, formulation=formulation)
+    if formulation.api_failed:
+        return attempt, "api error"
     if formulation.stop_reason == "refusal":
         return attempt, "refused"
     model = formulation.model
     if model is None:
         return attempt, None  # the reply couldn't be used: revise
     changes = compare(last_model, model) if last_model is not None else None
+    start = time.perf_counter()
     cbc, highs = solve(model), solve_with_highs(model)
     attempt = attempt.model_copy(
-        update={"solution": cbc, "highs_solution": highs, "changes": changes}
-    )
+        update={"solution": cbc, "highs_solution": highs, "changes": changes,
+                "solve_s": time.perf_counter() - start}
+    )  # fmt: skip
     if cbc.failed or highs.failed:
         return attempt, "solver error"  # a time-out or an error: no verdict to act on
     if not same_answer(model, cbc, highs):
@@ -131,31 +142,28 @@ def _feedback(attempt: Attempt) -> str:
     return for_status(f.model, attempt.solution.status)
 
 
-def _log(path: Path | None, run_id: str, attempt: Attempt, stopped: StopReason | None) -> None:
-    if path is None:
-        return
+def _log(session: Run, tags: Tags | None, attempt: Attempt, stopped: StopReason | None) -> None:
     f, s, h = attempt.formulation, attempt.solution, attempt.highs_solution
-    record = {
-        "run_id": run_id,
-        "attempt": attempt.number,
-        "time": datetime.now(UTC).isoformat(timespec="seconds"),
-        "model_id": f.model_id,
-        "system_prompt_sha256": SYSTEM_PROMPT_SHA256,
-        "request": f.request,
-        "reply": f.raw_text,
-        "stop_reason": f.stop_reason,
-        "usage": f.usage.model_dump(),
-        "latency_s": round(f.latency_s, 3),
-        "error": f.error,
-        "status": s.status.value if s else None,
-        "objective": s.objective if s else None,
-        "highs_status": h.status.value if h else None,
-        "highs_objective": h.objective if h else None,
-        "changes": attempt.changes.changes if attempt.changes else None,
-        "flags": attempt.changes.flags if attempt.changes else None,
-        "feedback": attempt.feedback,
-        "stopped": stopped,
-    }
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as log:
-        log.write(json.dumps(record) + "\n")
+    session.write(
+        "attempt",
+        tags,
+        attempt=attempt.number,
+        model_id=f.model_id,
+        system_prompt_sha256=SYSTEM_PROMPT_SHA256,
+        request_sha256=f.call.request_sha256,
+        request=f.request,
+        reply=f.raw_text,
+        stop_reason=f.stop_reason,
+        usage=f.usage.model_dump(),
+        call=f.call.model_dump(),
+        error=f.error,
+        status=s.status.value if s else None,
+        objective=s.objective if s else None,
+        highs_status=h.status.value if h else None,
+        highs_objective=h.objective if h else None,
+        solve_s=round(attempt.solve_s, 3),
+        changes=attempt.changes.changes if attempt.changes else None,
+        flags=attempt.changes.flags if attempt.changes else None,
+        feedback=attempt.feedback,
+        stopped=stopped,
+    )

@@ -7,29 +7,26 @@ from opt_agent.highs import solve_with_highs
 from opt_agent.schema import LPModel
 from opt_agent.solver import Status
 
-# NL4Opt test problem -725478241, infeasible as written. The smallest conflict is just two
-# constraints: 35 social media ads alone cost $320,250, over the $250,000 budget. The radio
-# limits play no part.
-ADS = LPModel.model_validate(
+# NL4Opt dev problem -1028228232, infeasible as written. The smallest conflict is just two
+# constraints: 300 strong containers alone need 1200 emulsifiers, and only 1000 are
+# available. The 60% rule plays no part.
+LOTION = LPModel.model_validate(
     {
-        "variables": [{"name": "radio ads"}, {"name": "social media ads"}],
-        "objective": {
-            "sense": "max", "terms": terms({"radio ads": 60500, "social media ads": 50000})
-        },
+        "variables": [{"name": "strong"}, {"name": "weak"}],
+        "objective": {"sense": "min", "terms": terms({"strong": 3, "weak": 2})},
         "constraints": [
-            {"name": "budget", "terms": terms({"radio ads": 5000, "social media ads": 9150}),
-             "sense": "<=", "rhs": 250000},
-            {"name": "radio minimum", "terms": terms({"radio ads": 1}), "sense": ">=", "rhs": 15},
-            {"name": "radio maximum", "terms": terms({"radio ads": 1}), "sense": "<=", "rhs": 40},
-            {"name": "social minimum", "terms": terms({"social media ads": 1}), "sense": ">=",
-             "rhs": 35},
+            {"name": "emulsifiers", "terms": terms({"strong": 4, "weak": 7}), "sense": "<=",
+             "rhs": 1000},
+            {"name": "strong minimum", "terms": terms({"strong": 1}), "sense": ">=", "rhs": 300},
+            {"name": "weak share", "terms": terms({"strong": -0.6, "weak": 0.4}), "sense": ">=",
+             "rhs": 0},
         ],
     }
 )  # fmt: skip
 
 
-def test_the_conflict_in_the_ads_problem():
-    assert conflicting_constraints(ADS) == ["budget", "social minimum"]
+def test_the_conflict_in_the_lotion_problem():
+    assert conflicting_constraints(LOTION) == ["emulsifiers", "strong minimum"]
 
 
 def test_a_two_constraint_conflict():
@@ -38,14 +35,14 @@ def test_a_two_constraint_conflict():
 
 def test_the_conflict_is_irreducible():
     """On its own the conflict is infeasible, and dropping any one of its constraints fixes it."""
-    conflict = [c for c in ADS.constraints if c.name in conflicting_constraints(ADS)]
+    conflict = [c for c in LOTION.constraints if c.name in conflicting_constraints(LOTION)]
     assert status_with(conflict) is Status.INFEASIBLE
     for dropped in conflict:
         assert status_with([c for c in conflict if c is not dropped]) is not Status.INFEASIBLE
 
 
 def status_with(constraints):
-    return solve_with_highs(ADS.model_copy(update={"constraints": constraints})).status
+    return solve_with_highs(LOTION.model_copy(update={"constraints": constraints})).status
 
 
 def test_bounds_alone_can_conflict():
@@ -62,8 +59,8 @@ def test_bounds_alone_can_conflict():
 
 
 def test_infeasible_feedback_warns_against_dropping_requirements():
-    feedback = for_status(ADS, Status.INFEASIBLE)
-    assert "can't all hold at once: 'budget', 'social minimum'." in feedback
+    feedback = for_status(LOTION, Status.INFEASIBLE)
+    assert "can't all hold at once: 'emulsifiers', 'strong minimum'." in feedback
     assert "some problems are infeasible as written" in feedback
 
 
@@ -88,8 +85,8 @@ def test_no_conflict_is_named_for_a_feasible_model():
 def test_a_solver_error_is_not_read_as_infeasible(monkeypatch):
     verdicts = iter([False, None])  # the full set is infeasible, then HiGHS can't decide
     monkeypatch.setattr(feedback, "feasible", lambda model: next(verdicts))
-    assert conflicting_constraints(ADS) is None
+    assert conflicting_constraints(LOTION) is None
     monkeypatch.setattr(
         feedback, "feasible", lambda model: False if len(model.constraints) == 4 else None
     )
-    assert "couldn't pin down which constraints conflict" in for_status(ADS, Status.INFEASIBLE)
+    assert "couldn't pin down which constraints conflict" in for_status(LOTION, Status.INFEASIBLE)

@@ -5,6 +5,8 @@ continuous (LP) and once with every variable integer (IP), because the annotatio
 say which is intended. Each solve is cross-checked against HiGHS and plain arithmetic.
 Problems the checks flag carry a hand review from data/nl4opt/reviews.json, and each
 problem's integrality label (integrality.py) picks which of the two answers is the truth.
+Test problems used while building the agent are excluded from scoring
+(data/nl4opt/exclusions.json).
 
 Run:  python -m opt_agent.data && python -m opt_agent.ground_truth
 Writes data/nl4opt/ground_truth/{dev,test}.json and REPORT.md. The report is generated
@@ -38,6 +40,7 @@ from opt_agent.verify import check_solution, same_answer
 GROUND_TRUTH_DIR = DATA_DIR / "nl4opt" / "ground_truth"
 REVIEWS_PATH = DATA_DIR / "nl4opt" / "reviews.json"
 INTEGRALITY_PATH = DATA_DIR / "nl4opt" / "integrality.json"
+EXCLUSIONS_PATH = DATA_DIR / "nl4opt" / "exclusions.json"
 SPLITS = {"dev": NL4OPT_DEV, "test": NL4OPT_TEST}
 # ORLM verdicts that mean "someone is wrong here", so the problem needs a hand review.
 DISAGREEMENTS = {"matches neither", "only we find an optimum", "only ORLM finds an optimum"}
@@ -78,6 +81,7 @@ class Record(BaseModel):
     lp: CheckedSolve | None = None
     ip: CheckedSolve | None = None  # the same model with every variable integer
     review: Review | None = None
+    excluded: str | None = None  # why it's left out of scoring although its answer is fine
 
 
 def build_record(problem_id: str, annotation: dict, label: Integrality | None) -> Record:
@@ -165,9 +169,12 @@ def needs_review(record: Record, orlm_verdict: str | None) -> bool:
 
 
 def scorable(record: Record) -> bool:
-    """Usable as ground truth: a trusted answer, and no known annotation error changes it."""
-    return answer(record) is not None and not (
-        _annotation_error(record) and record.review.answer_affected
+    """Usable as ground truth: a trusted answer that no known annotation error changes, on a
+    problem that wasn't used while building the agent."""
+    return (
+        answer(record) is not None
+        and record.excluded is None
+        and not (_annotation_error(record) and record.review.answer_affected)
     )
 
 
@@ -203,6 +210,12 @@ def load_integrality(path: Path) -> dict[tuple[str, str], Integrality]:
     return {(row["split"], row["id"]): Integrality(**row) for row in rows}  # extra keys ignored
 
 
+def load_exclusions(path: Path) -> dict[tuple[str, str], str]:
+    """(split, problem id) -> why it's excluded from scoring."""
+    rows = json.loads(path.read_text())["exclusions"]
+    return {(row["split"], row["id"]): row["reason"] for row in rows}
+
+
 def load_records(path: Path) -> list[Record]:
     return [Record.model_validate(row) for row in json.loads(path.read_text())]
 
@@ -216,6 +229,7 @@ def write_records(records: list[Record], path: Path) -> None:
 def main() -> None:
     reviews = load_reviews(REVIEWS_PATH)
     labels = load_integrality(INTEGRALITY_PATH)
+    exclusions = load_exclusions(EXCLUSIONS_PATH)
     by_split = {}
     for split, source in SPLITS.items():
         problems = load_split(fetch(source))
@@ -224,6 +238,7 @@ def main() -> None:
         ]
         for r in records:
             r.review = reviews.get((split, r.id))
+            r.excluded = exclusions.get((split, r.id))
         by_split[split] = records
         write_records(records, GROUND_TRUTH_DIR / f"{split}.json")
     answers = orlm.load_answers(fetch(ORLM_ANSWERS))
@@ -249,6 +264,7 @@ def render_report(by_split: dict[str, list[Record]], orlm_answers: dict[str, str
     ]
     lines += _summary_section(by_split)
     lines += _rejected_section(by_split)
+    lines += _excluded_section(by_split)
     lines += _review_section(by_split, verdicts)
     lines += _integrality_section(by_split, verdicts["test"])
     lines += _notes_section(by_split)
@@ -291,9 +307,11 @@ def _summary_section(by_split: dict[str, list[Record]]) -> list[str]:
         "CBC/HiGHS disagreements", "failed arithmetic checks",
     ]  # fmt: skip
     note = (
-        "*Scorable* = converted, and no annotation error found by hand review changes the "
-        "answer. *Blind-gradable* = scorable with no known annotation error at all. A problem's "
-        "answer is its IP or LP optimum, picked by its integrality label."
+        "*Scorable* = converted; its answer is confirmed by HiGHS and passes the arithmetic "
+        "checks; no annotation error found by hand review changes it; and the problem wasn't "
+        "used while building the agent. *Blind-gradable* = scorable with no known annotation "
+        "error at all. A problem's answer is its IP or LP optimum, picked by its integrality "
+        "label."
     )
     return ["## Summary", "", *_table(header, rows), note, ""]
 
@@ -302,6 +320,17 @@ def _rejected_section(by_split: dict[str, list[Record]]) -> list[str]:
     rows = [[split, f"`{r.id}`", r.error] for split, rs in by_split.items() for r in rs if r.error]
     intro = "Annotation errors caught automatically; these problems can't be converted."
     return ["## Rejected annotations", "", intro, "", *_table(["split", "id", "reason"], rows)]
+
+
+def _excluded_section(by_split: dict[str, list[Record]]) -> list[str]:
+    rows = [
+        [split, f"`{r.id}`", r.excluded] for split, rs in by_split.items() for r in rs if r.excluded
+    ]
+    intro = (
+        "Used while building the agent, so not scored; the ground truth itself is fine "
+        "(`data/nl4opt/exclusions.json`)."
+    )
+    return ["## Excluded from scoring", "", intro, "", *_table(["split", "id", "reason"], rows)]
 
 
 def _review_section(by_split: dict[str, list[Record]], verdicts: dict[str, dict]) -> list[str]:

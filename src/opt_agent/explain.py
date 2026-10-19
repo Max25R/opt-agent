@@ -3,17 +3,19 @@
 Claude writes the explanation, but only from a fixed set of solver facts: the values, the
 objective, which constraints bind, the slack in the rest, and shadow prices. Afterwards
 every number in the text is checked against those facts and the inputs. A number that
-can't be traced back (a miscalculation, an invented saving) is flagged, not hidden.
+can't be traced back (a miscalculation, an invented saving) is flagged, not hidden. So is
+an explanation that was refused, cut off, empty, or never arrived (`problem`).
 """
 
 import json
 import re
-import time
 
 import anthropic
 from pydantic import BaseModel
 
-from opt_agent.formulate import DEFAULT_MODEL, MAX_TOKENS, TokenUsage, usage_of
+from opt_agent import api
+from opt_agent.api import CallInfo, TokenUsage
+from opt_agent.formulate import DEFAULT_MODEL
 from opt_agent.schema import LPModel
 from opt_agent.solver import Solution, Status
 from opt_agent.verify import tolerance_for
@@ -40,10 +42,13 @@ class Facts(BaseModel):
 
 
 class Explanation(BaseModel):
-    text: str
+    text: str  # as received, even if incomplete
     unsupported_numbers: list[str]  # numbers in the text that no fact or input backs up
+    problem: str | None = None  # why it's missing or incomplete; None if it's whole
+    request: dict  # the full request sent (build_request)
+    stop_reason: str | None
     usage: TokenUsage
-    latency_s: float
+    call: CallInfo
 
 
 def solver_facts(model: LPModel, solution: Solution) -> Facts:
@@ -68,33 +73,52 @@ def _clean(x: float) -> float:
     return round(x, 6) + 0.0
 
 
+def build_request(problem: str, model: LPModel, facts: Facts, model_id: str) -> dict:
+    """The whole request, exactly as sent, hashed, cached, and logged."""
+    payload = json.dumps(
+        {"model": model.model_dump(mode="json"), "facts": facts.model_dump(mode="json")}, indent=1
+    )
+    return {
+        "model": model_id,
+        "max_tokens": api.MAX_TOKENS,
+        "system": SYSTEM_PROMPT,
+        "messages": [
+            {"role": "user", "content": f"Problem:\n{problem}\n\nModel and facts:\n{payload}"}
+        ],
+        "thinking": api.THINKING,
+        "output_config": {"effort": api.EFFORT},
+    }
+
+
 def explain(
     problem: str,
     model: LPModel,
     facts: Facts,
     client: anthropic.Anthropic,
     model_id: str = DEFAULT_MODEL,
+    cache: api.Cache | None = None,
 ) -> Explanation:
-    payload = json.dumps(
-        {"model": model.model_dump(mode="json"), "facts": facts.model_dump(mode="json")}, indent=1
-    )
-    start = time.perf_counter()
-    response = client.messages.create(
-        model=model_id,
-        max_tokens=MAX_TOKENS,
-        system=SYSTEM_PROMPT,
-        messages=[
-            {"role": "user", "content": f"Problem:\n{problem}\n\nModel and facts:\n{payload}"}
-        ],
-    )
-    latency = time.perf_counter() - start
-    text = "".join(block.text for block in response.content if block.type == "text").strip()
+    request = build_request(problem, model, facts, model_id)
+    response, info = api.call(client, request, cache)
+    text = api.reply_text(response).strip() if response else ""
+    stop_reason = response.stop_reason if response else None
     return Explanation(
         text=text,
         unsupported_numbers=unsupported_numbers(text, allowed_numbers(problem, model, facts)),
-        usage=usage_of(response),
-        latency_s=latency,
+        problem=_what_went_wrong(text, stop_reason, info),
+        request=request,
+        stop_reason=stop_reason,
+        usage=api.usage_of(response),
+        call=info,
     )
+
+
+def _what_went_wrong(text: str, stop_reason: str | None, info: CallInfo) -> str | None:
+    if info.error is not None:
+        return f"the API call failed: {info.error}"
+    if stop_reason in api.UNFINISHED:
+        return api.UNFINISHED[stop_reason]
+    return None if text else "the reply had no text"
 
 
 # ---- checking the numbers --------------------------------------------------------------

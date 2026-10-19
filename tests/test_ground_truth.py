@@ -8,6 +8,7 @@ from pytest import approx
 from opt_agent import orlm
 from opt_agent.data import ORLM_ANSWERS
 from opt_agent.ground_truth import (
+    EXCLUSIONS_PATH,
     GROUND_TRUTH_DIR,
     INTEGRALITY_PATH,
     REVIEWS_PATH,
@@ -18,6 +19,7 @@ from opt_agent.ground_truth import (
     blind_gradable,
     does_nothing,
     lacks_optimum,
+    load_exclusions,
     load_integrality,
     load_records,
     load_reviews,
@@ -147,3 +149,15 @@ def test_ground_truth_files_are_plain_json():
     for split in SPLITS:
         rows = json.loads((GROUND_TRUTH_DIR / f"{split}.json").read_text())
         assert len(rows) == len(RECORDS[split])
+
+
+def test_problems_used_while_building_the_agent_are_not_scored():
+    exclusions = load_exclusions(EXCLUSIONS_PATH)
+    assert set(exclusions) == {("test", "1117636837"), ("test", "-725478241")}
+    by_key = {(split, r.id): r for split, rs in RECORDS.items() for r in rs}
+    for key, reason in exclusions.items():
+        r = by_key[key]
+        assert r.excluded == reason and reason
+        assert answer(r) is not None or key == ("test", "-725478241")  # ads: no optimum
+        assert not scorable(r) and not blind_gradable(r)
+    assert all(r.excluded is None for (split, _), r in by_key.items() if split == "dev")
