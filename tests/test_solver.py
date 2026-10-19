@@ -94,9 +94,12 @@ def test_regression_cbc_false_optimum_with_free_variables():
 
 
 def test_cbc_times_out_instead_of_guessing(monkeypatch):
-    """A known CBC limit: the honest answer here is "don't know", not a wrong label."""
+    """A known CBC limit: the honest answer here is "don't know", not a wrong label. CBC
+    first calls this infeasible model unbounded; the feasibility check then times out."""
     monkeypatch.setattr(solver, "CBC_TIME_LIMIT_SECONDS", 1)
-    assert solve(HARD_INTEGER_INFEASIBLE).status is Status.ERROR
+    s = solve(HARD_INTEGER_INFEASIBLE)
+    assert s.status is Status.TIMEOUT  # its own status, not a generic error
+    assert s.note == "CBC hit its 1 s time limit while deciding feasibility"
     assert solve_with_highs(HARD_INTEGER_INFEASIBLE).status is Status.INFEASIBLE
 
 

@@ -1,32 +1,16 @@
 """Build a PuLP model from an LPModel and solve it with CBC."""
 
-from enum import StrEnum
+import math
 
 import pulp
-from pydantic import BaseModel
 
-from opt_agent.rays import refutation, refuting_ray
-from opt_agent.schema import Constraint, LPModel, Term
+from opt_agent.rays import certified_ray, describe
+from opt_agent.schema import Constraint, LPModel, Term, Variable
+from opt_agent.solution import Solution, Status
+
+__all__ = ["Solution", "Status", "build_problem", "solve"]  # Solution/Status re-exported
 
 CBC_TIME_LIMIT_SECONDS = 30
-
-
-class Status(StrEnum):
-    OPTIMAL = "optimal"
-    INFEASIBLE = "infeasible"
-    UNBOUNDED = "unbounded"
-    ERROR = "error"  # the solver stopped without a definite answer
-
-
-class Solution(BaseModel):
-    solver: str
-    status: Status
-    objective: float | None = None
-    values: dict[str, float] = {}
-    slacks: dict[str, float] = {}
-    # Shadow prices: d(objective)/d(rhs) for each constraint. Pure LPs only; a MIP has none.
-    duals: dict[str, float] | None = None
-    note: str | None = None  # e.g. why the solver's own claim was overruled
 
 
 _STATUS_FROM_PULP = {
@@ -37,14 +21,20 @@ _STATUS_FROM_PULP = {
     pulp.LpSolveStatus.GapLimit: Status.OPTIMAL,
     pulp.LpSolveStatus.Infeasible: Status.INFEASIBLE,
     pulp.LpSolveStatus.Unbounded: Status.UNBOUNDED,
+    pulp.LpSolveStatus.TimeLimit: Status.TIMEOUT,
 }
 
 
 def solve(model: LPModel) -> Solution:
-    """CBC's answer. A claimed optimum stands only if no improving ray refutes it (rays.py)."""
+    """CBC's answer. A claimed optimum stands only if no certified improving ray refutes it."""
     claimed = _solve_once(model)
-    if claimed.status is Status.OPTIMAL and (ray := refuting_ray(model, _solve_once)):
-        return Solution(solver="cbc", status=Status.UNBOUNDED, note=refutation("CBC", ray))
+    if claimed.status is Status.OPTIMAL:
+        ray = certified_ray(model, claimed.values, _solve_once)
+        if ray is not None:
+            note = (
+                f"CBC claimed an optimum, but the objective improves forever along {describe(ray)}"
+            )
+            return Solution(solver="cbc", status=Status.UNBOUNDED, note=note)
     return claimed
 
 
@@ -53,10 +43,13 @@ def _solve_once(model: LPModel) -> Solution:
     stats = _run_cbc(problem)
     status = _STATUS_FROM_PULP.get(stats.status, Status.ERROR)
     if status in (Status.INFEASIBLE, Status.UNBOUNDED):
-        status = _infeasible_or_unbounded(model)
+        return _infeasible_or_unbounded(model)
+    if status is Status.TIMEOUT:
+        # Even with a solution in hand: it isn't proven optimal, so it isn't an answer.
+        return _timed_out("solving")
     if status is not Status.OPTIMAL or not stats.has_solution:
         # Never read values after a failed solve: PuLP still holds CBC's last (junk) iterate.
-        return Solution(solver="cbc", status=status)
+        return Solution(solver="cbc", status=Status.ERROR)
 
     values = {name: var.varValue for name, var in pulp_vars.items()}
     return Solution(
@@ -80,23 +73,59 @@ def _run_cbc(problem: pulp.LpProblem):
     return problem.solve(solver)
 
 
-def _infeasible_or_unbounded(model: LPModel) -> Status:
-    """Decide between infeasible and unbounded with a feasibility solve.
+def _infeasible_or_unbounded(model: LPModel) -> Solution:
+    """Decide between infeasible and unbounded, accepting only a decision that's checked.
 
     CBC's own labels are unreliable: the CBC-vs-HiGHS property test found it calling
     unbounded problems infeasible, and calling integer-infeasible problems unbounded
     when their LP relaxation is unbounded. A zero objective can't be unbounded, so it
-    asks only "is there any feasible point?". A feasible problem that has no optimum
-    is unbounded (true for LPs, and for MIPs with rational data).
+    asks only "is there any feasible point?". None: infeasible. One: unbounded, but only
+    with an improving ray certified from that point; without one, CBC's label is
+    unexplained and the answer is ERROR.
     """
-    problem, _ = build_problem(model)
+    status, point = _feasibility(model)
+    if status is Status.INFEASIBLE:
+        return Solution(solver="cbc", status=Status.INFEASIBLE)
+    if status is Status.TIMEOUT:
+        return _timed_out("deciding feasibility")
+    if status is not Status.OPTIMAL:
+        return Solution(solver="cbc", status=Status.ERROR, note="CBC couldn't decide feasibility")
+    ray = certified_ray(model, point, _solve_once)
+    if ray is None:
+        note = "CBC found no optimum for a feasible model, and no certified ray shows it unbounded"
+        return Solution(solver="cbc", status=Status.ERROR, note=note)
+    note = f"feasible, and the objective improves forever along {describe(ray)}"
+    return Solution(solver="cbc", status=Status.UNBOUNDED, note=note)
+
+
+def _timed_out(doing: str) -> Solution:
+    note = f"CBC hit its {CBC_TIME_LIMIT_SECONDS} s time limit while {doing}"
+    return Solution(solver="cbc", status=Status.TIMEOUT, note=note)
+
+
+def _feasibility(model: LPModel) -> tuple[Status, dict[str, float] | None]:
+    """CBC's answer to "is there any feasible point?", with the point if there is one."""
+    problem, pulp_vars = build_problem(model)
     problem.setObjective(pulp.lpSum([]))
-    feasibility = _STATUS_FROM_PULP.get(_run_cbc(problem).status, Status.ERROR)
-    if feasibility is Status.OPTIMAL:
-        return Status.UNBOUNDED
-    if feasibility is Status.INFEASIBLE:
-        return Status.INFEASIBLE
-    return Status.ERROR
+    stats = _run_cbc(problem)
+    status = _STATUS_FROM_PULP.get(stats.status, Status.ERROR)
+    if status is Status.OPTIMAL and stats.has_solution:
+        return status, {
+            v.name: _value_or_any_in_bounds(pulp_vars[v.name].varValue, v) for v in model.variables
+        }
+    return (Status.ERROR if status is Status.OPTIMAL else status), None
+
+
+def _value_or_any_in_bounds(value: float | None, v: Variable) -> float:
+    """CBC never sees a variable that appears only in the (here zeroed) objective, so it has
+    no value. It touches no constraint, so any value within its bounds is feasible."""
+    if value is not None:
+        return value
+    if v.lower is not None and v.lower > 0:
+        return float(math.ceil(v.lower)) if v.integer else v.lower
+    if v.upper is not None and v.upper < 0:
+        return float(math.floor(v.upper)) if v.integer else v.upper
+    return 0.0
 
 
 def build_problem(model: LPModel) -> tuple[pulp.LpProblem, dict[str, pulp.LpVariable]]:

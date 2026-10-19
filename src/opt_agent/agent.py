@@ -15,7 +15,6 @@ from pydantic import BaseModel
 from opt_agent.config import MissingAPIKeyError, get_api_key
 from opt_agent.explain import Explanation, explain, solver_facts
 from opt_agent.formulate import DEFAULT_MODEL, Formulation
-from opt_agent.highs import solve_with_highs
 from opt_agent.schema import LPModel, Term
 from opt_agent.self_correct import MAX_ATTEMPTS, Outcome, solve_with_revisions
 from opt_agent.solver import Solution, Status
@@ -67,7 +66,7 @@ def run(
     model, solution = result.formulation.model, result.solution
     if solution is None:
         return result
-    result.highs_solution = solve_with_highs(model)
+    result.highs_solution = outcome.final.highs_solution  # the loop solved with both
     result.highs_agrees = same_answer(model, solution, result.highs_solution)
     result.check_problems = check_solution(model, solution)
     if with_explanation and result.verified:  # never explain an answer that failed a check
@@ -88,6 +87,9 @@ def render(result: Result) -> str:
         return "\n".join(lines + ["", "No usable model:", f.error])
     lines += ["", *format_model(f.model), ""]
     s = result.solution
+    failed = [x for x in (s, result.highs_solution) if x.failed]
+    if failed:  # checked first: a time-out is no verdict, so it can't "disagree"
+        return "\n".join(lines + [f"NO ANSWER: {_failure(x)}." for x in failed])
     if result.highs_agrees is False:
         cbc, highs = _describe(s), _describe(result.highs_solution)
         return "\n".join(lines + [
@@ -107,6 +109,14 @@ def render(result: Result) -> str:
             flagged = ", ".join(result.explanation.unsupported_numbers)
             lines.append(f"(not backed by the solver's numbers: {flagged})")
     return "\n".join(lines)
+
+
+SOLVER_NAMES = {"cbc": "CBC", "highs": "HiGHS"}
+
+
+def _failure(solution: Solution) -> str:
+    name = SOLVER_NAMES[solution.solver]
+    return solution.note or f"{name} stopped without an answer ({solution.status})"
 
 
 def _describe(solution: Solution) -> str:

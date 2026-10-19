@@ -75,6 +75,24 @@ def test_answer_follows_the_integrality_label():
                 assert answer(r) is (r.ip if r.integrality.kind == "integer" else r.lp), r.id
 
 
+@pytest.mark.parametrize(
+    "distrust", [{"highs_agrees": False}, {"check_problems": ["constraint 'c0' is violated"]}]
+)
+def test_an_answer_that_fails_a_check_is_no_answer(distrust):
+    """Every committed answer passes both checks today; one that didn't must not be scored."""
+    [ducks] = [r for r in RECORDS["test"] if r.id == "349208478"]  # labeled integer
+    assert scorable(ducks)
+    broken = ducks.model_copy(update={"ip": ducks.ip.model_copy(update=distrust)})
+    assert answer(broken) is None
+    assert not scorable(broken) and not blind_gradable(broken)
+    assert answer(broken.model_copy(update={"lp": broken.ip})) is None  # the LP is unused
+
+
+def test_an_unconverted_problem_has_no_answer():
+    [unconverted] = [r for r in RECORDS["dev"] if r.error is not None][:1]
+    assert answer(unconverted) is None and not scorable(unconverted)
+
+
 def test_every_problem_where_integrality_matters_has_a_hand_label():
     for split, records in RECORDS.items():
         for r in records:

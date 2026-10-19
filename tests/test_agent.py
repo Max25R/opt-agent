@@ -101,9 +101,9 @@ def test_a_false_optimum_is_caught_by_the_cross_check_not_by_arithmetic(
     cbc_claims_a_false_optimum,
 ):
     result = run("...", FakeClient(cbc_claims_a_false_optimum), with_explanation=False)
-    assert result.outcome.stopped == "optimal"  # the loop trusts the solver: no revision
+    assert result.outcome.stopped == "solvers disagree"  # the loop cross-checks: no revision
     assert result.solution.status is Status.OPTIMAL  # CBC's claim is what gets reported
-    assert result.check_problems == []  # arithmetic checks feasibility, not optimality
+    assert result.check_problems == []  # no duals here, so arithmetic checks only feasibility
     assert result.highs_agrees is False  # HiGHS says unbounded
     assert not result.verified  # so the answer is not verified
 
@@ -127,3 +127,14 @@ def test_an_overruled_claim_is_shown():
     result = run("...", FakeClient(CBC_FREE_VARIABLE_BUG.model_dump_json()), max_attempts=1)
     assert result.solution.status is Status.UNBOUNDED and result.highs_agrees
     assert "CBC claimed an optimum, but the objective improves forever" in render(result)
+
+
+def test_a_time_out_is_shown_as_one_not_as_a_disagreement(monkeypatch):
+    timed_out = Solution(
+        solver="cbc", status=Status.TIMEOUT, note="CBC hit its 30 s time limit while solving"
+    )
+    monkeypatch.setattr(self_correct, "solve", lambda model: timed_out)
+    text = render(run("...", FakeClient(FISHERY_REPLY), with_explanation=False))
+    assert "Stopped: solver error" in text
+    assert "NO ANSWER: CBC hit its 30 s time limit while solving." in text
+    assert "DISAGREE" not in text and "Objective:" not in text

@@ -119,9 +119,16 @@ def solve_checked(model: LPModel) -> CheckedSolve:
     )
 
 
-def answer(record: Record) -> CheckedSolve:
-    """The ground-truth answer: the integer solve for whole things, else the LP."""
-    return record.ip if record.integrality.kind == "integer" else record.lp
+def answer(record: Record) -> CheckedSolve | None:
+    """The ground-truth answer: the integer solve for whole things, else the LP.
+
+    None if there's no answer to trust: the annotation wasn't converted, HiGHS disagrees
+    with CBC, or plain arithmetic finds a problem with CBC's solution.
+    """
+    solve = record.ip if record.integrality.kind == "integer" else record.lp
+    if solve is None or not solve.highs_agrees or solve.check_problems:
+        return None
+    return solve
 
 
 def needs_hand_label(record: Record) -> bool:
@@ -158,8 +165,8 @@ def needs_review(record: Record, orlm_verdict: str | None) -> bool:
 
 
 def scorable(record: Record) -> bool:
-    """Usable as ground truth: converted, and no known annotation error changes the answer."""
-    return record.error is None and not (
+    """Usable as ground truth: a trusted answer, and no known annotation error changes it."""
+    return answer(record) is not None and not (
         _annotation_error(record) and record.review.answer_affected
     )
 

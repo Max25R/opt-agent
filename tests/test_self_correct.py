@@ -1,9 +1,11 @@
 import json
 
+import pytest
 from fakes import FISHERY_REPLY, INFEASIBLE_REPLY, FakeClient, model
 
+from opt_agent import self_correct
 from opt_agent.self_correct import SYSTEM_PROMPT_SHA256, solve_with_revisions
-from opt_agent.solver import Status
+from opt_agent.solver import Solution, Status
 
 BAD_REPLY = '{"variables": []}'  # not a model: objective and constraints are missing
 
@@ -108,3 +110,42 @@ def test_every_attempt_is_logged(tmp_path):
     assert first["usage"]["input_tokens"] == 1200
     assert (second["status"], second["objective"], second["stopped"]) == ("optimal", 5.0, "optimal")
     assert second["flags"] == ["deleted constraint 'at most 3'"]
+
+
+def test_a_cbc_mislabel_stops_the_loop_without_feedback(monkeypatch):
+    """CBC wrongly calls a feasible model infeasible. Feedback built on that one verdict would
+    claim a conflict that doesn't exist and invite Claude to delete a constraint."""
+    monkeypatch.setattr(
+        self_correct, "solve", lambda model: Solution(solver="cbc", status=Status.INFEASIBLE)
+    )
+    feasible = model([("at least 1", ">=", 1), ("at most 3", "<=", 3)])
+    client = FakeClient(feasible)
+    outcome = solve_with_revisions("the problem", client)
+    assert outcome.stopped == "solvers disagree"
+    assert outcome.final.highs_solution.status is Status.OPTIMAL
+    assert outcome.final.feedback is None
+    assert len(client.requests) == 1
+
+
+def test_both_verdicts_are_logged(tmp_path):
+    log = tmp_path / "attempts.jsonl"
+    solve_with_revisions("the problem", FakeClient(FISHERY_REPLY), log_path=log)
+    [line] = [json.loads(x) for x in log.read_text().splitlines()]
+    assert (line["status"], line["highs_status"]) == ("optimal", "optimal")
+    assert line["objective"] == line["highs_objective"] == 3000
+
+
+def test_max_attempts_must_be_positive():
+    with pytest.raises(ValueError, match="at least 1"):
+        solve_with_revisions("the problem", FakeClient(), max_attempts=0)
+
+
+def test_a_time_out_stops_the_loop_without_feedback(monkeypatch):
+    """A time-out says nothing about the model, so there's nothing to tell Claude."""
+    timed_out = Solution(solver="cbc", status=Status.TIMEOUT, note="CBC hit its time limit")
+    monkeypatch.setattr(self_correct, "solve", lambda model: timed_out)
+    client = FakeClient(FISHERY_REPLY)
+    outcome = solve_with_revisions("the problem", client)
+    assert outcome.stopped == "solver error"
+    assert outcome.final.feedback is None
+    assert len(client.requests) == 1

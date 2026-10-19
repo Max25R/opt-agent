@@ -1,6 +1,7 @@
 import pytest
 from problems import INFEASIBLE, WYNDOR, terms
 
+from opt_agent import feedback
 from opt_agent.feedback import conflicting_constraints, for_invalid_reply, for_status
 from opt_agent.highs import solve_with_highs
 from opt_agent.schema import LPModel
@@ -77,3 +78,18 @@ def test_invalid_reply_feedback_quotes_the_error():
 def test_there_is_no_feedback_for_an_optimal_model():
     with pytest.raises(ValueError):
         for_status(WYNDOR, Status.OPTIMAL)
+
+
+def test_no_conflict_is_named_for_a_feasible_model():
+    """If the full set isn't confirmed infeasible, naming "the conflict" would be a guess."""
+    assert conflicting_constraints(WYNDOR) is None
+
+
+def test_a_solver_error_is_not_read_as_infeasible(monkeypatch):
+    verdicts = iter([False, None])  # the full set is infeasible, then HiGHS can't decide
+    monkeypatch.setattr(feedback, "feasible", lambda model: next(verdicts))
+    assert conflicting_constraints(ADS) is None
+    monkeypatch.setattr(
+        feedback, "feasible", lambda model: False if len(model.constraints) == 4 else None
+    )
+    assert "couldn't pin down which constraints conflict" in for_status(ADS, Status.INFEASIBLE)
