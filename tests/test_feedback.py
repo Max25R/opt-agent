@@ -1,0 +1,79 @@
+import pytest
+from problems import INFEASIBLE, WYNDOR, terms
+
+from opt_agent.feedback import conflicting_constraints, for_invalid_reply, for_status
+from opt_agent.highs import solve_with_highs
+from opt_agent.schema import LPModel
+from opt_agent.solver import Status
+
+# NL4Opt test problem -725478241, infeasible as written. The smallest conflict is just two
+# constraints: 35 social media ads alone cost $320,250, over the $250,000 budget. The radio
+# limits play no part.
+ADS = LPModel.model_validate(
+    {
+        "variables": [{"name": "radio ads"}, {"name": "social media ads"}],
+        "objective": {
+            "sense": "max", "terms": terms({"radio ads": 60500, "social media ads": 50000})
+        },
+        "constraints": [
+            {"name": "budget", "terms": terms({"radio ads": 5000, "social media ads": 9150}),
+             "sense": "<=", "rhs": 250000},
+            {"name": "radio minimum", "terms": terms({"radio ads": 1}), "sense": ">=", "rhs": 15},
+            {"name": "radio maximum", "terms": terms({"radio ads": 1}), "sense": "<=", "rhs": 40},
+            {"name": "social minimum", "terms": terms({"social media ads": 1}), "sense": ">=",
+             "rhs": 35},
+        ],
+    }
+)  # fmt: skip
+
+
+def test_the_conflict_in_the_ads_problem():
+    assert conflicting_constraints(ADS) == ["budget", "social minimum"]
+
+
+def test_a_two_constraint_conflict():
+    assert conflicting_constraints(INFEASIBLE) == ["at_least_5", "at_most_3"]
+
+
+def test_the_conflict_is_irreducible():
+    """On its own the conflict is infeasible, and dropping any one of its constraints fixes it."""
+    conflict = [c for c in ADS.constraints if c.name in conflicting_constraints(ADS)]
+    assert status_with(conflict) is Status.INFEASIBLE
+    for dropped in conflict:
+        assert status_with([c for c in conflict if c is not dropped]) is not Status.INFEASIBLE
+
+
+def status_with(constraints):
+    return solve_with_highs(ADS.model_copy(update={"constraints": constraints})).status
+
+
+def test_bounds_alone_can_conflict():
+    """No integer lies between 0.2 and 0.8, with or without constraints."""
+    model = LPModel.model_validate(
+        {
+            "variables": [{"name": "x", "lower": 0.2, "upper": 0.8, "integer": True}],
+            "objective": {"sense": "min", "terms": terms({"x": 1})},
+            "constraints": [],
+        }
+    )
+    assert conflicting_constraints(model) == []
+    assert "bounds and integrality can't all hold" in for_status(model, Status.INFEASIBLE)
+
+
+def test_infeasible_feedback_warns_against_dropping_requirements():
+    feedback = for_status(ADS, Status.INFEASIBLE)
+    assert "can't all hold at once: 'budget', 'social minimum'." in feedback
+    assert "some problems are infeasible as written" in feedback
+
+
+def test_unbounded_feedback_names_the_direction():
+    assert "can increase forever" in for_status(WYNDOR, Status.UNBOUNDED)
+
+
+def test_invalid_reply_feedback_quotes_the_error():
+    assert for_invalid_reply("objective: Field required").endswith("objective: Field required")
+
+
+def test_there_is_no_feedback_for_an_optimal_model():
+    with pytest.raises(ValueError):
+        for_status(WYNDOR, Status.OPTIMAL)

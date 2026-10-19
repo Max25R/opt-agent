@@ -2,8 +2,8 @@
 
 Claude answers through structured output: the API guarantees JSON with the shape of our
 schema, and our own validator (schema.py) then checks the meaning, e.g. that every term
-uses a declared variable. A reply that fails either step becomes a readable `error`, which
-milestone 5 will send back to Claude for a revision.
+uses a declared variable. A reply that fails either step becomes a readable `error`, which the
+self-correction loop (self_correct.py) sends back to Claude in a `Revision`.
 """
 
 import time
@@ -34,6 +34,27 @@ servings). Keep it continuous for divisible quantities (kilograms, acres, hours,
 - Every variable must appear with a nonzero coefficient somewhere."""
 
 
+class Revision(BaseModel):
+    """What a revision request carries: Claude's previous reply and what went wrong."""
+
+    previous_reply: str
+    feedback: str
+
+
+def request_text(problem: str, revision: Revision | None = None) -> str:
+    """The user message. A revision is self-contained (problem, previous reply, feedback),
+    so every attempt can be logged, cached, and replayed on its own."""
+    if revision is None:
+        return problem
+    return (
+        f"<problem>\n{problem}\n</problem>\n\n"
+        f"<previous_model>\n{revision.previous_reply}\n</previous_model>\n\n"
+        f"<feedback>\n{revision.feedback}\n</feedback>\n\n"
+        "Return a corrected model. If you're sure the previous model already says what the "
+        "problem says, return it unchanged."
+    )
+
+
 class TokenUsage(BaseModel):
     input_tokens: int
     output_tokens: int
@@ -42,6 +63,7 @@ class TokenUsage(BaseModel):
 
 
 class Formulation(BaseModel):
+    request: str  # the user message sent
     model: LPModel | None  # None if the reply couldn't be used
     error: str | None  # why not, in words Claude can act on
     raw_text: str  # the reply exactly as received, for the logs
@@ -52,20 +74,25 @@ class Formulation(BaseModel):
 
 
 def formulate(
-    problem: str, client: anthropic.Anthropic, model_id: str = DEFAULT_MODEL
+    problem: str,
+    client: anthropic.Anthropic,
+    model_id: str = DEFAULT_MODEL,
+    revision: Revision | None = None,
 ) -> Formulation:
+    request = request_text(problem, revision)
     start = time.perf_counter()
     response = client.messages.create(
         model=model_id,
         max_tokens=MAX_TOKENS,
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": problem}],
+        messages=[{"role": "user", "content": request}],
         output_config={"format": {"type": "json_schema", "schema": LP_SCHEMA}},
     )
     latency = time.perf_counter() - start
     text = "".join(block.text for block in response.content if block.type == "text")
     model, error = parse_reply(text, response.stop_reason)
     return Formulation(
+        request=request,
         model=model,
         error=error,
         raw_text=text,

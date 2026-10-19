@@ -17,6 +17,8 @@ class FakeClient:
 
     def create(self, **request):
         self.requests.append(request)
+        if not self.replies:
+            raise AssertionError("the code made more API calls than this test expected")
         reply = self.replies.pop(0)
         text, stop_reason = reply if isinstance(reply, tuple) else (reply, "end_turn")
         return SimpleNamespace(
@@ -70,3 +72,20 @@ GOOD_EXPLANATION = (
 )
 # "$200" is computed, not a solver fact: the checker must flag it.
 BAD_EXPLANATION = "Send 10 truck trips to move 3,000 fish, saving $200 over sled dogs."
+
+
+def model(constraints, sense="min", objective=None, integer=False):
+    """A one-variable model as a reply: x >= 0, minimize (or maximize) x."""
+    return json.dumps(
+        {
+            "variables": [{"name": "x", "integer": integer}],
+            "objective": {"sense": sense, "terms": objective or [{"var": "x", "coef": 1}]},
+            "constraints": [
+                {"name": name, "terms": [{"var": "x", "coef": 1}], "sense": op, "rhs": rhs}
+                for name, op, rhs in constraints
+            ],
+        }
+    )
+
+
+INFEASIBLE_REPLY = model([("at least 5", ">=", 5), ("at most 3", "<=", 3)])

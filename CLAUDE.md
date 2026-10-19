@@ -42,9 +42,15 @@ point is a trustworthy evaluation, not a demo.
    `LPModel`, so a bad reply becomes a readable `error` for milestone 5. `explain.py`
    builds facts from the solver and flags any number in the explanation that isn't a
    correct rounding of a fact or input. `agent.py` runs the pipeline and has a CLI.
-5. [ ] Self-correction loop (max 3 attempts) on validation errors or infeasible/unbounded
-   results. Raw JSONL log of every attempt. Flag "fixes" that delete or loosen
-   constraints.
+5. [x] Self-correction loop (2026-10-19; built and tested with `FakeClient` only, since
+   there's no API key yet). `self_correct.solve_with_revisions`: up to 3 attempts. Each
+   revision is a self-contained request (problem + previous reply + feedback), so every
+   attempt can be logged, cached, and replayed alone. Stops on optimal, the attempt limit,
+   an unchanged model (Claude stands by it), a refusal, or a solver error. `max_attempts=1`
+   is the single-shot baseline. Infeasibility feedback names an IIS (deletion filter,
+   `feedback.conflicting_constraints`). `changes.compare` flags deleted or loosened
+   constraints, loosened bounds, relaxed integrality, and a flipped objective. Logs go to
+   `logs/attempts.jsonl` (git-ignored), one line per attempt, with the prompt's hash.
 6. [ ] Evaluation. Iterate on prompts with the dev split only, then run test once with
    everything frozen. Conditions: no-solver baseline, single-shot, self-correction, plus
    a perturbed-numbers set. Report Wilson CIs, McNemar's test, the silent-vs-loud failure
@@ -64,6 +70,10 @@ point is a trustworthy evaluation, not a demo.
 - `.env` doesn't exist in this checkout (it's git-ignored); the owner adds their key.
 - `Result.verified` means the solution of Claude's model is optimal and independently
   confirmed. It says nothing about whether the model matches the text; that's milestone 6.
+  A flagged revision can be "verified" too, which is why the flags exist.
+- **None of the live tests has run yet** (no key as of 2026-10-19). When the owner has
+  a key: `python -m pytest -m live -s` runs all three; fix anything that breaks before
+  starting milestone 6's paid runs.
 
 ## Commands
 
@@ -76,7 +86,7 @@ python -m opt_agent.data            # pinned, SHA-256-checked downloads (git-ign
 python -m opt_agent.ground_truth    # rebuild data/nl4opt/ground_truth/ (~30 s)
 python scripts/dev_walkthrough.py   # rebuild the 30-problem dev review sheet
 python -m opt_agent.agent "problem text"   # needs ANTHROPIC_API_KEY
-python -m pytest -m live            # the one test that calls the real API
+python -m pytest -m live -s         # the tests that call the real API (not in CI)
 ```
 
 ## Ground truth (milestone 3 decisions)

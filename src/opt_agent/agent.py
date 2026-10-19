@@ -1,4 +1,5 @@
-"""The whole pipeline: word problem -> Claude's model -> CBC's solution -> checks -> explanation.
+"""The whole pipeline: word problem -> Claude's model (revised if it fails) -> CBC's solution
+-> independent checks -> explanation.
 
 Run:  python -m opt_agent.agent "A fishery wants to transport their catch. ..."
       (or pass - and pipe the problem in). Needs ANTHROPIC_API_KEY (see .env.example).
@@ -6,26 +7,37 @@ Run:  python -m opt_agent.agent "A fishery wants to transport their catch. ..."
 
 import argparse
 import sys
+from pathlib import Path
 
 import anthropic
 from pydantic import BaseModel
 
 from opt_agent.config import MissingAPIKeyError, get_api_key
 from opt_agent.explain import Explanation, explain, solver_facts
-from opt_agent.formulate import DEFAULT_MODEL, Formulation, formulate
+from opt_agent.formulate import DEFAULT_MODEL, Formulation
 from opt_agent.highs import solve_with_highs
 from opt_agent.schema import LPModel, Term
-from opt_agent.solver import Solution, Status, solve
+from opt_agent.self_correct import MAX_ATTEMPTS, Outcome, solve_with_revisions
+from opt_agent.solver import Solution, Status
 from opt_agent.verify import check_solution, same_answer
+
+DEFAULT_LOG = Path("logs/attempts.jsonl")
 
 
 class Result(BaseModel):
     problem: str
-    formulation: Formulation
-    solution: Solution | None = None  # None if Claude's reply couldn't be used
+    outcome: Outcome  # every attempt, and why the loop stopped
     highs_agrees: bool | None = None  # an independent solver reached the same answer
     check_problems: list[str] = []  # from verify.check_solution: [] means it checks out
     explanation: Explanation | None = None  # only for optimal solutions
+
+    @property
+    def formulation(self) -> Formulation:
+        return self.outcome.final.formulation
+
+    @property
+    def solution(self) -> Solution | None:
+        return self.outcome.final.solution  # None if no attempt produced a usable model
 
     @property
     def verified(self) -> bool:
@@ -46,19 +58,16 @@ def run(
     client: anthropic.Anthropic,
     model_id: str = DEFAULT_MODEL,
     with_explanation: bool = True,
+    max_attempts: int = MAX_ATTEMPTS,
+    log_path: Path | None = None,
 ) -> Result:
-    formulation = formulate(problem, client, model_id)
-    if formulation.model is None:
-        return Result(problem=problem, formulation=formulation)
-    model = formulation.model
-    solution = solve(model)
-    result = Result(
-        problem=problem,
-        formulation=formulation,
-        solution=solution,
-        highs_agrees=same_answer(model, solution, solve_with_highs(model)),
-        check_problems=check_solution(model, solution),
-    )
+    outcome = solve_with_revisions(problem, client, model_id, max_attempts, log_path)
+    result = Result(problem=problem, outcome=outcome)
+    model, solution = result.formulation.model, result.solution
+    if solution is None:
+        return result
+    result.highs_agrees = same_answer(model, solution, solve_with_highs(model))
+    result.check_problems = check_solution(model, solution)
     if with_explanation and solution.status is Status.OPTIMAL:
         facts = solver_facts(model, solution)
         result.explanation = explain(problem, model, facts, client, model_id)
@@ -69,12 +78,13 @@ def run(
 
 
 def render(result: Result) -> str:
+    lines = [_attempt_line(a) for a in result.outcome.attempts]
+    lines.append(f"Stopped: {result.outcome.stopped}")
+    lines += [f"  flagged revision: {flag}" for flag in result.outcome.flags]
     f = result.formulation
-    lines = [f"Model: {f.model_id} ({f.usage.input_tokens} in / {f.usage.output_tokens} out, "
-             f"{f.latency_s:.1f} s)", ""]  # fmt: skip
     if f.model is None:
-        return "\n".join(lines + ["Claude's reply couldn't be used:", f.error])
-    lines += format_model(f.model) + [""]
+        return "\n".join(lines + ["", "No usable model:", f.error])
+    lines += ["", *format_model(f.model), ""]
     s = result.solution
     lines.append(f"Status: {s.status}")
     if s.status is Status.OPTIMAL:
@@ -88,6 +98,13 @@ def render(result: Result) -> str:
             flagged = ", ".join(result.explanation.unsupported_numbers)
             lines.append(f"(not backed by the solver's numbers: {flagged})")
     return "\n".join(lines)
+
+
+def _attempt_line(attempt) -> str:
+    f = attempt.formulation
+    what = attempt.solution.status.value if attempt.solution else "unusable reply"
+    return (f"Attempt {attempt.number}: {what} ({f.model_id}, {f.usage.input_tokens} in / "
+            f"{f.usage.output_tokens} out, {f.latency_s:.1f} s)")  # fmt: skip
 
 
 def format_model(model: LPModel) -> list[str]:
@@ -111,14 +128,17 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Solve a word problem with Claude + CBC.")
     parser.add_argument("problem", help="the problem text, or - to read it from stdin")
     parser.add_argument("--model", default=DEFAULT_MODEL, help=f"default: {DEFAULT_MODEL}")
-    parser.add_argument("--no-explanation", action="store_true", help="skip the second call")
+    parser.add_argument("--attempts", type=int, default=MAX_ATTEMPTS, help="1 = no revisions")
+    parser.add_argument("--log", type=Path, default=DEFAULT_LOG, help="JSONL log of attempts")
+    parser.add_argument("--no-explanation", action="store_true", help="skip the last call")
     args = parser.parse_args(argv)
     problem = sys.stdin.read() if args.problem == "-" else args.problem
     try:
         client = anthropic.Anthropic(api_key=get_api_key())
     except MissingAPIKeyError as error:
         sys.exit(str(error))
-    print(render(run(problem, client, args.model, not args.no_explanation)))
+    result = run(problem, client, args.model, not args.no_explanation, args.attempts, args.log)
+    print(render(result))
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ solves them with a real solver (PuLP + CBC), verifies the result, and explains i
 - [x] 2. LP schema + solver, verified without trusting the solver
 - [x] 3. Ground truth built from the NL4Opt annotations (no LLM)
 - [x] 4. LLM formulation with Claude structured output
-- [ ] 5. Self-correction loop
+- [x] 5. Self-correction loop
 - [ ] 6. Evaluation on the NL4Opt test set
 - [ ] 7. FastAPI endpoint + demo + Docker
 - [ ] 8. Polish
@@ -35,6 +35,9 @@ Solve a word problem (needs `ANTHROPIC_API_KEY`):
 python -m opt_agent.agent "A fishery wants to transport their catch. ..."
 ```
 
+`--attempts 1` turns off self-correction; every attempt is appended to
+`logs/attempts.jsonl` (`--log` to change it).
+
 ## Running tests
 
 ```bash
@@ -44,7 +47,7 @@ ruff check .
 
 Tests never call the Claude API, so they run without a key (this is also how CI runs them):
 the agent's tests use a fake client. One opt-in test calls the real API
-(`python -m pytest -m live`, a fraction of a cent).
+(`python -m pytest -m live -s`, a fraction of a cent each).
 The property-based tests take about a minute. They explore new random problems on every
 local run. In CI (`HYPOTHESIS_PROFILE=ci`) they replay a fixed set, so CI is deterministic.
 
@@ -76,10 +79,17 @@ Problems these checks found, each with a regression test:
 1. **Formulate:** Claude turns the problem text into our `LPModel` through structured
    output. The API guarantees JSON with the schema's shape, and `schema.py` then checks
    the meaning (declared variables, sane bounds). A failure becomes a readable error.
-2. **Solve** with CBC, and **verify**: HiGHS must reach the same answer, and plain
+2. **Self-correct:** if the reply is unusable, or the model is infeasible or unbounded,
+   Claude gets the error back and revises (3 attempts at most). For an infeasible model
+   the feedback names the conflicting constraints (an irreducible infeasible subset), and
+   it warns against dropping requirements, because some problems are infeasible as
+   written. If Claude returns the same model, the loop stops. Revisions that delete or
+   loosen a constraint, loosen a bound, relax integrality, or flip the objective are
+   flagged, and every attempt is logged as one JSONL line.
+3. **Solve** with CBC, and **verify**: HiGHS must reach the same answer, and plain
    arithmetic must confirm every bound and constraint. This verifies the solution of
    Claude's model, not that the model matches the text; that's what the evaluation is for.
-3. **Explain** from solver facts only: the values, the objective, which constraints bind,
+4. **Explain** from solver facts only: the values, the objective, which constraints bind,
    the slack, and shadow prices. Every number in Claude's explanation is checked against
    those facts and the inputs, and any that can't be traced back is flagged.
 
@@ -123,7 +133,10 @@ src/opt_agent/
   orlm.py          # cross-check against ORLM's third-party answers
   formulate.py     # problem text -> Claude (structured output) -> validated LPModel
   explain.py       # solver facts -> plain-English explanation, every number checked
-  agent.py         # the pipeline (formulate, solve, verify, explain) and its CLI
+  self_correct.py  # the revision loop: retry on failure, stop rules, JSONL log
+  feedback.py      # what to tell Claude when an attempt fails (incl. conflicting constraints)
+  changes.py       # how a revision differs from the last model; flags loosening "fixes"
+  agent.py         # the pipeline (formulate + revise, solve, verify, explain) and its CLI
 data/nl4opt/       # committed ground truth, hand reviews, and NL4Opt's license
 scripts/           # dev_walkthrough.py: a review sheet of 30 dev problems
 tests/

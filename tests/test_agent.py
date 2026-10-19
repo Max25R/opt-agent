@@ -1,6 +1,11 @@
-import json
-
-from fakes import BAD_EXPLANATION, FISHERY_REPLY, GOOD_EXPLANATION, FakeClient
+from fakes import (
+    BAD_EXPLANATION,
+    FISHERY_REPLY,
+    GOOD_EXPLANATION,
+    INFEASIBLE_REPLY,
+    FakeClient,
+    model,
+)
 from problems import FISHERY
 from pytest import approx
 
@@ -19,28 +24,29 @@ def test_fishery_end_to_end():
     assert len(client.requests) == 2  # formulate, then explain
 
 
-def test_an_unusable_reply_stops_before_solving():
-    client = FakeClient('{"variables": []}')
+def test_an_unusable_reply_on_every_attempt_never_reaches_the_solver():
+    client = FakeClient('{"variables": []}', '{"variables": []}', '{"variables": []}')
     result = run("...", client)
+    assert result.outcome.stopped == "attempt limit"
     assert result.formulation.error
     assert result.solution is None and not result.verified
-    assert len(client.requests) == 1
+    assert len(client.requests) == 3
 
 
-def test_an_infeasible_model_is_reported_without_an_explanation():
-    infeasible = {
-        "variables": [{"name": "x"}],
-        "objective": {"sense": "min", "terms": [{"var": "x", "coef": 1}]},
-        "constraints": [
-            {"name": "at least 5", "terms": [{"var": "x", "coef": 1}], "sense": ">=", "rhs": 5},
-            {"name": "at most 3", "terms": [{"var": "x", "coef": 1}], "sense": "<=", "rhs": 3},
-        ],
-    }
-    client = FakeClient(json.dumps(infeasible))
+def test_an_infeasible_model_claude_stands_by_gets_no_explanation():
+    client = FakeClient(INFEASIBLE_REPLY, INFEASIBLE_REPLY)  # revised to the same model
     result = run("...", client)
+    assert result.outcome.stopped == "model unchanged"
     assert result.solution.status is Status.INFEASIBLE
     assert result.explanation is None and not result.verified
-    assert len(client.requests) == 1
+    assert len(client.requests) == 2
+
+
+def test_single_shot_makes_one_formulation_call():
+    client = FakeClient(INFEASIBLE_REPLY)
+    result = run("...", client, max_attempts=1)
+    assert result.outcome.stopped == "attempt limit"
+    assert len(result.outcome.attempts) == 1 and len(client.requests) == 1
 
 
 def test_without_an_explanation_there_is_one_call():
@@ -62,3 +68,11 @@ def test_render_shows_the_model_the_answer_and_the_explanation():
 def test_render_flags_numbers_the_solver_didnt_produce():
     text = render(run(FISHERY["document"], FakeClient(FISHERY_REPLY, BAD_EXPLANATION)))
     assert "(not backed by the solver's numbers: $200)" in text
+
+
+def test_render_lists_the_attempts_and_flags():
+    fixed = model([("at least 5", ">=", 5)])  # "fixed" by deleting a constraint
+    text = render(run("...", FakeClient(INFEASIBLE_REPLY, fixed), with_explanation=False))
+    assert "Attempt 1: infeasible" in text and "Attempt 2: optimal" in text
+    assert "Stopped: optimal" in text
+    assert "flagged revision: deleted constraint 'at most 3'" in text
