@@ -10,9 +10,10 @@ from opt_agent.ground_truth import (
     load_records,
     scorable,
 )
-from opt_agent.packets import SEED
+from opt_agent.packets import SAYS_LP, SAYS_LP_PATH, SEED
 from opt_agent.runs import REPO_ROOT
 from opt_agent.solver import Status
+from opt_agent.stats import mcnemar_exact
 
 DOC = " ".join((REPO_ROOT / "docs" / "PREREGISTRATION.md").read_text().split())
 TEST = load_records(GROUND_TRUTH_DIR / "test.json")
@@ -66,8 +67,10 @@ def test_lp_text_problems():
         and integrality_matters(r)
     }
     owner_precedents = {"-640645082", "892653388"}
-    assert listed - owner_precedents == says_lp
+    assert listed - owner_precedents == says_lp == set(SAYS_LP)
     assert says(f"{len(says_lp)} scorable test problems where integrality changes the answer")
+    assert says(f"**The owner labels these {len(SAYS_LP)}** (`review/says_lp.md`)")
+    assert SAYS_LP_PATH.exists()
 
 
 def test_strict_counts():
@@ -85,3 +88,36 @@ def test_integrality_counts():
     assert says(f"insensitive subset ({len(SCORABLE) - sensitive})")
     assert says(f"sensitive one ({sensitive})")
     assert says(f"seed {SEED}")
+
+
+def test_the_ambiguous_constraints_exist():
+    rows = re.findall(r"\| `(-?\d+)` \| `(\w+)` \|", DOC)
+    ambiguous = {r.id: r for r in SCORABLE if r.review and r.review.verdict == "ambiguous-text"}
+    assert {pid for pid, _ in rows} == set(ambiguous)
+    for pid, constraint in rows:
+        assert constraint in {c.name for c in ambiguous[pid].model.constraints}, pid
+
+
+def test_the_status_subset_power_floor():
+    """The smallest number of one-directional discordant pairs that reaches p < 0.05 alone,
+    and that survives Holm as the smallest of the 6 p-values (alpha / 6)."""
+    alone = next(n for n in range(1, 21) if mcnemar_exact(0, n) < 0.05)
+    in_family = next(n for n in range(1, 21) if mcnemar_exact(0, n) < 0.05 / 6)
+    assert says(f"only if at least {alone} of the 20 problems are discordant")
+    assert says(f"As the smallest p in the family, it needs at least {in_family}")
+
+
+def test_the_freeze_list_names_everything_a_run_depends_on():
+    freeze = DOC.split("## 6.")[1].split("## 7.")[0]
+    frozen = [
+        "reviews.json", "integrality.json", "exclusions.json", "test.json",
+        "formulate.SYSTEM_PROMPT", "explain.SYSTEM_PROMPT", "formulate.LP_SCHEMA",
+        "baseline's system prompt", "perturbation code", "PREREGISTRATION.md",
+    ]  # fmt: skip
+    for item in frozen:
+        assert item in freeze, item
+
+
+def test_it_is_still_a_draft():
+    assert says("**Status: DRAFT") and says("Not approved.")
+    assert "approved by the owner" not in DOC.lower()

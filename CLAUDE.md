@@ -63,9 +63,13 @@ point is a trustworthy evaluation, not a demo.
      `Result.confirmed`; the owner's packets (`review/`, `packets.py`); a draft
      pre-registration (`docs/PREREGISTRATION.md`); `requirements.lock`.
    - **Still open before milestone 6:** the owner marks `review/integrality_blind/`
-     (first: the review packet shows labels) and `review/test_reviews/`, and approves the
-     pre-registration (4 decisions). Apply their marks: `confirmed_by_owner` for confirmed
-     reviews, source `owner` for labels. Run the live tests once there's a key. Known and
+     (first: the review packet shows labels), `review/test_reviews/`, and
+     `review/says_lp.md`, and approves the pre-registration (its 4 decisions were made on
+     2026-10-19; it's still a draft). Apply their marks: `confirmed_by_owner` for
+     confirmed reviews, source `owner` for labels. Milestone 6 must implement, before
+     approval: the "=" reading for the 3 ambiguous problems (accepted like the strict
+     one), the baseline's answer schema and parsing (pre-registration 2a), and the
+     1e-4 sensitivity count. Run the live tests once there's a key. Known and
      unfixed: the integrality rule matches ingredient names ("units of chicken" meat), so
      it labels countable products continuous in at least 3 reviewed test problems
      (bubble teas, crepes, curry bowls; harmless for the annotated answers; fix after the

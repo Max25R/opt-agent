@@ -7,9 +7,14 @@
 2. **Test reviews.** Every test-split hand review (all Claude's so far), least sure first,
    with the text, the model, both optima, the labels, and the note. The owner marks each
    one confirmed or disputed in marks.csv.
+3. **"Says LP" labels.** The 4 scorable test problems whose text asks for an LP but where
+   integrality changes the answer. The pre-registration lets the label decide, so the
+   owner sets these labels (review/says_lp.md). They're not a blind check of Claude's
+   labels, so `agreement` leaves them out.
 
 Run:  python -m opt_agent.packets integrality    # writes review/integrality_blind/
       python -m opt_agent.packets reviews        # writes review/test_reviews/
+      python -m opt_agent.packets says-lp        # writes review/says_lp.md
       python -m opt_agent.packets agreement      # after labels.csv is filled in
 """
 
@@ -17,6 +22,7 @@ import argparse
 import csv
 import json
 import random
+import re
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -41,6 +47,11 @@ SEED = 20261019  # recorded so anyone can redraw the same 40
 SAMPLE_SIZE = 40
 KINDS = ("integer", "continuous")
 SURENESS_ORDER = {"low": 0, "medium": 1, "high": 2}
+SAYS_LP_PATH = REVIEW_DIR / "says_lp.md"
+# Scorable, integrality-sensitive test problems whose text says "LP" or "linear program"
+# and that were labeled integer by Claude (docs/PREREGISTRATION.md, 3d). Listed by id: the
+# owner's labels may change their kind, and the list must stay put.
+SAYS_LP = ["1040407495", "-1536845616", "1703643437", "1054847148"]
 
 
 # ---- 1. blind integrality labels -------------------------------------------------------
@@ -116,6 +127,7 @@ def agreement(owner: dict[str, dict[str, str]], records: list[Record]) -> Agreem
     by_id = {r.id: r for r in records}
     agree, mixed, disagreements = 0, [], []
     variables = variables_agree = 0
+    owner = {pid: marks for pid, marks in owner.items() if pid not in SAYS_LP}  # 3d
     for problem_id, marks in owner.items():
         ours = by_id[problem_id].integrality.kind
         kinds = set(marks.values())
@@ -248,12 +260,56 @@ def mark_sheet(rows: list[tuple[Record, str, str | None]], path: Path) -> None:
             writer.writerow([number, r.id, r.review.verdict, level, "", ""])
 
 
+# ---- 3. "says LP" labels ---------------------------------------------------------------
+
+_ROW = re.compile(r"^\| `(?P<variable>[^`]+)` \| (?P<label>[^|]*?) \|$")
+
+
+def says_lp_packet(records: list[Record]) -> str:
+    by_id = {r.id: r for r in records}
+    lines = [
+        '# Text says "LP": your integrality labels',
+        "",
+        f"{len(SAYS_LP)} scorable test problems whose text asks for an LP, but where requiring "
+        "whole numbers changes the answer. Under the pre-registration (3d) the label decides, "
+        "and these labels are yours: Claude's aren't shown. They're not part of the "
+        "blind-agreement statistic.",
+        "",
+        "For each variable, replace `?` with `integer` or `continuous`, by what the text says "
+        "it counts or measures.",
+        "",
+    ]
+    for number, problem_id in enumerate(SAYS_LP, 1):
+        r = by_id[problem_id]
+        lines += [f"## {number}. `{r.id}`", "", f"> {r.document}", ""]
+        lines += ["| variable | label |", "|---|---|"]
+        lines += [f"| `{v.name}` | ? |" for v in r.model.variables]
+        lines.append("")
+    return "\n".join(lines)
+
+
+def read_says_lp(path: Path) -> dict[str, dict[str, str]]:
+    """problem id -> variable -> the owner's label, from the filled-in tables."""
+    labels: dict[str, dict[str, str]] = {}
+    problem_id = None
+    for line in path.read_text().splitlines():
+        if line.startswith("## "):
+            problem_id = line.split("`")[1]
+        elif (row := _ROW.match(line)) and problem_id is not None:
+            label = row["label"].strip().lower()
+            if label not in KINDS:
+                raise ValueError(f"{problem_id}, {row['variable']!r}: {label!r} is neither "
+                                 "integer nor continuous")  # fmt: skip
+            labels.setdefault(problem_id, {})[row["variable"]] = label
+    return labels
+
+
 # ---- command line ----------------------------------------------------------------------
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Hand-check packets for the owner.")
-    parser.add_argument("packet", choices=["integrality", "reviews", "agreement"])
+    parser.add_argument("packet", choices=["integrality", "reviews", "says-lp", "agreement"])
     args = parser.parse_args(argv)
     test = load_records(GROUND_TRUTH_DIR / "test.json")
     if args.packet == "integrality":
@@ -270,6 +326,9 @@ def main(argv: list[str] | None = None) -> None:
         (REVIEWS_DIR / "PACKET.md").write_text(review_packet(rows, blind))
         mark_sheet(rows, REVIEWS_DIR / "marks.csv")
         print(f"wrote {REVIEWS_DIR}/PACKET.md and marks.csv ({len(rows)} reviews)")
+    elif args.packet == "says-lp":
+        SAYS_LP_PATH.write_text(says_lp_packet(test))
+        print(f"wrote {SAYS_LP_PATH} ({len(SAYS_LP)} problems)")
     else:
         result = agreement(read_labels(BLIND_DIR / "labels.csv"), test)
         report = agreement_report(result)

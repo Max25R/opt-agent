@@ -1,4 +1,5 @@
 import csv
+import re
 
 import pytest
 
@@ -7,14 +8,18 @@ from opt_agent.ground_truth import GROUND_TRUTH_DIR, load_records
 from opt_agent.packets import (
     BLIND_DIR,
     REVIEWS_DIR,
+    SAYS_LP,
+    SAYS_LP_PATH,
     agreement,
     blind_sample,
     integrality_packet,
     label_sheet,
     load_sureness,
     read_labels,
+    read_says_lp,
     review_order,
     review_packet,
+    says_lp_packet,
     sensitive_problems,
 )
 from opt_agent.stats import wilson
@@ -110,3 +115,44 @@ def test_the_committed_packets_are_up_to_date():
         [str(n), r.id, v.name] for n, r in enumerate(SAMPLE, 1) for v in r.model.variables
     ]
     assert sheet == expected
+
+
+def test_the_says_lp_problems_are_scorable_sensitive_and_say_lp():
+    by_id = {r.id: r for r in TEST}
+    sensitive = {r.id for r in sensitive_problems(TEST)}
+    for problem_id in SAYS_LP:
+        assert problem_id in sensitive
+        assert "LP" in by_id[problem_id].document or "linear program" in by_id[problem_id].document
+
+
+def test_the_says_lp_problems_are_not_in_the_blind_statistic():
+    assert not set(SAYS_LP) & {r.id for r in SAMPLE}
+    owner = {r.id: {v.name: r.integrality.kind for v in r.model.variables} for r in SAMPLE}
+    lp = next(r for r in TEST if r.id == SAYS_LP[0])
+    owner[lp.id] = {v.name: "continuous" for v in lp.model.variables}  # would disagree
+    a = agreement(owner, TEST)
+    assert (a.agree, a.problems) == (40, 40)  # skipped, not counted as a disagreement
+
+
+def test_the_says_lp_file_shows_no_label_and_reads_back(tmp_path):
+    text = says_lp_packet(TEST)
+    cells = [line.split("|")[2].strip() for line in text.splitlines() if line.startswith("| `")]
+    assert len(cells) == 8 and set(cells) == {"?"}  # every label blank, none of ours shown
+    filled = tmp_path / "says_lp.md"
+    filled.write_text(text.replace("| ? |", "| integer |"))
+    labels = read_says_lp(filled)
+    assert list(labels) == SAYS_LP
+    assert all(kind == "integer" for marks in labels.values() for kind in marks.values())
+
+
+def test_an_unlabeled_says_lp_variable_is_an_error():
+    with pytest.raises(ValueError, match="neither integer nor continuous"):
+        read_says_lp(SAYS_LP_PATH)  # the committed file is still blank
+
+
+def test_the_committed_says_lp_file_is_up_to_date():
+    """Compared with the blanks filled back in, so the test survives the owner's labels."""
+    committed = re.sub(
+        r"\| (integer|continuous) \|$", "| ? |", SAYS_LP_PATH.read_text(), flags=re.M
+    )
+    assert committed == says_lp_packet(TEST)
