@@ -69,8 +69,8 @@ point is a trustworthy evaluation, not a demo.
      confirmed reviews, source `owner` for labels. Milestone 6 must implement, before
      approval: the "=" reading for the 3 ambiguous problems (accepted like the strict
      one), the baseline's prompt (fixed on dev; `baseline.py` has a first draft, and its
-     schema and parsing follow pre-registration 2a), and the 1e-4 sensitivity count. The
-     owner decides how API errors are scored (see "Budget" below). Known and
+     schema and parsing follow pre-registration 2a), the 1e-4 sensitivity count, and
+     Amendment 1's API-error rule (approved 2026-10-28). Known and
      unfixed: the integrality rule matches ingredient names ("units of chicken" meat), so
      it labels countable products continuous in at least 3 reviewed test problems
      (bubble teas, crepes, curry bowls; harmless for the annotated answers; fix after the
@@ -83,7 +83,11 @@ point is a trustworthy evaluation, not a demo.
      stops (`api.SpendLimitReached`), the no-solver baseline (`baseline.py`), and a
      resumable dev-only runner (`evaluate.py`). A 3-problem dev smoke test of all three
      conditions cost $0.0042; the milestone 6 projection was about $0.71 (high: $2.06).
-     The owner sets milestone 6's cap after seeing it.
+     Owner's decisions the same day: a $3 cap for the test + perturbed run; the model
+     stays Haiku 5.5 (at Sonnet 5.5's prices the same projection is $14.29, high $41.19);
+     API errors per pre-registration Amendment 1 (approved the same day); and dev
+     793774916, a silent failure self-correction can't catch, goes in
+     `docs/FAILURE_LOG.md`. **Don't tune prompts to fix a single dev problem.**
 6. [ ] Evaluation. Iterate on prompts with the dev split only, then run test once with
    everything frozen. Conditions: no-solver baseline, single-shot, self-correction, plus
    a perturbed-numbers set. Report Wilson CIs, McNemar's test, the silent-vs-loud failure
@@ -131,16 +135,21 @@ point is a trustworthy evaluation, not a demo.
   2,000-token margin, and all of `max_tokens`); if that could cross the cap, it raises
   `BudgetExceeded` instead of calling. After the call it writes the real cost (from
   `response.usage`) to a JSONL ledger, so a resumed run counts earlier spend. Cached
-  replies cost nothing. Default caps: $1 for smoke tests, $0.25 for all live-test runs
-  together (`logs/spend/live-tests.jsonl`), and the owner sets milestone 6's.
+  replies cost nothing. Caps: $1 for smoke tests, $0.25 for all live-test runs together
+  (`logs/spend/live-tests.jsonl`), and $3 for milestone 6's test + perturbed run (owner,
+  2026-10-28). Dev runs get their own cap, agreed with the owner before each one.
 - `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
   paid run. An unlisted model raises instead of being guessed.
 - Budget stops, spend-limit errors (`api.SpendLimitReached`: a 429 with
   `enforced_spend_limit_reached`, or a 400 "You have reached your specified ... limits"),
   and API errors are never scored as Claude's failures. `evaluate.py` logs an API error
-  that outlasts the retries as `errored` and retries it on resume. This **conflicts with
-  the draft pre-registration** (sections 1 and 2a count an API error as wrong); the owner
-  decides which wording goes in before approval.
+  that outlasts the retries as `errored` and retries it on resume. The rule for scoring is
+  the pre-registration's **Amendment 1**, which the owner approved on 2026-10-28:
+  errored and pending pairs are re-run until none remain; a pair still errored
+  after the first run and 3 resume passes counts as wrong (loud) and is listed
+  separately; refusals and unusable replies are replies, so they count as wrong the first
+  time (the cache replays them); the report says how many pairs needed re-runs.
+  `evaluate.py` doesn't count passes yet (milestone 6).
 - Runs are resumable: `python -m opt_agent.evaluate --out runs/NAME ...` again skips done
   pairs and replays every successful call from `runs/NAME/cache`.
 

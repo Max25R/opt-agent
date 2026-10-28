@@ -20,8 +20,9 @@ Counts below come from the committed ground truth (`data/nl4opt/ground_truth/`,
   compared: alternative optima are equally right.
 - **The system's answer** is what the pipeline reports: the final model's status and
   objective, and only if `Result.confirmed` (both solvers agree and the checks pass). No
-  confirmed answer (solvers disagree, time-out, solver error, API error, failed check)
-  counts as **wrong**. The problem is never dropped.
+  confirmed answer (solvers disagree, solver time-out, solver error, failed check)
+  counts as **wrong**. An API error is re-run first (Amendment 1). The problem is never
+  dropped.
 - **Correct** means `ground_truth.matching_reading` finds a match: same status, and for an
   optimum, objectives equal within 1e-6 relative (1e-6 absolute near zero;
   `ground_truth.same_value`). The reading that matched is recorded for every problem.
@@ -65,8 +66,9 @@ Claude states, scored as it stands:
   - for "optimal", the objective must be a finite number;
   - for the other statuses, the objective is ignored.
 - **Unparseable counts as wrong** (a loud failure). That covers a refusal, a cut-off
-  reply, invalid JSON, a failed validation, a missing objective for "optimal", and an API
-  error. There is one attempt and no revision.
+  reply, invalid JSON, a failed validation, and a missing objective for "optimal". An API
+  error isn't a reply, so it's re-run (Amendment 1). There is one attempt and no
+  revision.
 - **A parsed answer** is scored with `matching_reading` and the 1e-6 tolerance, exactly
   like the other conditions. A parsed wrong answer is a silent failure, since nothing
   checks it.
@@ -136,8 +138,9 @@ and IP optima differ).
 
 **g. Failures** are classified for every problem:
 - **silent:** a confirmed answer that's wrong;
-- **loud:** no confirmed answer, with the reason (solvers disagree, time-out, solver
-  error, API error, unusable reply, refusal).
+- **loud:** no confirmed answer, with the reason (solvers disagree, solver time-out,
+  solver error, unusable reply, refusal, or an API error that outlasted every resume
+  pass: Amendment 1).
 
 Silent failures are the dangerous kind, and they're reported first.
 
@@ -217,4 +220,30 @@ Before freezing:
 
 ## Amendments
 
-None yet.
+### Amendment 1 (owner, 2026-10-28): API errors and stopped runs
+
+Made while this file is still a draft. It replaces "an API error counts as wrong" in
+sections 1, 2a and 3g.
+
+- **An API error isn't an answer.** A call that still fails after `api.call`'s own retries
+  (8 tries, with backoff or the wait the server names) leaves its (problem, condition) pair
+  **errored**: logged, not scored. That covers rate limits (429), server errors (5xx,
+  including 529 overloaded), API time-outs, network errors, and any other error response.
+  A run stopped by the budget cap or the account's spend limit leaves its remaining pairs
+  **pending**.
+- **Errored and pending pairs are re-run on resume** until none remain. Calls that already
+  succeeded replay from the response cache, so a re-run never repeats a paid call and
+  never asks Claude again for a reply it has already given.
+- **A pair still errored after the first run and 3 resume passes counts as wrong** (a loud
+  failure, reason "API error"). The report lists those pairs separately, with their
+  errors. A resume pass is one re-run of the evaluation command. A pair that a stop left
+  pending hasn't used up a pass.
+- **Claude's replies are scored as they stand.** A refusal, a cut-off reply, or a reply
+  that fails the schema or validation is a reply, not an error. It counts as wrong (a
+  loud failure) the first time. It's cached, so every resume replays it and gets the same
+  result. Within its 3 attempts, self-correction still revises an unusable reply, as in
+  section 2.
+- **The report says how many pairs needed re-runs**, per condition, and how many passes
+  each one took.
+- A solver time-out is still a loud failure (section 1): it's about Claude's model, not
+  the API.
