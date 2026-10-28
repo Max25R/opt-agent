@@ -5,12 +5,20 @@ no solver), "single-shot" (one formulation, solved and checked) and "self-correc
 to 3 attempts). Self-correction's first request is byte-identical to single-shot's, so it
 replays from the run's cache: the two are paired on the same first replies, paid once.
 
-Each (problem, condition) pair becomes one "item" line in results.jsonl:
-- **done**, and scored: correct if ground_truth.matching_reading finds a match. A wrong
-  answer is a silent failure if it was confirmed (or, for the baseline, parsed), else a
-  loud one (no confirmed answer: an unusable reply, solvers disagreeing, a time-out, ...).
+Each (problem, condition) pair becomes one "item" line in results.jsonl, recording what
+the condition answered, never whether that's right: report.py scores the answers against
+the ground truth afterwards (scoring.py), so a corrected review never needs a paid re-run.
+- **done**: the answer (a confirmed status and objective; for the baseline, a parsed one),
+  or no answer and the kind of failure (`no_answer`: an unusable reply, solvers
+  disagreeing, a solver time-out, ...).
 - **errored**: an API error outlasted every retry (api.call). That isn't Claude's
-  failure, so it isn't scored, and a resumed run tries the pair again.
+  failure, so a resumed run tries the pair again (pre-registration, Amendment 1). Each
+  line names its pass (`run_id`), so the report can count how many passes a pair needed.
+
+A run directory is one experiment: manifest.json, written by the first pass, fixes its
+split, problems, conditions, model, and request settings, and a resume with any of them
+changed is refused. The manifest is also the report's denominator: a pair with no line yet
+is pending, never silently missing.
 
 The run stops cleanly, with a "stopped" line, when the budget's next call could exceed the
 cap (budget.py), when the account reaches its spend limit, or after MAX_ERRORS_IN_A_ROW
@@ -27,6 +35,7 @@ Run:  python -m opt_agent.evaluate --out runs/smoke --cap 1.00 ID [ID ...]
 import argparse
 import json
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -38,9 +47,10 @@ from opt_agent import agent, api, baseline, formulate, pricing
 from opt_agent.api import Cache, RunStopped
 from opt_agent.budget import Budget, BudgetedClient
 from opt_agent.config import MissingAPIKeyError, get_api_key
-from opt_agent.ground_truth import GROUND_TRUTH_DIR, Record, load_records, matching_reading
+from opt_agent.ground_truth import GROUND_TRUTH_DIR, Record, load_records
 from opt_agent.ground_truth import scorable as is_scorable
 from opt_agent.runs import Run, Tags
+from opt_agent.scoring import score
 from opt_agent.self_correct import MAX_ATTEMPTS
 from opt_agent.solver import Status
 
@@ -49,23 +59,30 @@ CONDITIONS: tuple[Condition, ...] = ("baseline", "single-shot", "self-correction
 ATTEMPTS = {"single-shot": 1, "self-correction": MAX_ATTEMPTS}
 MAX_ERRORS_IN_A_ROW = 3  # the API is down or the limits are too low: stop, resume later
 
+# Why a done pair has no answer: the loud failures of pre-registration section 3g. (An API
+# error is an errored pair instead; only the report turns one into a failure.)
+NoAnswer = Literal[
+    "unusable reply", "refusal", "solvers disagree", "solver time-out", "solver error",
+    "failed check",
+]  # fmt: skip
+
 
 class Item(BaseModel):
-    """One (problem, condition) pair: what the evaluation counts."""
+    """One (problem, condition) pair in one pass: what the condition answered."""
 
     kind: Literal["item"] = "item"
     problem_id: str
     split: str
     condition: Condition
     outcome: Literal["done", "errored"]
+    run_id: str | None = None  # the pass that wrote this line (runs.Run)
     model_id: str
     settings_sha256: str  # the condition's request template: prompt, schema, settings
     status: str | None = None  # the system's answer; None if there's no confirmed one
     objective: float | None = None
-    correct: bool | None = None  # None if errored: not scored
-    reading: str | None = None  # which ground-truth reading matched
-    failure: Literal["silent", "loud"] | None = None
-    reason: str | None = None  # why the loop stopped, or why there's no answer
+    no_answer: NoAnswer | None = None  # why a done pair has no answer
+    reason: str | None = None  # in words: why the loop stopped, or the error
+    flags: list[str] = []  # revisions that deleted or loosened something (changes.py)
     attempts: int = 0
     cached_calls: int = 0
     input_tokens: int = 0
@@ -73,6 +90,42 @@ class Item(BaseModel):
     cost_usd: float = 0.0  # every call the answer used, at its original token counts
     paid_usd: float = 0.0  # only the calls this run paid for (not replayed from the cache)
     latency_s: float = 0.0  # API plus solver time, without retries
+    retry_s: float = 0.0  # failed tries and the waits after them
+    wall_s: float = 0.0  # as measured in this pass; shorter when calls replay from the cache
+
+
+class Manifest(BaseModel):
+    """What a run directory is an experiment of. Fixed by its first pass."""
+
+    split: str
+    problem_ids: list[str]
+    conditions: list[Condition]
+    model_id: str
+    settings: dict[str, str]  # condition -> settings_sha256
+
+
+def manifest_for(
+    split: str, records: list[Record], conditions: tuple[Condition, ...], model_id: str
+) -> Manifest:
+    return Manifest(split=split, problem_ids=[r.id for r in records],
+                    conditions=list(conditions), model_id=model_id,
+                    settings={c: settings_sha256(c, model_id) for c in conditions})  # fmt: skip
+
+
+def fix_manifest(out: Path, manifest: Manifest) -> None:
+    """Write the manifest on the first pass; afterwards, refuse a pass that differs."""
+    path = out / "manifest.json"
+    if not path.exists():
+        out.mkdir(parents=True, exist_ok=True)
+        path.write_text(manifest.model_dump_json(indent=1) + "\n")
+        return
+    fixed = Manifest.model_validate_json(path.read_text())
+    if fixed != manifest:
+        changed = [k for k in Manifest.model_fields if getattr(fixed, k) != getattr(manifest, k)]
+        raise ValueError(
+            f"{path} was made with different {', '.join(changed)}; a resume must repeat the "
+            "same experiment, so start a new run directory instead"
+        )
 
 
 def settings_sha256(condition: Condition, model_id: str) -> str:
@@ -92,6 +145,7 @@ def evaluate(
 ) -> list[Item]:
     """Every pending pair, in order; returns the items this call added. Raises RunStopped
     (after writing a "stopped" line) when the run has to stop."""
+    fix_manifest(out, manifest_for(split, records, conditions, model_id))
     results = out / "results.jsonl"
     done = done_pairs(results, model_id)
     session = Run.start(log_path=out / "attempts.jsonl", cache=Cache(out / "cache"))
@@ -127,6 +181,7 @@ def run_item(
         "problem_id": record.id,
         "split": tags.split,
         "condition": condition,
+        "run_id": session.run_id,
         "model_id": model_id,
         "settings_sha256": settings_sha256(condition, model_id),
     }
@@ -143,7 +198,9 @@ def _baseline_item(
     model_id: str,
     base: dict,
 ) -> Item:
+    start = time.perf_counter()
     a = baseline.answer_directly(record.document, client, model_id, session.cache)
+    wall = time.perf_counter() - start
     session.write("baseline", tags, model_id=model_id, request_sha256=a.call.request_sha256,
                   request=a.request, reply=a.raw_text, stop_reason=a.stop_reason,
                   usage=a.usage.model_dump(), call=a.call.model_dump(), error=a.error,
@@ -152,11 +209,14 @@ def _baseline_item(
     spend = {"attempts": 1, "cached_calls": int(a.call.cached),
              "input_tokens": a.usage.input_tokens, "output_tokens": a.usage.output_tokens,
              "cost_usd": cost, "paid_usd": 0.0 if a.call.cached else cost,
-             "latency_s": a.call.latency_s}  # fmt: skip
+             "latency_s": a.call.latency_s, "retry_s": a.call.retry_s, "wall_s": wall}  # fmt: skip
     if a.api_failed:
         return Item(**base, **spend, outcome="errored", reason=a.call.error)
-    return Item(**base, **spend, outcome="done", reason=a.error, status=a.status,
-                objective=a.objective, **score(record, a.status, a.objective))  # fmt: skip
+    no_answer = None
+    if a.status is None:
+        no_answer = "refusal" if a.stop_reason == "refusal" else "unusable reply"
+    return Item(**base, **spend, outcome="done", status=a.status, objective=a.objective,
+                no_answer=no_answer, reason=a.error)  # fmt: skip
 
 
 def _solver_item(
@@ -180,23 +240,27 @@ def _solver_item(
         "cost_usd": sum(costs),
         "paid_usd": sum(c for c, f in zip(costs, formulations, strict=True) if not f.call.cached),
         "latency_s": result.latency_s,
+        "retry_s": result.retry_s,
+        "wall_s": result.wall_s,
     }
     if result.outcome.stopped == "api error":
         return Item(**base, **spend, outcome="errored", reason=formulations[-1].call.error)
     s = result.solution
     status, objective = (s.status, s.objective) if result.confirmed else (None, None)
-    return Item(**base, **spend, outcome="done", reason=_reason(result), status=status,
-                objective=objective, **score(record, status, objective))  # fmt: skip
+    return Item(**base, **spend, outcome="done", status=status, objective=objective,
+                no_answer=_no_answer(result), reason=_reason(result),
+                flags=result.outcome.flags)  # fmt: skip
 
 
-def score(record: Record, status: Status | None, objective: float | None) -> dict:
-    """No answer is a loud failure; a wrong answer someone could act on is a silent one."""
-    if status is None:
-        return {"correct": False, "failure": "loud"}
-    reading = matching_reading(record, status, objective)
-    if reading is None:
-        return {"correct": False, "failure": "silent"}
-    return {"correct": True, "reading": reading}
+def _no_answer(result: agent.Result) -> NoAnswer | None:
+    if result.confirmed:
+        return None
+    if result.solution is None:
+        return "refusal" if result.outcome.stopped == "refused" else "unusable reply"
+    for s in (result.solution, result.highs_solution):
+        if s is not None and s.failed:
+            return "solver time-out" if s.status is Status.TIMEOUT else "solver error"
+    return "solvers disagree" if result.highs_agrees is False else "failed check"
 
 
 def _reason(result: agent.Result) -> str:
@@ -284,13 +348,16 @@ def worst_case_plan(
     return calls, usd
 
 
-def render(items: list[Item], budget: Budget) -> str:
+def render(items: list[Item], records: dict[str, Record], budget: Budget) -> str:
     rows = [["problem", "condition", "result", "tries", "tokens in/out", "cost", "paid"]]
+    right: dict[str, int] = {}
     for i in items:
         if i.outcome == "errored":
-            result = "ERRORED (not scored)"
+            result = "ERRORED (not scored yet)"
         else:
-            result = "right" if i.correct else f"wrong ({i.failure})"
+            s = score(records[i.problem_id], i.status, i.objective)
+            right[i.condition] = right.get(i.condition, 0) + s.correct
+            result = "right" if s.correct else f"wrong ({s.failure})"
         rows.append([i.problem_id, i.condition, result, str(i.attempts),
                      f"{i.input_tokens:,}/{i.output_tokens:,}", f"${i.cost_usd:.4f}",
                      f"${i.paid_usd:.4f}"])  # fmt: skip
@@ -302,7 +369,7 @@ def render(items: list[Item], budget: Budget) -> str:
         if mine:
             scored = [i for i in mine if i.outcome == "done"]
             lines.append(
-                f"{condition}: {sum(i.correct for i in scored)}/{len(scored)} right, "
+                f"{condition}: {right.get(condition, 0)}/{len(scored)} right, "
                 f"{len(mine) - len(scored)} errored; cost ${sum(i.cost_usd for i in mine):.4f}"
             )
     lines.append(
@@ -346,9 +413,9 @@ def main(argv: list[str] | None = None) -> None:
     try:
         evaluate(records, conditions, client, args.out, args.split, args.model)
     except RunStopped as stop:
-        print(render(latest_items(args.out / "results.jsonl"), budget))
+        print(render(latest_items(args.out / "results.jsonl"), by_id, budget))
         sys.exit(f"\nSTOPPED: {stop}\nRe-run the same command to resume; nothing is paid twice.")
-    print(render(latest_items(args.out / "results.jsonl"), budget))
+    print(render(latest_items(args.out / "results.jsonl"), by_id, budget))
 
 
 if __name__ == "__main__":

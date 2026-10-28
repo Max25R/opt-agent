@@ -66,11 +66,11 @@ point is a trustworthy evaluation, not a demo.
      (first: the review packet shows labels), `review/test_reviews/`, and
      `review/says_lp.md`, and approves the pre-registration (its 4 decisions were made on
      2026-10-19; it's still a draft). Apply their marks: `confirmed_by_owner` for
-     confirmed reviews, source `owner` for labels. Milestone 6 must implement, before
-     approval: the "=" reading for the 3 ambiguous problems (accepted like the strict
-     one), the baseline's prompt (fixed on dev; `baseline.py` has a first draft, and its
-     schema and parsing follow pre-registration 2a), the 1e-4 sensitivity count, and
-     Amendment 1's API-error rule (approved 2026-10-28). Known and
+     confirmed reviews, source `owner` for labels. Milestone 6 must still do, before
+     approval: fix the baseline's prompt on dev (`baseline.py` has a first draft; its
+     schema and parsing follow pre-registration 2a), the perturbation rule, and the
+     freeze checks. (The "=" reading, the 1e-4 count and Amendment 1 are done; see
+     milestone 6.) Known and
      unfixed: the integrality rule matches ingredient names ("units of chicken" meat), so
      it labels countable products continuous in at least 3 reviewed test problems
      (bubble teas, crepes, curry bowls; harmless for the annotated answers; fix after the
@@ -93,6 +93,34 @@ point is a trustworthy evaluation, not a demo.
    a perturbed-numbers set. Report Wilson CIs, McNemar's test, the silent-vs-loud failure
    split, p50/p95 latency, and cost from real token usage. Use a hash-keyed response
    cache and a hand-labeled error taxonomy. Prepare a blind-grading packet.
+   - **Step 1 of the dev-only plan, scoring and report (2026-10-28; no API calls):**
+     - **Runs record answers; `report.py` scores them.** An `evaluate.Item` holds the
+       status and objective (or `no_answer`: the kind of loud failure), the pass
+       (`run_id`), revision flags, and time and cost, but no verdict. `scoring.score`
+       scores it against the ground truth, so a corrected review or the 1e-4 count is a
+       re-scoring, never a paid re-run.
+     - **A run directory is one experiment.** `manifest.json` fixes the split, problems,
+       conditions, model and settings hashes; a resume that differs is refused. The
+       manifest is the report's denominator: a pair with no line is pending, never
+       missing. A report with open pairs says it's incomplete.
+     - **Amendment 1 is in `report.py`:** after the first pass and `RESUME_PASSES` (3), an
+       errored pair counts as wrong ("api error") and is listed; re-runs are counted.
+     - **`report.build`** gives everything sections 1, 3, 4, 5 and Amendment 1 ask for:
+       Wilson intervals per condition and subset, lenient accuracy (`readings(...,
+       lenient=True)`: either integrality, no other change), which reading each correct
+       answer needed, flips at 1e-4, LP optima on "says LP" problems, claimed optima on
+       status problems with flags, silent ids and loud kinds, the 6 McNemar tests with
+       Holm, p50/p95 latency (numpy's linear interpolation; done pairs only), retry and
+       wall time over every pass, tokens, cost, and the owner's blind-label agreement for
+       test runs. `subsets()` reproduces every pre-registered count. Same inputs, same
+       JSON (no timestamps), with provenance (manifest, each pass's commit, input hashes,
+       prices).
+     - The smoke run (`runs/smoke`, given a manifest after the fact) reports exactly the
+       step 1 numbers.
+     - Not yet: the perturbed set's place in the report and which conditions run on it
+       (step 2, the owner's call), `results/eval.json` and the README-number test (after
+       the test run), and the pre-registration's 3c line that says the "=" reading is
+       "still to be implemented" (to update at the hand-off).
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -149,7 +177,7 @@ point is a trustworthy evaluation, not a demo.
   after the first run and 3 resume passes counts as wrong (loud) and is listed
   separately; refusals and unusable replies are replies, so they count as wrong the first
   time (the cache replays them); the report says how many pairs needed re-runs.
-  `evaluate.py` doesn't count passes yet (milestone 6).
+  `report.py` counts the passes.
 - Runs are resumable: `python -m opt_agent.evaluate --out runs/NAME ...` again skips done
   pairs and replays every successful call from `runs/NAME/cache`.
 
@@ -169,6 +197,7 @@ python -m opt_agent.agent "problem text"   # needs ANTHROPIC_API_KEY
 python -m pytest -m live -s         # the tests that call the real API (not in CI)
 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ... --plan   # worst case, no calls
 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ...   # dev only; resumable
+python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.json
 ```
 
 ## Ground truth (milestone 3 decisions)
@@ -193,6 +222,12 @@ python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ...   # dev only; res
   as >=): for integer problems, `Record.strict` stores the answer with each noted
   constraint read strictly (`strict.py`), and `matching_reading` accepts either reading
   and says which one matched.
+- **The "=" reading** (pre-registration 3c, owner's decision): an `ambiguous-text` review
+  names the constraint (`Review.equality` in `reviews.json`), and `Record.equality` stores
+  that model with the inequality made an equation, solved as LP and IP and checked like
+  the annotated one. `matching_reading` accepts it as "equality". Only the 3 test problems
+  have one, and their answers (50, 1215, 32) match the hand reviews. The owner's packets
+  don't show it, so they're unchanged.
 - **Exclusions:** test problems used while building the agent are not scorable
   (`data/nl4opt/exclusions.json`: the fishery and ads problems). Demos, fakes and live
   tests use dev problems only.

@@ -18,12 +18,15 @@ from opt_agent.ground_truth import (
     as_integer,
     blind_gradable,
     does_nothing,
+    equality_model,
     lacks_optimum,
     load_exclusions,
     load_integrality,
     load_records,
     load_reviews,
+    matching_reading,
     needs_hand_label,
+    readings,
     render_report,
     scorable,
 )
@@ -56,6 +59,12 @@ def test_highs_reproduces_every_committed_answer(split):
             tight, changed = strict_model(as_integer(r.model), strict_constraints(r.notes))
             assert changed == r.strict.changed, r.id
             assert same_answer(tight, committed(r.strict.ip), solve_with_highs(tight)), r.id
+        if r.equality is not None:
+            equal, changed = equality_model(r.model, r.review.equality)
+            assert changed == r.equality.changed, r.id
+            assert same_answer(equal, committed(r.equality.lp), solve_with_highs(equal)), r.id
+            integer = as_integer(equal)
+            assert same_answer(integer, committed(r.equality.ip), solve_with_highs(integer)), r.id
 
 
 @pytest.mark.parametrize("split", SPLITS)
@@ -166,3 +175,40 @@ def test_problems_used_while_building_the_agent_are_not_scored():
         assert answer(r) is not None or key == ("test", "-725478241")  # ads: no optimum
         assert not scorable(r) and not blind_gradable(r)
     assert all(r.excluded is None for (split, _), r in by_key.items() if split == "dev")
+
+
+@pytest.mark.parametrize(
+    "problem, annotated, equal",
+    [("-169306566", 56, 32), ("-1765797791", 54, 50), ("-1715698555", 1240, 1215)],
+)
+def test_the_equality_readings_match_the_hand_reviews(problem, annotated, equal):
+    """Each ambiguous-text review states both answers by hand (from ORLM, or worked out);
+    the computed "=" reading must reproduce them."""
+    r = {x.id: x for x in RECORDS["test"]}[problem]
+    assert (r.ip.objective, r.equality.ip.objective) == (annotated, equal)
+    assert f"{annotated}" in r.review.reason and f"{equal}" in r.review.reason
+    assert matching_reading(r, r.ip.status, annotated) == "annotated"
+    assert matching_reading(r, r.ip.status, equal) == "equality"
+
+
+def test_only_reviewed_ambiguous_problems_have_an_equality_reading():
+    for records in RECORDS.values():
+        for r in records:
+            named = r.review is not None and bool(r.review.equality)
+            assert (r.equality is not None) == named, r.id
+            if named:
+                assert r.review.verdict == "ambiguous-text", r.id
+
+
+def test_lenient_scoring_accepts_either_integrality():
+    r = {x.id: x for x in RECORDS["dev"]}["439170086"]  # gas: IP 251, LP 250
+    assert matching_reading(r, r.lp.status, 250.0) is None
+    assert matching_reading(r, r.lp.status, 250.0, lenient=True) == "annotated"
+    assert len(readings(r, lenient=True)) == 2
+
+
+def test_the_tolerance_is_relative_and_absolute_near_zero():
+    r = {x.id: x for x in RECORDS["dev"]}["439170086"]
+    assert matching_reading(r, r.ip.status, 251 * (1 + 5e-7)) == "annotated"
+    assert matching_reading(r, r.ip.status, 251 * (1 + 5e-5)) is None
+    assert matching_reading(r, r.ip.status, 251 * (1 + 5e-5), tolerance=1e-4) == "annotated"

@@ -8,6 +8,7 @@ from opt_agent.ground_truth import (
     does_nothing,
     integrality_matters,
     load_records,
+    says_lp,
     scorable,
 )
 from opt_agent.packets import SAYS_LP, SAYS_LP_PATH, SEED
@@ -59,16 +60,10 @@ def test_ambiguous_count():
 
 def test_lp_text_problems():
     listed = set(re.findall(r"`(-?\d+)`", DOC.split("**d.")[1].split("**e.")[0]))
-    says_lp = {
-        r.id
-        for r in SCORABLE
-        if re.search(r"\bLP\b|linear program", r.document, re.I)
-        and r.integrality.kind == "integer"
-        and integrality_matters(r)
-    }
+    flagged = {r.id for r in SCORABLE if says_lp(r)}
     owner_precedents = {"-640645082", "892653388"}
-    assert listed - owner_precedents == says_lp == set(SAYS_LP)
-    assert says(f"{len(says_lp)} scorable test problems where integrality changes the answer")
+    assert listed - owner_precedents == flagged == set(SAYS_LP)
+    assert says(f"{len(flagged)} scorable test problems where integrality changes the answer")
     assert says(f"**The owner labels these {len(SAYS_LP)}** (`review/says_lp.md`)")
     assert SAYS_LP_PATH.exists()
 
@@ -96,6 +91,7 @@ def test_the_ambiguous_constraints_exist():
     assert {pid for pid, _ in rows} == set(ambiguous)
     for pid, constraint in rows:
         assert constraint in {c.name for c in ambiguous[pid].model.constraints}, pid
+        assert ambiguous[pid].review.equality == [constraint], pid  # the "=" reading's input
 
 
 def test_the_status_subset_power_floor():

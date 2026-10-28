@@ -8,7 +8,8 @@ problem's integrality label (integrality.py) picks which of the two answers is t
 Test problems used while building the agent are excluded from scoring
 (data/nl4opt/exclusions.json). For integer problems with strict wording ("more than"),
 the answer with that wording read strictly is stored too, and either reading is accepted
-(strict.py, matching_reading).
+(strict.py, matching_reading). So is the "=" reading of a constraint that an
+ambiguous-text review names (pre-registration, section 3c).
 
 Run:  python -m opt_agent.data && python -m opt_agent.ground_truth
 Writes data/nl4opt/ground_truth/{dev,test}.json and REPORT.md. The report is generated
@@ -17,6 +18,7 @@ from those files, so every number in it comes from the code, not from typing.
 
 import json
 import math
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -67,6 +69,15 @@ class StrictReading(BaseModel):
     ip: CheckedSolve  # strictness only has meaning over integers
 
 
+class EqualityReading(BaseModel):
+    """The answer with each constraint an ambiguous-text review names read as "=". Solved
+    both ways, like the annotated model, and the label picks one."""
+
+    changed: list[str]  # e.g. "c0_xby: >= 0 became == 0"
+    lp: CheckedSolve
+    ip: CheckedSolve
+
+
 class Review(BaseModel):
     verdict: Literal[
         "text-has-no-optimum",  # infeasible/unbounded as written: that status is the answer
@@ -79,6 +90,8 @@ class Review(BaseModel):
     reason: str
     confirmed_by_owner: bool = False
     answer_affected: bool = True  # for annotation errors: does the error change the answer?
+    # For ambiguous text: constraints the text also supports reading as "=", not as annotated.
+    equality: list[str] | None = None
 
 
 class Record(BaseModel):
@@ -93,6 +106,7 @@ class Record(BaseModel):
     review: Review | None = None
     excluded: str | None = None  # why it's left out of scoring although its answer is fine
     strict: StrictReading | None = None  # integer problems with strict wording only
+    equality: EqualityReading | None = None  # only where a review names constraints
 
 
 def build_record(problem_id: str, annotation: dict, label: Integrality | None) -> Record:
@@ -119,6 +133,27 @@ def build_record(problem_id: str, annotation: dict, label: Integrality | None) -
         ip=solve_checked(as_integer(model)),
         strict=strict,
     )
+
+
+def equality_reading(model: LPModel, names: list[str]) -> EqualityReading:
+    tight, changed = equality_model(model, names)
+    return EqualityReading(
+        changed=changed, lp=solve_checked(tight), ip=solve_checked(as_integer(tight))
+    )
+
+
+def equality_model(model: LPModel, names: list[str]) -> tuple[LPModel, list[str]]:
+    """The model with each named constraint's inequality made an equation."""
+    missing = set(names) - {c.name for c in model.constraints}
+    if missing:
+        raise ValueError(f"no constraint named {sorted(missing)}")
+    constraints, changed = [], []
+    for c in model.constraints:
+        if c.name in names and c.sense != "==":
+            changed.append(f"{c.name}: {c.sense} {c.rhs:g} became == {c.rhs:g}")
+            c = c.model_copy(update={"sense": "=="})
+        constraints.append(c)
+    return model.model_copy(update={"constraints": constraints}), changed
 
 
 def as_integer(model: LPModel) -> LPModel:
@@ -151,34 +186,47 @@ def _trusted(solve: CheckedSolve) -> bool:
     return solve.highs_agrees and not solve.check_problems
 
 
-Reading = Literal["annotated", "strict"]
+Reading = Literal["annotated", "strict", "equality"]
+TOLERANCE = 1e-6  # pre-registered (section 1): relative, and absolute near zero
 
 
-def readings(record: Record) -> dict[Reading, CheckedSolve]:
-    """Every answer a correct model may reach: the annotated reading, and for integer
-    problems with strict wording, the strict one. Untrusted solves are left out."""
-    found: dict[Reading, CheckedSolve] = {}
-    if (annotated := answer(record)) is not None:
-        found["annotated"] = annotated
-    if record.strict is not None and _trusted(record.strict.ip):
-        found["strict"] = record.strict.ip
-    return found
+def readings(record: Record, lenient: bool = False) -> list[tuple[Reading, CheckedSolve]]:
+    """Every answer a correct model may reach, "annotated" first: the annotated reading,
+    the strict one (integer problems with strict wording), and the "=" one (ambiguous text
+    a review names). Each comes from the integrality the label picks, or with `lenient`,
+    from both: the pre-registration's lenient accuracy (section 3f), which doesn't grade
+    integrality. Untrusted solves are left out."""
+    kinds = ["lp", "ip"] if lenient else ["ip" if record.integrality.kind == "integer" else "lp"]
+    found: list[tuple[Reading, CheckedSolve]] = []
+    if answer(record) is not None:  # no trusted annotated answer, nothing to score against
+        found += [("annotated", getattr(record, kind)) for kind in kinds]
+    if record.strict is not None:
+        found.append(("strict", record.strict.ip))  # strictness only has meaning over integers
+    if record.equality is not None:
+        found += [("equality", getattr(record.equality, kind)) for kind in kinds]
+    return [(reading, solve) for reading, solve in found if _trusted(solve)]
 
 
-def matching_reading(record: Record, status: Status, objective: float | None) -> Reading | None:
-    """Which reading an agent's answer matches, "annotated" first; None if neither. A score
-    records this, so the report can say how many correct answers needed the strict one."""
-    for reading, truth in readings(record).items():
+def matching_reading(
+    record: Record,
+    status: Status,
+    objective: float | None,
+    tolerance: float = TOLERANCE,
+    lenient: bool = False,
+) -> Reading | None:
+    """Which reading an agent's answer matches, "annotated" first; None if none does. A
+    score records this, so the report can say how many correct answers needed another."""
+    for reading, truth in readings(record, lenient):
         if status is truth.status and (
-            status is not Status.OPTIMAL or same_value(objective, truth.objective)
+            status is not Status.OPTIMAL or same_value(objective, truth.objective, tolerance)
         ):
             return reading
     return None
 
 
-def same_value(a: float, b: float) -> bool:
+def same_value(a: float, b: float, tolerance: float = TOLERANCE) -> bool:
     """Equal objectives, up to solver round-off."""
-    return math.isclose(a, b, rel_tol=1e-6, abs_tol=1e-6)
+    return math.isclose(a, b, rel_tol=tolerance, abs_tol=tolerance)
 
 
 def needs_hand_label(record: Record) -> bool:
@@ -200,6 +248,13 @@ def lacks_optimum(record: Record) -> bool:
     return Status.OPTIMAL not in (record.lp.status, record.ip.status) or (
         record.lp.status != record.ip.status
     )
+
+
+def says_lp(record: Record) -> bool:
+    """The text asks for an LP, but the label is integer and integrality changes the
+    answer (pre-registration, section 3d): the label decides."""
+    asks = re.search(r"\bLP\b|linear program", record.document, re.IGNORECASE)
+    return bool(asks) and record.integrality.kind == "integer" and integrality_matters(record)
 
 
 def does_nothing(record: Record) -> bool:
@@ -285,6 +340,8 @@ def main() -> None:
         for r in records:
             r.review = reviews.get((split, r.id))
             r.excluded = exclusions.get((split, r.id))
+            if r.review is not None and r.review.equality and r.model is not None:
+                r.equality = equality_reading(r.model, r.review.equality)
         by_split[split] = records
         write_records(records, GROUND_TRUTH_DIR / f"{split}.json")
     answers = orlm.load_answers(fetch(ORLM_ANSWERS))
@@ -315,6 +372,7 @@ def render_report(by_split: dict[str, list[Record]], orlm_answers: dict[str, str
     lines += _integrality_section(by_split, verdicts["test"])
     lines += _notes_section(by_split)
     lines += _strict_section(by_split)
+    lines += _equality_section(by_split)
     lines += _does_nothing_section(by_split)
     lines += _orlm_section(by_split["test"], orlm_answers, verdicts["test"])
     return "\n".join(lines) + "\n"
@@ -484,9 +542,7 @@ def _notes_section(by_split: dict[str, list[Record]]) -> list[str]:
 
 
 def _strict_section(by_split: dict[str, list[Record]]) -> list[str]:
-    def show(s: CheckedSolve) -> str:
-        return f"{s.objective:g}" if s.status is Status.OPTIMAL else s.status.value
-
+    show = _show_answer
     with_strict = [(split, r) for split, rs in by_split.items() for r in rs if r.strict]
     rows = [
         [split, f"`{r.id}`", show(r.ip), show(r.strict.ip), "; ".join(r.strict.changed)]
@@ -513,6 +569,28 @@ def _strict_section(by_split: dict[str, list[Record]]) -> list[str]:
         "",
         *_table(["split", "id", "annotated (IP)", "strict (IP)", "tightened"], rows),
     ]
+
+
+def _equality_section(by_split: dict[str, list[Record]]) -> list[str]:
+    with_equality = [(split, r) for split, rs in by_split.items() for r in rs if r.equality]
+    rows = []
+    for split, r in with_equality:
+        kind = "ip" if r.integrality.kind == "integer" else "lp"
+        annotated, equal = getattr(r, kind), getattr(r.equality, kind)
+        rows.append([split, f"`{r.id}`", kind.upper(), _show_answer(annotated),
+                     _show_answer(equal), "; ".join(r.equality.changed)])  # fmt: skip
+    intro = (
+        "Problems whose text supports two readings of one constraint (verdict "
+        "`ambiguous-text`): >= as annotated, or =. The review names the constraint; the "
+        '"=" reading is solved and checked like the annotated one, and either answer is '
+        "accepted (pre-registration, section 3c)."
+    )
+    header = ["split", "id", "label", "annotated", "= reading", "changed"]
+    return ["## Ambiguous text: the = reading", "", intro, "", *_table(header, rows)]
+
+
+def _show_answer(s: CheckedSolve) -> str:
+    return f"{s.objective:g}" if s.status is Status.OPTIMAL else s.status.value
 
 
 def _does_nothing_section(by_split: dict[str, list[Record]]) -> list[str]:

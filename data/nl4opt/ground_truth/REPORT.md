@@ -224,6 +224,16 @@ Integer problems whose wording is strict ("more than", "must exceed") but which 
 | test | `-685300642` | 0 | 10 | c0_xy: >= 0 became >= 1 |
 | test | `-735986381` | 14 | 14 | c0_xy: >= 0 became >= 1 |
 
+## Ambiguous text: the = reading
+
+Problems whose text supports two readings of one constraint (verdict `ambiguous-text`): >= as annotated, or =. The review names the constraint; the "=" reading is solved and checked like the annotated one, and either answer is accepted (pre-registration, section 3c).
+
+| split | id | label | annotated | = reading | changed |
+|---|---|---|---|---|---|
+| test | `-1765797791` | IP | 54 | 50 | c0_xby: >= 0 became == 0 |
+| test | `-1715698555` | IP | 1240 | 1215 | c1_xby: >= 0 became == 0 |
+| test | `-169306566` | IP | 56 | 32 | c1_xby: >= 0 became == 0 |
+
 ## Do-nothing optima
 
 The optimum is to make nothing (objective 0), usually "minimize resource use" with no demand to meet. Correct as written, but a degenerate problem.

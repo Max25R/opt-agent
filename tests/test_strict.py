@@ -110,7 +110,7 @@ def test_known_strict_answers(problem, annotated, strict):
 
 def test_either_reading_is_accepted_and_the_one_used_is_named():
     r = BY_ID["615752596"]
-    assert set(readings(r)) == {"annotated", "strict"}
+    assert [name for name, _ in readings(r)] == ["annotated", "strict"]
     assert matching_reading(r, Status.OPTIMAL, 80.0) == "annotated"
     assert matching_reading(r, Status.OPTIMAL, 76.0) == "strict"
     assert matching_reading(r, Status.OPTIMAL, 85.714) is None  # the LP optimum: not integer
@@ -127,7 +127,7 @@ def test_continuous_problems_have_only_the_annotated_reading():
     continuous = [
         r for r in BY_ID.values() if r.error is None and r.integrality.kind == "continuous"
     ]
-    assert all(set(readings(r)) <= {"annotated"} for r in continuous)
+    assert all({name for name, _ in readings(r)} <= {"annotated"} for r in continuous)
 
 
 def test_nine_of_the_twenty_five_scorable_test_answers_change():
