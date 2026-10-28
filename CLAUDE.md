@@ -68,8 +68,9 @@ point is a trustworthy evaluation, not a demo.
      2026-10-19; it's still a draft). Apply their marks: `confirmed_by_owner` for
      confirmed reviews, source `owner` for labels. Milestone 6 must implement, before
      approval: the "=" reading for the 3 ambiguous problems (accepted like the strict
-     one), the baseline's answer schema and parsing (pre-registration 2a), and the
-     1e-4 sensitivity count. Run the live tests once there's a key. Known and
+     one), the baseline's prompt (fixed on dev; `baseline.py` has a first draft, and its
+     schema and parsing follow pre-registration 2a), and the 1e-4 sensitivity count. The
+     owner decides how API errors are scored (see "Budget" below). Known and
      unfixed: the integrality rule matches ingredient names ("units of chicken" meat), so
      it labels countable products continuous in at least 3 reviewed test problems
      (bubble teas, crepes, curry bowls; harmless for the annotated answers; fix after the
@@ -77,6 +78,12 @@ point is a trustworthy evaluation, not a demo.
      corrections (the owner decides whether to regenerate it); no Farkas certificate for
      infeasible LPs; the CLI needs a key even when every call is cached (milestone 8);
      freezing data and prompt hashes at the start of a test run (milestone 6).
+   - **Pre-milestone-6 step 1 (2026-10-28):** the key works; the live tests passed (5
+     calls, $0.0025). Added the budget guard (`budget.py`, `pricing.py`), spend-limit
+     stops (`api.SpendLimitReached`), the no-solver baseline (`baseline.py`), and a
+     resumable dev-only runner (`evaluate.py`). A 3-problem dev smoke test of all three
+     conditions cost $0.0042; the milestone 6 projection was about $0.71 (high: $2.06).
+     The owner sets milestone 6's cap after seeing it.
 6. [ ] Evaluation. Iterate on prompts with the dev split only, then run test once with
    everything frozen. Conditions: no-solver baseline, single-shot, self-correction, plus
    a perturbed-numbers set. Report Wilson CIs, McNemar's test, the silent-vs-loud failure
@@ -97,8 +104,10 @@ point is a trustworthy evaluation, not a demo.
   medium effort, Haiku 5.5's current defaults. Haiku 5.5 rejects `thinking: enabled`
   with a budget, and temperature can only be 1, so a run is reproducible only by replaying
   the cache. The SDK's retries are off (`with_options(max_retries=0)`); `api.call` retries
-  with the SDK's own rule so retry time is measured. A call that still fails comes back as
-  `CallInfo.error`, never as an exception.
+  with the SDK's own rule so retry time is measured (8 tries, so a 429 gets about a
+  minute of backoff, or the waits `retry-after` names). A call that still fails comes
+  back as `CallInfo.error`, never as an exception, except for a spend limit, which raises
+  `api.SpendLimitReached` to stop the run.
 - Every API call takes a `client` argument, and tests pass `tests/fakes.FakeClient`
   (which returns real `anthropic.types.Message` objects, so they can be cached). Only
   `tests/test_live.py` (marker `live`, excluded by default and in CI) calls the real API,
@@ -108,9 +117,32 @@ point is a trustworthy evaluation, not a demo.
   `Result.verified`: confirmed and optimal. Both are about the solution of Claude's model,
   not whether the model matches the text; that's milestone 6. A flagged revision can be
   "verified" too, which is why the flags exist.
-- **None of the live tests has run yet** (no key as of 2026-10-19). When the owner has
-  a key: `python -m pytest -m live -s` runs all three; fix anything that breaks before
-  starting milestone 6's paid runs.
+- The live tests (`python -m pytest -m live -s`, 4 to 8 calls) first passed on
+  2026-10-28.
+
+## Budget (hard constraint, owner, 2026-10-28)
+
+- The owner has $20 of API credit in total and a $10/month spend limit (resets on the
+  1st). **Never run live calls, in loops or retries, without telling the owner first**
+  (how many calls, the worst-case cost), and never run the full milestone 6 evaluation
+  until the owner approves its cost and confirms the test-split reviews.
+- Every live call goes through `budget.BudgetedClient`. Before a call it reserves the
+  worst case (`pricing.worst_case_usd`: every request byte as an input token, plus a
+  2,000-token margin, and all of `max_tokens`); if that could cross the cap, it raises
+  `BudgetExceeded` instead of calling. After the call it writes the real cost (from
+  `response.usage`) to a JSONL ledger, so a resumed run counts earlier spend. Cached
+  replies cost nothing. Default caps: $1 for smoke tests, $0.25 for all live-test runs
+  together (`logs/spend/live-tests.jsonl`), and the owner sets milestone 6's.
+- `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
+  paid run. An unlisted model raises instead of being guessed.
+- Budget stops, spend-limit errors (`api.SpendLimitReached`: a 429 with
+  `enforced_spend_limit_reached`, or a 400 "You have reached your specified ... limits"),
+  and API errors are never scored as Claude's failures. `evaluate.py` logs an API error
+  that outlasts the retries as `errored` and retries it on resume. This **conflicts with
+  the draft pre-registration** (sections 1 and 2a count an API error as wrong); the owner
+  decides which wording goes in before approval.
+- Runs are resumable: `python -m opt_agent.evaluate --out runs/NAME ...` again skips done
+  pairs and replays every successful call from `runs/NAME/cache`.
 
 ## Commands
 
@@ -126,6 +158,8 @@ python scripts/dev_walkthrough.py   # rebuild the 30-problem dev review sheet
 python -m opt_agent.packets integrality|reviews|agreement   # the owner's packets
 python -m opt_agent.agent "problem text"   # needs ANTHROPIC_API_KEY
 python -m pytest -m live -s         # the tests that call the real API (not in CI)
+python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ... --plan   # worst case, no calls
+python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ...   # dev only; resumable
 ```
 
 ## Ground truth (milestone 3 decisions)

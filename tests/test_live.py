@@ -1,6 +1,10 @@
 """Call the real Claude API, so they cost money (a fraction of a cent each). They're excluded
 from the default test run and from CI. Run them all with:  python -m pytest -m live -s
 
+Every call goes through a budget guard (budget.py) whose ledger is git-ignored and counts
+every run of these tests: one run makes 4 to 8 calls, and the guard refuses any call that
+could take the total past LIVE_CAP_USD.
+
 Every problem here is from the dev split: nothing an agent was tuned on may be scored.
 """
 
@@ -12,19 +16,23 @@ from fakes import GAS_PROBLEM
 from pytest import approx
 
 from opt_agent.agent import run
+from opt_agent.budget import Budget, BudgetedClient
 from opt_agent.config import get_api_key
 from opt_agent.feedback import for_invalid_reply
 from opt_agent.formulate import Revision, formulate
 from opt_agent.ground_truth import GROUND_TRUTH_DIR, load_records
-from opt_agent.runs import Run
+from opt_agent.runs import REPO_ROOT, Run
 from opt_agent.self_correct import MAX_ATTEMPTS, solve_with_revisions
 from opt_agent.solver import solve
 
 pytestmark = pytest.mark.live
 
+LIVE_CAP_USD = 0.25
+LEDGER = REPO_ROOT / "logs" / "spend" / "live-tests.jsonl"
 
-def claude() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=get_api_key())
+
+def claude() -> BudgetedClient:
+    return BudgetedClient(anthropic.Anthropic(api_key=get_api_key()), Budget(LIVE_CAP_USD, LEDGER))
 
 
 def test_the_gas_problem_with_the_real_api():

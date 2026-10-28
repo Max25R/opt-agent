@@ -11,7 +11,12 @@ replayed from a cache when it has been sent before, and never raising an API err
   its retries off and use the same rule (connection errors, 408, 409, 429, 5xx, or the
   server's x-should-retry header), so retry time is measured apart from latency.
 - **A failure is a result, not an exception.** After the last try the error comes back in
-  CallInfo.error, so the run goes on and the problem is counted as failed, not skipped.
+  CallInfo.error, so the run goes on; the evaluation logs the problem as errored (not as
+  Claude's failure) and a resumed run tries it again.
+- **Except when the account can't pay.** A spend limit (the tier's monthly cap, or the
+  owner's own limit) fails every call until it resets, so it raises SpendLimitReached, a
+  RunStopped: the whole run stops cleanly instead of logging every remaining problem as
+  errored. budget.BudgetExceeded, our own cap, is a RunStopped too.
 - **The cache** keys each response by the SHA-256 of the full request. Sending the same
   request again replays the response: a crashed run resumes where it stopped, and a
   finished run can be reproduced without an API key. Failed calls aren't cached, so a
@@ -32,7 +37,9 @@ MAX_TOKENS = 16_000  # leaves room for thinking, which counts toward max_tokens
 THINKING = {"type": "adaptive", "display": "omitted"}
 EFFORT = "medium"
 
-MAX_TRIES = 5
+# A new account has low rate limits, so a 429 gets up to ~1 minute of backoff (0.5, 1, 2,
+# ... 32 s), or the waits the server names in retry-after (each at most a minute).
+MAX_TRIES = 8
 FIRST_WAIT_S, MAX_WAIT_S = 0.5, 60.0
 
 # Why a reply is unfinished, for every stop_reason other than end_turn and stop_sequence.
@@ -53,6 +60,15 @@ class TokenUsage(BaseModel):
     thinking_tokens: int | None = None  # as the API reports it, when it does
 
 
+class RunStopped(Exception):
+    """Nothing more can be paid for, so the run must stop. Deliberately not an
+    anthropic.APIError, which call() would turn into one failed call."""
+
+
+class SpendLimitReached(RunStopped):
+    """The account has hit a monthly spend limit; every call fails until it resets."""
+
+
 class CallInfo(BaseModel):
     """How a call went, apart from what Claude said."""
 
@@ -64,9 +80,12 @@ class CallInfo(BaseModel):
     error: str | None = None  # the API error, if every try failed
 
 
+def canonical_json(request: dict) -> str:
+    return json.dumps(request, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
 def request_sha256(request: dict) -> str:
-    canonical = json.dumps(request, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(canonical.encode()).hexdigest()
+    return hashlib.sha256(canonical_json(request).encode()).hexdigest()
 
 
 def call(
@@ -90,6 +109,8 @@ def _send(client: anthropic.Anthropic, request: dict, key: str) -> tuple[Message
             response = client.messages.create(**request)
         except anthropic.APIError as error:
             elapsed = time.perf_counter() - start
+            if spend_limit_reached(error):
+                raise SpendLimitReached(describe(error)) from error
             if number == MAX_TRIES or not retryable(error):
                 info = CallInfo(request_sha256=key, tries=number, latency_s=elapsed,
                                 retry_s=retry_s, error=describe(error))  # fmt: skip
@@ -102,6 +123,21 @@ def _send(client: anthropic.Anthropic, request: dict, key: str) -> tuple[Message
         return response, CallInfo(request_sha256=key, tries=number, latency_s=latency,
                                   retry_s=retry_s)  # fmt: skip
     raise AssertionError("unreachable: the last try always returns")
+
+
+def spend_limit_reached(error: anthropic.APIError) -> bool:
+    """The tier's monthly cap is a 429 with error_code enforced_spend_limit_reached (and no
+    retry-after); a limit the owner set is a 400 saying "You have reached your specified
+    ... API usage limits". Both are in docs/en/api/rate-limits."""
+    if not isinstance(error, anthropic.APIStatusError):
+        return False
+    body = error.body if isinstance(error.body, dict) else {}
+    inner = body.get("error") or {}  # {"type": "error", "error": {"type", "message", ...}}
+    code = (inner.get("details") or {}).get("error_code")
+    message = inner.get("message") or ""
+    return code == "enforced_spend_limit_reached" or (
+        error.status_code == 400 and message.startswith("You have reached your specified")
+    )
 
 
 def retryable(error: anthropic.APIError) -> bool:

@@ -53,10 +53,20 @@ class FakeClient:
         )
 
 
-def status_error(status: int, headers: dict | None = None) -> anthropic.APIStatusError:
+def status_error(
+    status: int, headers: dict | None = None, body: dict | None = None
+) -> anthropic.APIStatusError:
     """What the SDK raises for an HTTP error, e.g. 529 (overloaded) or 400 (bad request)."""
     response = SimpleNamespace(status_code=status, headers=headers or {}, request=None)
-    return anthropic.APIStatusError(f"HTTP {status}", response=response, body=None)
+    return anthropic.APIStatusError(f"HTTP {status}", response=response, body=body)
+
+
+def api_error_body(message: str, error_code: str | None = None) -> dict:
+    """An error response body as the API sends it (docs/en/api/rate-limits)."""
+    error = {"type": "rate_limit_error", "message": message}
+    if error_code:
+        error["details"] = {"error_code": error_code}
+    return {"type": "error", "error": error}
 
 
 def connection_error() -> anthropic.APIConnectionError:
