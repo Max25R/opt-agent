@@ -47,8 +47,28 @@ hashes are frozen (section 6).
    comparison on the same first replies.
 4. **Perturbed numbers:** the same problems with their numbers changed and the ground
    truth recomputed from the changed annotations. This tests whether answers come from
-   the text or from memory. The perturbation rule is fixed in milestone 6, on dev only,
-   before approval.
+   the text or from memory.
+   - **Decided (owner, 2026-10-28): all three conditions run on it.** The no-solver
+     baseline is the condition most exposed to recalled answers.
+   - **The rule** (`perturb.py`, fixed on dev, seed 20261028): every annotated number
+     written in digits, except 1, is scaled by a factor drawn log-uniformly from [1/2, 2]
+     and rounded to the original's precision (no more significant digits, the same
+     decimal places and symbols), so the new numbers look like the old ones. Numbers in
+     words ("twice") stay. A percentage stays below 100, and no two numbers get the same
+     new text.
+   - **A draw is kept** only if the perturbed problem is the same kind of problem with a
+     new answer: the same judgment calls, every solve checks out, an optimum that does
+     something, integrality changes the answer exactly where it did before (so every
+     label that picks an answer is still a hand label), and no answer accepted for the
+     original is accepted for it, even at 1e-4. Otherwise it's drawn again, up to 200
+     times.
+   - **Problems:** 242 of the 276 scorable test problems: those with an optimum that does
+     something and no known annotation error. A problem whose answer is a status can't
+     test memory, since the same status would still be right.
+   - **Reported**, with no tests (section 4): accuracy with Wilson intervals per condition
+     and subset; per condition, the answers that equal the original problem's answer; and,
+     paired with the main run on the same problems, how many were right on the original
+     only and on the perturbed one only.
 
 Prompts are iterated on the dev split only.
 
@@ -158,7 +178,7 @@ Silent failures are the dangerous kind, and they're reported first.
 - That makes 6 tests. Their p-values get Holm's correction together (`stats.holm`), at a
   family-wise alpha of 0.05.
 - **Decided (owner): the perturbed-numbers condition stays outside the family.** It's
-  reported with intervals only, as a robustness check.
+  reported with intervals and counts only (section 2, condition 4), as a robustness check.
 - **The status subset (20 problems) is for failure patterns, and is underpowered for
   significance.** Its job is to show which problems a condition gets right as written
   and which it "fixes" into having an optimum.
@@ -194,7 +214,8 @@ refuses to start on the test split if any differs from the approved values:
 - the two system prompts (`formulate.SYSTEM_PROMPT`, `explain.SYSTEM_PROMPT`) and the
   schema (`formulate.LP_SCHEMA`);
 - the baseline's system prompt and its answer schema (section 2a);
-- the perturbation code and its seed (condition 4);
+- the perturbation code and its seed (condition 4), and the perturbed problems it made,
+  `data/nl4opt/ground_truth/test-perturbed.json`;
 - this file, `docs/PREREGISTRATION.md`, as approved.
 
 Before freezing:

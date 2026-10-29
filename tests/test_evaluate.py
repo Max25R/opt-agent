@@ -164,3 +164,11 @@ def test_the_command_line_plans_without_a_key(tmp_path, capsys, monkeypatch):
     assert not (tmp_path / "manifest.json").exists()  # a plan writes nothing
     with pytest.raises(SystemExit, match="not scorable"):
         evaluate.main(["no-such-problem", "--out", str(tmp_path), "--plan"])
+
+
+def test_the_perturbed_dev_split_runs_and_the_test_splits_wait(tmp_path, capsys):
+    evaluate.main([GAS.id, "--split", "dev-perturbed", "--out", str(tmp_path), "--plan"])
+    assert "3 pairs pending" in capsys.readouterr().out
+    for split in ("test", "test-perturbed"):
+        with pytest.raises(SystemExit):
+            evaluate.main([GAS.id, "--split", split, "--out", str(tmp_path), "--plan"])

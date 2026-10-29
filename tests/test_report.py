@@ -12,10 +12,11 @@ from opt_agent import api, evaluate, packets, report
 from opt_agent.api import RunStopped
 from opt_agent.budget import Budget, BudgetedClient
 from opt_agent.evaluate import CONDITIONS
-from opt_agent.ground_truth import GROUND_TRUTH_DIR, load_records, scorable
+from opt_agent.ground_truth import GROUND_TRUTH_DIR, answer, load_records, scorable
 
 DEV = {r.id: r for r in load_records(GROUND_TRUTH_DIR / "dev.json")}
 GAS = DEV["439170086"]  # integer optimum 251 (LP 250); integrality-sensitive
+NEW_GAS = {r.id: r for r in load_records(GROUND_TRUTH_DIR / "dev-perturbed.json")}[GAS.id]
 LOTION = DEV["-1028228232"]  # infeasible as written
 TRIPS = DEV["-640645082"]  # says LP, labeled integer: IP 880, LP 888.89
 FAKE_CALL_USD = (1200 * 0.10 + 300 * 0.50) / 1e6
@@ -28,9 +29,9 @@ def says(status: str, objective: float | None = None) -> str:
     return json.dumps({"status": status, "objective": objective})
 
 
-def run(out, *replies, records=(GAS,), conditions=CONDITIONS, cap=1.00):
+def run(out, *replies, records=(GAS,), conditions=CONDITIONS, cap=1.00, split="dev"):
     client = BudgetedClient(FakeClient(*replies), Budget(cap, out / "spend.jsonl"))
-    return evaluate.evaluate(list(records), conditions, client, out)
+    return evaluate.evaluate(list(records), conditions, client, out, split)
 
 
 @pytest.fixture(autouse=True)
@@ -171,6 +172,64 @@ def test_a_replayed_run_reports_the_same(mixed_run, tmp_path):
     before = report.build(mixed_run)["conditions"]
     run(mixed_run, records=[GAS, LOTION])  # FakeClient() fails on any call
     assert report.build(mixed_run)["conditions"] == before
+
+
+@pytest.fixture
+def original_and_perturbed(tmp_path):
+    """On the original gas problem, every condition is right (251). On the perturbed one,
+    the baseline states the new answer (right), while single-shot sends the original's
+    model, as if it hadn't read the new numbers: it's solved to 251, wrong here. Self-
+    correction replays it."""
+    original, perturbed = tmp_path / "original", tmp_path / "perturbed"
+    run(original, says("optimal", 251), GAS_REPLY)
+    run(perturbed, says("optimal", answer(NEW_GAS).objective), GAS_REPLY, records=[NEW_GAS],
+        split="dev-perturbed")  # fmt: skip
+    return original, perturbed
+
+
+def test_a_perturbed_run_lists_answers_that_are_the_originals(original_and_perturbed):
+    _, perturbed = original_and_perturbed
+    assert answer(NEW_GAS).objective != 251  # the perturbation changed the answer
+    r = report.build(perturbed)
+    accuracy = {c: r["conditions"][c]["accuracy"]["all"]["right"] for c in CONDITIONS}
+    assert accuracy == {"baseline": 1, "single-shot": 0, "self-correction": 0}
+    assert r["perturbed"]["gave the original answer"] == {
+        "baseline": [], "single-shot": [GAS.id], "self-correction": [GAS.id]}  # fmt: skip
+    assert r["comparisons"] == []  # outside the McNemar family (section 4)
+    assert set(r["provenance"]["inputs_sha256"]) == {
+        "dev-perturbed.json", "dev.json", "reviews.json"}  # fmt: skip
+
+
+def test_a_perturbed_run_pairs_with_the_original_run(original_and_perturbed):
+    original, perturbed = original_and_perturbed
+    moved = report.build(perturbed, original)["perturbed"]["against the original run"]
+    assert moved["baseline"]["right on both"] == 1
+    single = moved["single-shot"]
+    assert (single["n"], single["right on the original only"], single["wrong on both"]) == (1, 1, 0)
+    assert single["original"]["accuracy"] == 1.0 and single["perturbed"]["accuracy"] == 0.0
+
+
+def test_only_a_matching_run_pairs_with_a_perturbed_one(original_and_perturbed, tmp_path):
+    original, perturbed = original_and_perturbed
+    with pytest.raises(ValueError, match="same model and prompts on dev"):
+        report.build(perturbed, perturbed)  # not a run on the originals
+    with pytest.raises(ValueError, match="only goes with a run on a perturbed split"):
+        report.build(original, original)
+    other = tmp_path / "other"
+    other.mkdir()
+    manifest = json.loads((original / "manifest.json").read_text())
+    manifest["settings"]["baseline"] = "000000000000"  # another prompt version
+    (other / "manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="same model and prompts"):
+        report.build(perturbed, other)
+
+
+def test_the_command_line_shows_the_perturbed_comparison(original_and_perturbed, capsys):
+    original, perturbed = original_and_perturbed
+    report.main([str(perturbed), "--original", str(original)])
+    printed = capsys.readouterr().out
+    assert "single-shot: gave the original problem's answer 1 times" in printed
+    assert "| single-shot | 1 | 1/1 (100%" in printed and "| comparison |" not in printed
 
 
 def test_gas_reply_fixture_is_right_for_every_condition(tmp_path):

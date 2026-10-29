@@ -2,6 +2,7 @@
 
 import re
 
+from opt_agent import perturb
 from opt_agent.ground_truth import (
     GROUND_TRUTH_DIR,
     answer,
@@ -103,12 +104,21 @@ def test_the_status_subset_power_floor():
     assert says(f"As the smallest p in the family, it needs at least {in_family}")
 
 
+def test_the_perturbed_counts_and_rule():
+    perturbed = load_records(GROUND_TRUTH_DIR / "test-perturbed.json")
+    assert says(f"{len(perturbed)} of the {len(SCORABLE)} scorable test problems")
+    assert says(f"seed {perturb.SEED}") and says(f"up to {perturb.MAX_DRAWS} times")
+    low, high = perturb.FACTOR
+    assert (low, high) == (0.5, 2.0) and says("log-uniformly from [1/2, 2]")
+
+
 def test_the_freeze_list_names_everything_a_run_depends_on():
     freeze = DOC.split("## 6.")[1].split("## 7.")[0]
     frozen = [
         "reviews.json", "integrality.json", "exclusions.json", "test.json",
         "formulate.SYSTEM_PROMPT", "explain.SYSTEM_PROMPT", "formulate.LP_SCHEMA",
-        "baseline's system prompt", "perturbation code", "PREREGISTRATION.md",
+        "baseline's system prompt", "perturbation code", "test-perturbed.json",
+        "PREREGISTRATION.md",
     ]  # fmt: skip
     for item in frozen:
         assert item in freeze, item

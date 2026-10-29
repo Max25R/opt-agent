@@ -22,6 +22,11 @@ tolerance (1), LP optima on "says LP" problems (3d), optima claimed for problems
 none, with revision flags (3a), silent and loud failures (3g), McNemar's exact test with
 Holm's correction (4), latency, retry and wall time, tokens, and cost (4), and re-runs
 (Amendment 1).
+
+A run on a perturbed split (perturb.py; section 2, condition 4) is outside the McNemar
+family, so its report has no tests. It says instead which answers are the original
+problem's answer, and, given the run on the original problems (--original), how each
+condition's answers moved between the two.
 """
 
 import argparse
@@ -39,6 +44,7 @@ from opt_agent.evaluate import CONDITIONS, Item, Manifest
 from opt_agent.ground_truth import (
     GROUND_TRUTH_DIR,
     REVIEWS_PATH,
+    SENSITIVITY_TOLERANCE,
     TOLERANCE,
     Record,
     answer,
@@ -47,13 +53,13 @@ from opt_agent.ground_truth import (
     same_value,
     says_lp,
 )
+from opt_agent.perturb import PERTURBED_SPLITS
 from opt_agent.pricing import PRICES, PRICES_CHECKED, PRICING_URL
 from opt_agent.scoring import Score, score
 from opt_agent.solver import Status
 from opt_agent.stats import holm, mcnemar_exact, wilson
 
 RESUME_PASSES = 3  # Amendment 1: after the first pass and 3 resumes, an error counts as wrong
-SENSITIVITY_TOLERANCE = 1e-4  # section 1
 ALPHA = 0.05  # family-wise, over the McNemar tests (section 4)
 COMPARISONS = [("single-shot", "self-correction"), ("baseline", "single-shot"),
                ("baseline", "self-correction")]  # fmt: skip
@@ -77,14 +83,16 @@ class Pair(BaseModel):
         return self.item.no_answer if self.item.outcome == "done" else "api error"
 
 
-def build(run_dir: Path) -> dict:
-    """The whole report for one run directory."""
+def build(run_dir: Path, original_run: Path | None = None) -> dict:
+    """The whole report for one run directory. For a run on a perturbed split,
+    `original_run` is the same conditions' run on the original problems, if there is one."""
     manifest = Manifest.model_validate_json((run_dir / "manifest.json").read_text())
     by_id = {r.id: r for r in load_records(GROUND_TRUTH_DIR / f"{manifest.split}.json")}
     records = [by_id[i] for i in manifest.problem_ids]
     pairs = load_pairs(manifest, run_dir / "results.jsonl", by_id)
     groups = subsets(records)
     open_pairs = [p for p in pairs if p.state != "scored"]
+    perturbed = manifest.split in PERTURBED_SPLITS
     report = {
         "complete": not open_pairs,
         "open": {
@@ -96,10 +104,15 @@ def build(run_dir: Path) -> dict:
             c: condition_summary([p for p in pairs if p.condition == c], by_id, groups)
             for c in manifest.conditions
         },
-        "comparisons": comparisons(pairs, groups, manifest.conditions),
+        # The perturbed set is outside the McNemar family (section 4): no tests on it.
+        "comparisons": [] if perturbed else comparisons(pairs, groups, manifest.conditions),
         "paid_usd": _ledger_usd(run_dir / "spend.jsonl"),
         "provenance": provenance(run_dir, manifest),
     }
+    if perturbed:
+        report["perturbed"] = perturbed_summary(pairs, manifest, original_run)
+    elif original_run is not None:
+        raise ValueError("an original run only goes with a run on a perturbed split")
     if manifest.split == "test":
         report["integrality_agreement"] = integrality_agreement(list(by_id.values()))
     return report
@@ -275,6 +288,66 @@ def _key(row: dict) -> str:
     return f"{row['a']} vs {row['b']}, {row['subset']}"
 
 
+def perturbed_summary(pairs: list[Pair], manifest: Manifest, original_run: Path | None) -> dict:
+    """The robustness check (section 2, condition 4). Per condition, the answers that are
+    the original problem's answer: right there, wrong here by construction (perturb.py), so
+    each one ignored the new numbers. With a run on the original problems, also how each
+    condition's answers moved between the two. Counts and intervals, no tests (section 4)."""
+    split = PERTURBED_SPLITS[manifest.split]
+    originals = {r.id: r for r in load_records(GROUND_TRUTH_DIR / f"{split}.json")}
+    done = [p for p in pairs if p.state == "scored" and p.item.outcome == "done"]
+
+    def original_answer(p: Pair) -> bool:
+        return score(originals[p.problem_id], p.item.status, p.item.objective,
+                     lenient=True).correct  # fmt: skip
+
+    summary = {
+        "original split": split,
+        "gave the original answer": {
+            c: sorted(p.problem_id for p in done if p.condition == c and original_answer(p))
+            for c in manifest.conditions
+        },
+    }
+    if original_run is not None:
+        summary["against the original run"] = against_original(
+            pairs, manifest, original_run, originals
+        )
+    return summary
+
+
+def against_original(
+    pairs: list[Pair], manifest: Manifest, original_run: Path, originals: dict[str, Record]
+) -> dict:
+    """Per condition, on the problems both runs scored: accuracy on each, and how many were
+    right on one only. The two runs must use the same model and request settings."""
+    theirs = Manifest.model_validate_json((original_run / "manifest.json").read_text())
+    split = PERTURBED_SPLITS[manifest.split]
+    shared = [c for c in manifest.conditions if c in theirs.conditions]
+    same = theirs.model_id == manifest.model_id and all(
+        theirs.settings[c] == manifest.settings[c] for c in shared
+    )
+    if theirs.split != split or not same:
+        raise ValueError(f"{original_run} isn't a run of the same model and prompts on {split}")
+    results = original_run / "results.jsonl"
+    before = {(p.problem_id, p.condition): p.score.correct
+              for p in load_pairs(theirs, results, originals) if p.state == "scored"}  # fmt: skip
+    after = {(p.problem_id, p.condition): p.score.correct for p in pairs if p.state == "scored"}
+    rows = {}
+    for c in shared:
+        both = [i for i in manifest.problem_ids if (i, c) in before and (i, c) in after]
+        moved = Counter((before[(i, c)], after[(i, c)]) for i in both)
+        rows[c] = {
+            "n": len(both),
+            "original": rate(sum(before[(i, c)] for i in both), len(both)),
+            "perturbed": rate(sum(after[(i, c)] for i in both), len(both)),
+            "right on both": moved[(True, True)],
+            "right on the original only": moved[(True, False)],
+            "right on the perturbed only": moved[(False, True)],
+            "wrong on both": moved[(False, False)],
+        }
+    return rows
+
+
 def integrality_agreement(records: list[Record]) -> dict:
     """The owner's blind labels against Claude's (section 3f), once labels.csv is filled."""
     try:
@@ -297,7 +370,7 @@ def provenance(run_dir: Path, manifest: Manifest) -> dict:
         "passes": passes,
         "inputs_sha256": {
             path.name: hashlib.sha256(path.read_bytes()).hexdigest()
-            for path in (GROUND_TRUTH_DIR / f"{manifest.split}.json", REVIEWS_PATH)
+            for path in _inputs(manifest.split)
         },
         "tolerance": TOLERANCE,
         "sensitivity_tolerance": SENSITIVITY_TOLERANCE,
@@ -309,6 +382,13 @@ def provenance(run_dir: Path, manifest: Manifest) -> dict:
             manifest.model_id: PRICES[manifest.model_id][0].model_dump(),
         },  # fmt: skip
     }
+
+
+def _inputs(split: str) -> list[Path]:
+    """The ground truth the scores depend on. A perturbed split's report also scores
+    answers against its original split ("gave the original answer")."""
+    splits = [split] + ([PERTURBED_SPLITS[split]] if split in PERTURBED_SPLITS else [])
+    return [GROUND_TRUTH_DIR / f"{s}.json" for s in splits] + [REVIEWS_PATH]
 
 
 def _ledger_usd(path: Path) -> float:
@@ -352,8 +432,28 @@ def render(report: dict) -> str:
         for r in report["comparisons"]:
             lines.append(f"| {_key(r)} | {r['n']} | {r['only a right']} | "
                          f"{r['only b right']} | {r['p']:.3g} | {r['p_holm']:.3g} |")  # fmt: skip
+    if "perturbed" in report:
+        lines += _render_perturbed(report["perturbed"])
     lines += ["", f"Paid in this run directory: ${report['paid_usd']:.4f}"]
     return "\n".join(lines)
+
+
+def _render_perturbed(p: dict) -> list[str]:
+    lines = ["", f"Perturbed numbers (originals: {p['original split']}; no tests, section 4)."]
+    for c, ids in p["gave the original answer"].items():
+        lines.append(f"{c}: gave the original problem's answer {len(ids)} times {ids}")
+    if "against the original run" in p:
+        lines += [
+            "",
+            "| condition | n | original | perturbed | right on the original only | "
+            "right on the perturbed only |",
+            "|---|---|---|---|---|---|",
+        ]
+        for c, r in p["against the original run"].items():
+            lines.append(f"| {c} | {r['n']} | {_show_rate(r['original'])} | "
+                         f"{_show_rate(r['perturbed'])} | {r['right on the original only']} | "
+                         f"{r['right on the perturbed only']} |")  # fmt: skip
+    return lines
 
 
 def _show_rate(r: dict) -> str:
@@ -371,8 +471,10 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Score a run and summarize it.")
     parser.add_argument("run_dir", type=Path, help="a directory evaluate.py wrote")
     parser.add_argument("--out", type=Path, help="where to write the JSON (default: in run_dir)")
+    parser.add_argument("--original", type=Path,
+                        help="for a perturbed run: the run on the original problems")  # fmt: skip
     args = parser.parse_args(argv)
-    report = build(args.run_dir)
+    report = build(args.run_dir, args.original)
     out = args.out or args.run_dir / "report.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=1) + "\n")

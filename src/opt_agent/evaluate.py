@@ -26,7 +26,8 @@ errored pairs. Re-running the same command resumes it: done pairs are skipped, a
 call that already succeeded replays from the run's cache, so nothing is paid for twice.
 The cap counts what earlier runs in the same directory spent (its spend.jsonl).
 
-Only the dev split runs here until milestone 6 adds the pre-registration's freeze checks.
+Only the dev splits run here (dev, and its perturbed copy, dev-perturbed: perturb.py) until
+milestone 6 adds the pre-registration's freeze checks.
 
 Run:  python -m opt_agent.evaluate --out runs/smoke --cap 1.00 ID [ID ...]
       (add --plan to see the pending pairs and the worst-case cost without calling)
@@ -58,6 +59,7 @@ Condition = Literal["baseline", "single-shot", "self-correction"]
 CONDITIONS: tuple[Condition, ...] = ("baseline", "single-shot", "self-correction")
 ATTEMPTS = {"single-shot": 1, "self-correction": MAX_ATTEMPTS}
 MAX_ERRORS_IN_A_ROW = 3  # the API is down or the limits are too low: stop, resume later
+DEV_SPLITS = ["dev", "dev-perturbed"]  # the test splits wait for the freeze checks
 
 # Why a done pair has no answer: the loud failures of pre-registration section 3g. (An API
 # error is an errored pair instead; only the report turns one into a failure.)
@@ -384,7 +386,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("ids", nargs="+", help="problem ids from the split")
     parser.add_argument("--out", type=Path, required=True, help="the run's directory")
     parser.add_argument("--cap", type=float, default=1.00, help="dollar cap (default 1.00)")
-    parser.add_argument("--split", choices=["dev"], default="dev", help="dev only, for now")
+    parser.add_argument("--split", choices=DEV_SPLITS, default="dev", help="dev only, for now")
     parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))
     parser.add_argument("--model", default=formulate.DEFAULT_MODEL)
     parser.add_argument("--plan", action="store_true", help="show the worst case; no calls")

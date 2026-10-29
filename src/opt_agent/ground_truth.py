@@ -135,6 +135,13 @@ def build_record(problem_id: str, annotation: dict, label: Integrality | None) -
     )
 
 
+def attach_review(record: Record, review: Review | None) -> None:
+    """A review, and the "=" reading of the constraints it names (section 3c)."""
+    record.review = review
+    if review is not None and review.equality and record.model is not None:
+        record.equality = equality_reading(record.model, review.equality)
+
+
 def equality_reading(model: LPModel, names: list[str]) -> EqualityReading:
     tight, changed = equality_model(model, names)
     return EqualityReading(
@@ -179,15 +186,16 @@ def answer(record: Record) -> CheckedSolve | None:
     with CBC, or plain arithmetic finds a problem with CBC's solution.
     """
     solve = record.ip if record.integrality.kind == "integer" else record.lp
-    return solve if solve is not None and _trusted(solve) else None
+    return solve if solve is not None and trusted(solve) else None
 
 
-def _trusted(solve: CheckedSolve) -> bool:
+def trusted(solve: CheckedSolve) -> bool:
     return solve.highs_agrees and not solve.check_problems
 
 
 Reading = Literal["annotated", "strict", "equality"]
 TOLERANCE = 1e-6  # pre-registered (section 1): relative, and absolute near zero
+SENSITIVITY_TOLERANCE = 1e-4  # section 1: the report counts answers that flip at this one
 
 
 def readings(record: Record, lenient: bool = False) -> list[tuple[Reading, CheckedSolve]]:
@@ -204,7 +212,7 @@ def readings(record: Record, lenient: bool = False) -> list[tuple[Reading, Check
         found.append(("strict", record.strict.ip))  # strictness only has meaning over integers
     if record.equality is not None:
         found += [("equality", getattr(record.equality, kind)) for kind in kinds]
-    return [(reading, solve) for reading, solve in found if _trusted(solve)]
+    return [(reading, solve) for reading, solve in found if trusted(solve)]
 
 
 def matching_reading(
@@ -338,10 +346,8 @@ def main() -> None:
             build_record(pid, ann, labels.get((split, pid))) for pid, ann in problems.items()
         ]
         for r in records:
-            r.review = reviews.get((split, r.id))
+            attach_review(r, reviews.get((split, r.id)))
             r.excluded = exclusions.get((split, r.id))
-            if r.review is not None and r.review.equality and r.model is not None:
-                r.equality = equality_reading(r.model, r.review.equality)
         by_split[split] = records
         write_records(records, GROUND_TRUTH_DIR / f"{split}.json")
     answers = orlm.load_answers(fetch(ORLM_ANSWERS))

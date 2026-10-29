@@ -287,3 +287,49 @@ DUCKS = {
         },
     ],
 }
+
+# Dev 439170086 (gas; NL4Opt, MIT License), with the spans that locate its numbers. Dev only,
+# so the perturbation's tests can use it.
+GAS = {
+    "document": (
+        "A gas company can transport gas using a pipeline or by train. A pipeline can carry "
+        "8000 units of gas and a train can carry 2000 units of gas every day. Due to recent "
+        "environmental changes, the number of trains used must be at least twice as many as "
+        "the number of pipelines. If at least 1000000 units of gas needs to be transported "
+        "every day, minimize the total number of pipelines and trains needed."
+    ),
+    "vars": ["pipeline", "train"],
+    "order_mapping": {"pipeline": 0, "train": 1, "trains": 1, "pipelines": 0},
+    "obj_declaration": {
+        "type": "objvar",
+        "direction": "minimize",
+        "name": "total number of pipelines and trains needed",
+        "vars": ["pipeline", "train"],
+    },
+    "const_declarations": [
+        {
+            "type": "linear",
+            "direction": "at least",
+            "limit": "1000000",
+            "terms": {"pipeline": "8000", "train": "2000"},
+            "operator": "GREATER_OR_EQUAL",
+        },
+        {
+            "type": "xby",
+            "x_var": "trains",
+            "direction": "at least",
+            "param": "twice",
+            "y_var": "pipelines",
+            "operator": "GREATER_OR_EQUAL",
+        },
+    ],
+    "spans": [
+        {"start": s, "end": e, "label": label}
+        for s, e, label in [
+            (40, 48, "VAR"), (55, 60, "VAR"), (64, 72, "VAR"), (83, 87, "PARAM"),
+            (107, 112, "VAR"), (123, 127, "PARAM"), (203, 209, "VAR"), (223, 231, "CONST_DIR"),
+            (232, 237, "PARAM"), (263, 272, "VAR"), (277, 285, "CONST_DIR"), (286, 293, "LIMIT"),
+            (342, 350, "OBJ_DIR"), (355, 398, "OBJ_NAME"),
+        ]
+    ],
+}  # fmt: skip

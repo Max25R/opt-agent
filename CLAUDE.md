@@ -68,9 +68,8 @@ point is a trustworthy evaluation, not a demo.
      2026-10-19; it's still a draft). Apply their marks: `confirmed_by_owner` for
      confirmed reviews, source `owner` for labels. Milestone 6 must still do, before
      approval: fix the baseline's prompt on dev (`baseline.py` has a first draft; its
-     schema and parsing follow pre-registration 2a), the perturbation rule, and the
-     freeze checks. (The "=" reading, the 1e-4 count and Amendment 1 are done; see
-     milestone 6.) Known and
+     schema and parsing follow pre-registration 2a) and the freeze checks. (The "=" reading,
+     the 1e-4 count, Amendment 1 and the perturbation rule are done; see milestone 6.) Known and
      unfixed: the integrality rule matches ingredient names ("units of chicken" meat), so
      it labels countable products continuous in at least 3 reviewed test problems
      (bubble teas, crepes, curry bowls; harmless for the annotated answers; fix after the
@@ -117,10 +116,26 @@ point is a trustworthy evaluation, not a demo.
        prices).
      - The smoke run (`runs/smoke`, given a manifest after the fact) reports exactly the
        step 1 numbers.
-     - Not yet: the perturbed set's place in the report and which conditions run on it
-       (step 2, the owner's call), `results/eval.json` and the README-number test (after
-       the test run), and the pre-registration's 3c line that says the "=" reading is
-       "still to be implemented" (to update at the hand-off).
+     - Not yet: `results/eval.json` and the README-number test (after the test run), and
+       the pre-registration's 3c line that says the "=" reading is "still to be
+       implemented" (to update at the hand-off).
+   - **Step 2, the perturbed-numbers set (2026-10-28; no API calls):** all three
+     conditions run on it (owner's decision). `perturb.py` (the rule is its docstring)
+     changes every annotated number written in digits except 1, by a log-uniform factor in
+     [1/2, 2] rounded to the original's precision, keyed by the span's exact text
+     (declarations copy span texts verbatim, so text and formulation stay consistent; all
+     2,806 do). It rebuilds the ground truth with `build_record` and keeps a draw only if
+     the problem is the same kind with a new answer: same notes, every solve checks out, an
+     optimum that does something, **integrality matters exactly where it did** (in a trial build
+     without it, 58 of 242 perturbed test problems let the unreviewed rule label pick the
+     answer), and no
+     original answer is still accepted at 1e-4. Up to 200 draws (dev's worst needed 107);
+     every eligible problem got one. `{dev,test}-perturbed.json` keep the original ids, so
+     runs pair by id; `PERTURBED.md` has the counts. The runner accepts `--split
+     dev-perturbed` (test splits still wait for the freeze checks). On a perturbed run,
+     `report.py` runs no McNemar tests (outside the family), lists answers equal to the
+     original problem's, and with `--original RUN` gives paired counts. The pre-registration
+     draft's condition 4 now states the rule (not yet approved).
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -186,11 +201,12 @@ point is a trustworthy evaluation, not a demo.
 ```bash
 source .venv/bin/activate
 pip install -r requirements.lock && pip install --no-deps -e .   # the locked versions
-python -m pytest              # ~75 s; property tests explore new random cases each run
+python -m pytest              # ~100 s; property tests explore new random cases each run
 HYPOTHESIS_PROFILE=ci python -m pytest   # deterministic, as in CI
 ruff check . && ruff format .            # CI runs ruff format --check
 python -m opt_agent.data            # pinned, SHA-256-checked downloads (git-ignored)
 python -m opt_agent.ground_truth    # rebuild data/nl4opt/ground_truth/ (~55 s)
+python -m opt_agent.perturb         # then rebuild the perturbed splits (~4.5 min)
 python scripts/dev_walkthrough.py   # rebuild the 30-problem dev review sheet
 python -m opt_agent.packets integrality|reviews|agreement   # the owner's packets
 python -m opt_agent.agent "problem text"   # needs ANTHROPIC_API_KEY
@@ -198,6 +214,7 @@ python -m pytest -m live -s         # the tests that call the real API (not in C
 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ... --plan   # worst case, no calls
 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ...   # dev only; resumable
 python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.json
+python -m opt_agent.report runs/P --original runs/NAME   # a perturbed run, paired
 ```
 
 ## Ground truth (milestone 3 decisions)
@@ -243,8 +260,10 @@ python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.
   (not 1670020945, written after the walkthrough); all 62 test reviews are unconfirmed and
   in the owner's packet (`review/test_reviews/`, least sure first).
 - ORLM's answers (CC BY-NC 4.0) are a cross-check only and are **never committed**.
-- After changing the converter or the solver, rebuild the ground truth.
-  `test_highs_reproduces_every_committed_answer` fails if the data has drifted.
+- After changing the converter or the solver, rebuild the ground truth, then the perturbed
+  splits (they're built from it, and from `reviews.json`: a changed review needs a rebuild
+  too). `test_highs_reproduces_every_committed_answer` and
+  `test_highs_reproduces_every_perturbed_answer` fail if the data has drifted.
 
 ## Gotchas (learned the hard way)
 
