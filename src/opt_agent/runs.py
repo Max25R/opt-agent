@@ -40,9 +40,10 @@ class Run:
     cache: Cache | None = None
 
     @classmethod
-    def start(cls, log_path: Path | None = None, cache: Cache | None = None) -> "Run":
+    def start(cls, log_path: Path | None = None, cache: Cache | None = None, **header) -> "Run":
+        """`header` adds fields to the "run" line, such as an evaluation's fingerprint."""
         run = cls(log_path=log_path, cache=cache)
-        run.write("run", **environment())
+        run.write("run", **environment(), **header)
         return run
 
     def write(self, kind: str, tags: Tags | None = None, **fields) -> None:
@@ -62,15 +63,15 @@ class Run:
 
 def environment() -> dict:
     return {
-        "git_sha": _git("rev-parse", "HEAD"),
-        "git_dirty": None if (status := _git("status", "--porcelain")) is None else bool(status),
+        "git_sha": git("rev-parse", "HEAD"),
+        "git_dirty": None if (status := git("status", "--porcelain")) is None else bool(status),
         "python": platform.python_version(),
         "platform": platform.platform(),
         "packages": {name: _version(name) for name in PACKAGES},
     }
 
 
-def _git(*args: str) -> str | None:
+def git(*args: str) -> str | None:
     try:
         done = subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True)
     except OSError:  # no git at all

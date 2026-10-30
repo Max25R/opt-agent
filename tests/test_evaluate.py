@@ -166,9 +166,24 @@ def test_the_command_line_plans_without_a_key(tmp_path, capsys, monkeypatch):
         evaluate.main(["no-such-problem", "--out", str(tmp_path), "--plan"])
 
 
-def test_the_perturbed_dev_split_runs_and_the_test_splits_wait(tmp_path, capsys):
+def test_the_perturbed_dev_split_runs_and_all_takes_every_scorable_problem(tmp_path, capsys):
     evaluate.main([GAS.id, "--split", "dev-perturbed", "--out", str(tmp_path), "--plan"])
     assert "3 pairs pending" in capsys.readouterr().out
-    for split in ("test", "test-perturbed"):
-        with pytest.raises(SystemExit):
-            evaluate.main([GAS.id, "--split", split, "--out", str(tmp_path), "--plan"])
+    evaluate.main(["--all", "--out", str(tmp_path / "all"), "--plan"])
+    scorable = len(evaluate.scorable_records("dev"))
+    assert f"{3 * scorable} pairs pending" in capsys.readouterr().out
+    with pytest.raises(SystemExit, match="ids or --all"):
+        evaluate.main([GAS.id, "--all", "--out", str(tmp_path), "--plan"])
+
+
+def test_a_test_split_takes_all_plans_freely_and_runs_only_frozen(tmp_path, capsys, monkeypatch):
+    """A plan makes no calls, so it needs no freeze: it's how the owner sees the cost."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(evaluate.freeze, "FREEZE_PATH", tmp_path / "FREEZE.json")  # none
+    with pytest.raises(SystemExit, match="use --all"):
+        evaluate.main(["1040407495", "--split", "test", "--out", str(tmp_path), "--plan"])
+    evaluate.main(["--all", "--split", "test", "--out", str(tmp_path / "plan"), "--plan"])
+    assert "828 pairs pending" in capsys.readouterr().out  # 276 problems x 3 conditions
+    with pytest.raises(SystemExit, match="REFUSED: nothing is frozen yet"):
+        evaluate.main(["--all", "--split", "test-perturbed", "--out", str(tmp_path / "run")])
+    assert not (tmp_path / "run").exists()

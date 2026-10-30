@@ -216,7 +216,19 @@ refuses to start on the test split if any differs from the approved values:
 - the baseline's system prompt and its answer schema (section 2a);
 - the perturbation code and its seed (condition 4), and the perturbed problems it made,
   `data/nl4opt/ground_truth/test-perturbed.json`;
+- every source file in `src/opt_agent/`: answers depend on code as well as on the prompts
+  above (the messages self-correction sends Claude are written by `feedback.py`, and the
+  solvers, the checks and the scoring are code);
+- `requirements.lock`, with every installed package at its locked version;
 - this file, `docs/PREREGISTRATION.md`, as approved.
+
+The approved values are `docs/FREEZE.json`, written by the owner with
+`python -m opt_agent.freeze approve`. It refuses until the steps below are done, the
+ground truth is rebuilt from the final hand inputs, and the tree is committed
+(`python -m opt_agent.freeze` lists what's left). Every pass of a test run checks the
+values first and records its fingerprint, so the report shows whether every pass ran on
+the approved inputs. A test run covers every scorable problem in all three conditions; a
+subset is refused.
 
 Before freezing:
 - the owner marks the packets in `review/` (blind labels, test reviews, and the 4

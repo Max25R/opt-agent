@@ -26,11 +26,15 @@ errored pairs. Re-running the same command resumes it: done pairs are skipped, a
 call that already succeeded replays from the run's cache, so nothing is paid for twice.
 The cap counts what earlier runs in the same directory spent (its spend.jsonl).
 
-Only the dev splits run here (dev, and its perturbed copy, dev-perturbed: perturb.py) until
-milestone 6 adds the pre-registration's freeze checks.
+The test splits (test, test-perturbed) run only on frozen inputs (freeze.py): every pass
+first checks the fingerprint against the owner's approval and refuses on any difference.
+A test run is the whole pre-registered experiment, every scorable problem in every
+condition, so it takes --all and no subset. Every pass records its fingerprint's digest.
 
 Run:  python -m opt_agent.evaluate --out runs/smoke --cap 1.00 ID [ID ...]
-      (add --plan to see the pending pairs and the worst-case cost without calling)
+      python -m opt_agent.evaluate --out runs/dev --cap 0.50 --all
+      (add --plan to see the pending pairs and the worst-case cost without calling; a plan
+      needs no freeze, even for a test split)
 """
 
 import argparse
@@ -44,7 +48,7 @@ from typing import Literal
 import anthropic
 from pydantic import BaseModel
 
-from opt_agent import agent, api, baseline, formulate, pricing
+from opt_agent import agent, api, baseline, formulate, freeze, pricing
 from opt_agent.api import Cache, RunStopped
 from opt_agent.budget import Budget, BudgetedClient
 from opt_agent.config import MissingAPIKeyError, get_api_key
@@ -59,7 +63,8 @@ Condition = Literal["baseline", "single-shot", "self-correction"]
 CONDITIONS: tuple[Condition, ...] = ("baseline", "single-shot", "self-correction")
 ATTEMPTS = {"single-shot": 1, "self-correction": MAX_ATTEMPTS}
 MAX_ERRORS_IN_A_ROW = 3  # the API is down or the limits are too low: stop, resume later
-DEV_SPLITS = ["dev", "dev-perturbed"]  # the test splits wait for the freeze checks
+DEV_SPLITS = ["dev", "dev-perturbed"]
+TEST_SPLITS = ["test", "test-perturbed"]  # frozen inputs only (freeze.py)
 
 # Why a done pair has no answer: the loud failures of pre-registration section 3g. (An API
 # error is an errored pair instead; only the report turns one into a failure.)
@@ -146,11 +151,19 @@ def evaluate(
     model_id: str = formulate.DEFAULT_MODEL,
 ) -> list[Item]:
     """Every pending pair, in order; returns the items this call added. Raises RunStopped
-    (after writing a "stopped" line) when the run has to stop."""
+    (after writing a "stopped" line) when the run has to stop. On a test split, raises
+    FreezeError (before writing anything) unless the inputs are the approved ones, and
+    ValueError unless it's the whole experiment."""
+    if split in TEST_SPLITS:
+        prints = freeze.check()
+        require_whole_experiment(split, records, conditions)
+    else:
+        prints = freeze.digest(freeze.fingerprint())
     fix_manifest(out, manifest_for(split, records, conditions, model_id))
     results = out / "results.jsonl"
     done = done_pairs(results, model_id)
-    session = Run.start(log_path=out / "attempts.jsonl", cache=Cache(out / "cache"))
+    session = Run.start(log_path=out / "attempts.jsonl", cache=Cache(out / "cache"),
+                        fingerprint=prints)  # fmt: skip
     added: list[Item] = []
     errors_in_a_row = 0
     try:
@@ -169,6 +182,22 @@ def evaluate(
         _append(results, {"kind": "stopped", "time": _now(), "reason": str(stop)})
         raise
     return added
+
+
+def require_whole_experiment(
+    split: str, records: list[Record], conditions: tuple[Condition, ...]
+) -> None:
+    """A test run is the pre-registered experiment: every scorable problem in the split, in
+    file order, in every condition. A subset would be another experiment."""
+    expected = scorable_records(split)
+    if [r.id for r in records] != [r.id for r in expected]:
+        raise ValueError(f"a {split} run covers all {len(expected)} scorable problems (--all)")
+    if tuple(conditions) != CONDITIONS:
+        raise ValueError(f"a {split} run covers every condition: {', '.join(CONDITIONS)}")
+
+
+def scorable_records(split: str) -> list[Record]:
+    return [r for r in load_records(GROUND_TRUTH_DIR / f"{split}.json") if is_scorable(r)]
 
 
 def run_item(
@@ -382,21 +411,27 @@ def render(items: list[Item], records: dict[str, Record], budget: Budget) -> str
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Run dev problems through the conditions.")
-    parser.add_argument("ids", nargs="+", help="problem ids from the split")
+    parser = argparse.ArgumentParser(description="Run problems through the conditions.")
+    parser.add_argument("ids", nargs="*", help="problem ids from the split (or --all)")
+    parser.add_argument("--all", action="store_true", help="every scorable problem in the split")
     parser.add_argument("--out", type=Path, required=True, help="the run's directory")
     parser.add_argument("--cap", type=float, default=1.00, help="dollar cap (default 1.00)")
-    parser.add_argument("--split", choices=DEV_SPLITS, default="dev", help="dev only, for now")
+    parser.add_argument("--split", choices=DEV_SPLITS + TEST_SPLITS, default="dev",
+                        help="a test split runs only on frozen inputs, with --all")  # fmt: skip
     parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))
     parser.add_argument("--model", default=formulate.DEFAULT_MODEL)
     parser.add_argument("--plan", action="store_true", help="show the worst case; no calls")
     args = parser.parse_args(argv)
 
     by_id = {r.id: r for r in load_records(GROUND_TRUTH_DIR / f"{args.split}.json")}
+    if args.all == bool(args.ids):
+        sys.exit("give problem ids or --all, not both")
+    if args.split in TEST_SPLITS and not args.all:
+        sys.exit(f"a {args.split} run covers every scorable problem: use --all")
     unknown = [i for i in args.ids if i not in by_id or not is_scorable(by_id[i])]
     if unknown:
         sys.exit(f"not scorable {args.split} problems: {', '.join(unknown)}")
-    records = [by_id[i] for i in args.ids]
+    records = scorable_records(args.split) if args.all else [by_id[i] for i in args.ids]
     conditions = tuple(c for c in CONDITIONS if c in args.conditions)  # baseline first
     budget = Budget(args.cap, args.out / "spend.jsonl")
 
@@ -408,6 +443,12 @@ def main(argv: list[str] | None = None) -> None:
           f"Already spent here: ${budget.spent_usd:.4f} of the ${args.cap:.2f} cap.")  # fmt: skip
     if args.plan:
         return
+    if args.split in TEST_SPLITS:  # before the key is even read
+        try:
+            freeze.check()
+            require_whole_experiment(args.split, records, conditions)
+        except (freeze.FreezeError, ValueError) as refused:
+            sys.exit(f"REFUSED: {refused}")
     try:
         client = BudgetedClient(anthropic.Anthropic(api_key=get_api_key()), budget)
     except MissingAPIKeyError as error:

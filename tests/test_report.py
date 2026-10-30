@@ -8,7 +8,7 @@ import pytest
 from fakes import GAS_MODEL, GAS_REPLY, INFEASIBLE_REPLY, FakeClient, model, status_error
 from pytest import approx
 
-from opt_agent import api, evaluate, packets, report
+from opt_agent import api, evaluate, freeze, packets, report
 from opt_agent.api import RunStopped
 from opt_agent.budget import Budget, BudgetedClient
 from opt_agent.evaluate import CONDITIONS
@@ -136,12 +136,15 @@ def test_the_report_is_the_same_for_the_same_inputs(mixed_run):
     assert json.dumps(report.build(mixed_run)) == first
 
 
-def test_provenance_names_the_inputs_and_settings(mixed_run):
+def test_provenance_names_the_inputs_and_settings(mixed_run, monkeypatch):
+    monkeypatch.setattr(freeze, "FREEZE_PATH", mixed_run / "no-approval.json")
     p = report.build(mixed_run)["provenance"]
     assert set(p["inputs_sha256"]) == {"dev.json", "reviews.json"}
     assert p["manifest"]["problem_ids"] == [GAS.id, LOTION.id]
     assert len(p["passes"]) == 1 and p["passes"][0]["git_sha"]
     assert (p["tolerance"], p["sensitivity_tolerance"], p["resume_passes"]) == (1e-6, 1e-4, 3)
+    assert p["passes"][0]["fingerprint"] == freeze.digest(freeze.fingerprint())
+    assert p["approved_fingerprint"] is None and not p["every pass on the approved inputs"]
 
 
 def test_the_subsets_are_the_pre_registered_ones():

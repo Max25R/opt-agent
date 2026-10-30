@@ -118,7 +118,7 @@ def test_the_freeze_list_names_everything_a_run_depends_on():
         "reviews.json", "integrality.json", "exclusions.json", "test.json",
         "formulate.SYSTEM_PROMPT", "explain.SYSTEM_PROMPT", "formulate.LP_SCHEMA",
         "baseline's system prompt", "perturbation code", "test-perturbed.json",
-        "PREREGISTRATION.md",
+        "PREREGISTRATION.md", "src/opt_agent/", "requirements.lock", "docs/FREEZE.json",
     ]  # fmt: skip
     for item in frozen:
         assert item in freeze, item

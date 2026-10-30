@@ -228,6 +228,15 @@ def _text(annotation: dict, span: dict) -> str:
 
 def ineligible(original: Record, annotation: dict) -> str | None:
     """Why the problem can't be perturbed, or None."""
+    if (why := ineligible_record(original)) is not None:
+        return why
+    if not number_texts(annotation):
+        return "no number written in digits"
+    return None
+
+
+def ineligible_record(original: Record) -> str | None:
+    """The part of `ineligible` that the ground-truth record alone decides."""
     if not scorable(original):
         return "not scorable"
     if not blind_gradable(original):
@@ -236,8 +245,6 @@ def ineligible(original: Record, annotation: dict) -> str | None:
         return "no optimum as written"
     if does_nothing(original):
         return "does nothing as written"
-    if not number_texts(annotation):
-        return "no number written in digits"
     return None
 
 

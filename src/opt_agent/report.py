@@ -39,7 +39,7 @@ from typing import Literal
 import numpy as np
 from pydantic import BaseModel
 
-from opt_agent import packets
+from opt_agent import freeze, packets
 from opt_agent.evaluate import CONDITIONS, Item, Manifest
 from opt_agent.ground_truth import (
     GROUND_TRUTH_DIR,
@@ -363,11 +363,17 @@ def provenance(run_dir: Path, manifest: Manifest) -> dict:
     for line in log.read_text().splitlines() if log.exists() else []:
         entry = json.loads(line)
         if entry["kind"] == "run":
-            passes.append({k: entry.get(k) for k in
-                           ("run_id", "time", "git_sha", "git_dirty", "packages")})  # fmt: skip
+            passes.append({k: entry.get(k) for k in ("run_id", "time", "git_sha", "git_dirty",
+                                                     "packages", "fingerprint")})  # fmt: skip
+    approval = freeze.approved()
+    approved = freeze.digest(approval.fingerprint) if approval else None
     return {
         "manifest": manifest.model_dump(mode="json"),
         "passes": passes,
+        "approved_fingerprint": approved,  # docs/FREEZE.json's, if the owner has approved
+        "every pass on the approved inputs": approved is not None
+        and bool(passes)
+        and all(p["fingerprint"] == approved for p in passes),
         "inputs_sha256": {
             path.name: hashlib.sha256(path.read_bytes()).hexdigest()
             for path in _inputs(manifest.split)

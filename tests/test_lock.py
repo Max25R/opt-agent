@@ -2,24 +2,17 @@
 the exact versions the committed answers were built with."""
 
 import tomllib
-from importlib.metadata import version
 
 from packaging.requirements import Requirement
 
+from opt_agent.freeze import drifted_packages, locked_versions
 from opt_agent.runs import REPO_ROOT
 
-LOCK = {
-    name.lower(): pinned
-    for line in (REPO_ROOT / "requirements.lock").read_text().splitlines()
-    if line and not line.startswith("#")
-    for name, pinned in [line.split("==")]
-}
+LOCK = locked_versions()  # the freeze checks the same thing before a test run
 
 
 def test_every_installed_version_is_the_locked_one():
-    drifted = {
-        name: (pinned, version(name)) for name, pinned in LOCK.items() if version(name) != pinned
-    }
+    drifted = drifted_packages()
     assert drifted == {}, "installed versions differ from requirements.lock (locked, installed)"
 
 

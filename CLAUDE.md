@@ -68,15 +68,15 @@ point is a trustworthy evaluation, not a demo.
      2026-10-19; it's still a draft). Apply their marks: `confirmed_by_owner` for
      confirmed reviews, source `owner` for labels. Milestone 6 must still do, before
      approval: fix the baseline's prompt on dev (`baseline.py` has a first draft; its
-     schema and parsing follow pre-registration 2a) and the freeze checks. (The "=" reading,
-     the 1e-4 count, Amendment 1 and the perturbation rule are done; see milestone 6.) Known and
+     schema and parsing follow pre-registration 2a). (The "=" reading, the 1e-4 count,
+     Amendment 1, the perturbation rule and the freeze checks are done; see milestone 6.)
+     `python -m opt_agent.freeze` lists what's left before the owner can freeze. Known and
      unfixed: the integrality rule matches ingredient names ("units of chicken" meat), so
      it labels countable products continuous in at least 3 reviewed test problems
      (bubble teas, crepes, curry bowls; harmless for the annotated answers; fix after the
      owner's labels, and check the unreviewed rule labels too); `DEV_WALKTHROUGH.md` predates the owner's milestone 3
      corrections (the owner decides whether to regenerate it); no Farkas certificate for
-     infeasible LPs; the CLI needs a key even when every call is cached (milestone 8);
-     freezing data and prompt hashes at the start of a test run (milestone 6).
+     infeasible LPs; the CLI needs a key even when every call is cached (milestone 8).
    - **Pre-milestone-6 step 1 (2026-10-28):** the key works; the live tests passed (5
      calls, $0.0025). Added the budget guard (`budget.py`, `pricing.py`), spend-limit
      stops (`api.SpendLimitReached`), the no-solver baseline (`baseline.py`), and a
@@ -136,6 +136,20 @@ point is a trustworthy evaluation, not a demo.
      `report.py` runs no McNemar tests (outside the family), lists answers equal to the
      original problem's, and with `--original RUN` gives paired counts. The pre-registration
      draft's condition 4 now states the rule (not yet approved).
+   - **Step 3, the freeze (2026-10-29; no API calls):** `freeze.fingerprint()` hashes
+     section 6's list, **every source file in `src/opt_agent/`** (the list named prompts,
+     but `feedback.py` writes what self-correction sends Claude, and solvers, checks and
+     scoring are code too) and `requirements.lock`; installed packages must match the lock.
+     **`python -m opt_agent.freeze approve` is the owner's step, never Claude's**: it
+     refuses until `freeze.unfinished()` is empty (the pre-registration approved, every
+     test review `confirmed_by_owner`, `labels.csv` filled, the 4 "says LP" labels
+     `owner`, and a ground truth rebuilt from the final hand inputs) and the tree is
+     committed, then writes `docs/FREEZE.json`. `evaluate()` refuses a test split
+     (`FreezeError`, before writing anything) unless `freeze.check()` passes, and refuses a
+     subset: a test run is `--all` in all three conditions. `--plan` needs no freeze, so
+     the owner can see a test run's worst case first. Every pass's log line records its
+     fingerprint digest; the report's provenance says whether every pass ran on the
+     approved one. Section 6 of the draft now names the code and the lock.
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -213,6 +227,9 @@ python -m opt_agent.agent "problem text"   # needs ANTHROPIC_API_KEY
 python -m pytest -m live -s         # the tests that call the real API (not in CI)
 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ... --plan   # worst case, no calls
 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ...   # dev only; resumable
+python -m opt_agent.evaluate --out runs/NAME --cap 0.50 --all    # every scorable problem
+python -m opt_agent.freeze          # what's left before the freeze; whether inputs match it
+python -m opt_agent.freeze approve  # THE OWNER'S STEP ONLY: writes docs/FREEZE.json
 python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.json
 python -m opt_agent.report runs/P --original runs/NAME   # a perturbed run, paired
 ```
