@@ -95,6 +95,25 @@ def test_the_ambiguous_constraints_exist():
         assert ambiguous[pid].review.equality == [constraint], pid  # the "=" reading's input
 
 
+def test_the_ratio_wording_counts():
+    def changed(r):
+        kind = "ip" if r.integrality.kind == "integer" else "lp"
+        return (getattr(r.equality, kind).status, getattr(r.equality, kind).objective) != (
+            answer(r).status, answer(r).objective)  # fmt: skip
+
+    dev = [r for r in load_records(GROUND_TRUTH_DIR / "dev.json") if scorable(r)]
+    dev_changed = [r for r in dev if r.ratio_wording and changed(r)]
+    assert says(f"the rule changes the answer in {len(dev_changed)} scorable dev problems")
+    flagged = [r for r in SCORABLE if r.ratio_wording]
+    test_changed = {r.id for r in flagged if changed(r)}
+    assert says(f"gives {len(flagged)} scorable problems an \"=\" reading and changes the "
+                f"answer in {len(test_changed)}")  # fmt: skip
+    reviewed = {r.id for r in SCORABLE if r.review and r.review.equality}
+    [unreviewed] = test_changed - reviewed
+    assert says(f"two of the reviewed problems above, and `{unreviewed}`")
+    assert len(test_changed & reviewed) == 2
+
+
 def test_the_status_subset_power_floor():
     """The smallest number of one-directional discordant pairs that reaches p < 0.05 alone,
     and that survives Holm as the smallest of the 6 p-values (alpha / 6)."""

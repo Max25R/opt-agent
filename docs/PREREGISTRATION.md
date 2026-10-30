@@ -121,9 +121,17 @@ defensible readings of one constraint, ">= as annotated" or "=":
 - **Decided (owner): accept either reading, as for strict wording.**
   - The "=" reading's answer is computed the same way as the annotated one: that one
     constraint changed, solved, and cross-checked with HiGHS and arithmetic.
-  - It's stored next to the annotated answer. `matching_reading` accepts it and records
-    which reading matched.
-  - This is still to be implemented, in milestone 6, before approval.
+  - It's stored next to the annotated answer (`Record.equality`). `matching_reading`
+    accepts it and records which reading matched.
+- **Decided (owner, 2026-10-30, from the dev runs): the same holds, by rule, for every
+  ratio constraint (x >= k·y, or <=) whose wording names no inequality**: "must be twice
+  as many", "have three times the number of" (`nl4opt.ratio_wording`). The annotator chose
+  the inequality; the text reads as "=" at least as naturally.
+  - Why: the rule changes the answer in 4 scorable dev problems, and in both dev passes
+    every condition answered each of those 4 with exactly its "=" answer.
+  - On test, the rule gives 8 scorable problems an "=" reading and changes the answer in
+    3: two of the reviewed problems above, and `-2015083686`. (The third reviewed problem
+    says "2 times more", which names an inequality, so only its review covers it.)
 - The report gives how many correct answers needed the "=" reading.
 
 **d. Text says "LP", but the label is integer** (4 scorable test problems where integrality

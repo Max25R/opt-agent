@@ -11,6 +11,7 @@ from opt_agent.nl4opt import (
     load_split,
     objective_sense,
     parse_number,
+    ratio_wording,
 )
 from opt_agent.solver import Status, solve
 
@@ -132,6 +133,25 @@ def test_implied_operator(direction, document, operator):
 )
 def test_is_strict(direction, document, strict):
     assert is_strict(direction, document) is strict
+
+
+@pytest.mark.parametrize(
+    ("direction", "open_to_equality"),
+    [
+        ("must be", True),  # "must be twice the number of": no inequality named
+        ("have", True),
+        ("at least", False),  # "at least twice as many": the text says >=
+        ("more", False),  # "2 times more ... than": >= (and, here, strict)
+        ("at most", False),
+    ],
+)
+def test_ratio_wording_flags_ratios_that_name_no_inequality(direction, open_to_equality):
+    xby = {"type": "xby", "x_var": "x", "y_var": "y", "param": "twice",
+           "direction": direction, "operator": "GREATER_OR_EQUAL"}  # fmt: skip
+    linear = {"type": "linear", "limit": "10", "terms": {"x": "1"}, "direction": "must be",
+              "operator": "LESS_OR_EQUAL"}  # fmt: skip
+    ann = annotation([linear, xby])
+    assert ratio_wording(ann) == (["c1_xby"] if open_to_equality else [])  # ratios only
 
 
 # ---- each declaration type -------------------------------------------------------------

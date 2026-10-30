@@ -224,15 +224,27 @@ Integer problems whose wording is strict ("more than", "must exceed") but which 
 | test | `-685300642` | 0 | 10 | c0_xy: >= 0 became >= 1 |
 | test | `-735986381` | 14 | 14 | c0_xy: >= 0 became >= 1 |
 
-## Ambiguous text: the = reading
+## Two readings: the = reading
 
-Problems whose text supports two readings of one constraint (verdict `ambiguous-text`): >= as annotated, or =. The review names the constraint; the "=" reading is solved and checked like the annotated one, and either answer is accepted (pre-registration, section 3c).
+Problems whose text supports two readings of a constraint: the annotated inequality, or =. Either the wording says so (a ratio such as "must be twice as many" that names no inequality: nl4opt.ratio_wording) or an `ambiguous-text` review names the constraint. The "=" reading is solved and checked like the annotated one, and either answer is accepted (pre-registration, section 3c).
 
-| split | id | label | annotated | = reading | changed |
-|---|---|---|---|---|---|
-| test | `-1765797791` | IP | 54 | 50 | c0_xby: >= 0 became == 0 |
-| test | `-1715698555` | IP | 1240 | 1215 | c1_xby: >= 0 became == 0 |
-| test | `-169306566` | IP | 56 | 32 | c1_xby: >= 0 became == 0 |
+| split | id | found by | label | annotated | = reading | changed |
+|---|---|---|---|---|---|---|
+| dev | `-1188104412` | wording | IP | 62 | infeasible | c1_xby: <= 0 became == 0 |
+| dev | `648491494` | wording | IP | 45 | 45 | c1_xby: >= 0 became == 0 |
+| dev | `-1384117219` | wording | IP | 500 | 230 | c2_xby: >= 0 became == 0 |
+| dev | `-1633326119` | wording | IP | 37 | 44 | c3_xby: >= 0 became == 0 |
+| dev | `-978446117` | wording | IP | 0 | 0 | c0_xby: >= 0 became == 0 |
+| dev | `-654999513` | wording | IP | 207.5 | 204 | c0_xby: >= 0 became == 0 |
+| test | `-1765797791` | wording and review | IP | 54 | 50 | c0_xby: >= 0 became == 0 |
+| test | `-2015083686` | wording | IP | 1970 | 1760 | c0_xby: >= 0 became == 0 |
+| test | `-1715698555` | wording and review | IP | 1240 | 1215 | c1_xby: >= 0 became == 0 |
+| test | `-1587539848` | wording | IP | 960 | 960 | c1_xby: >= 0 became == 0 |
+| test | `941255519` | wording | IP | infeasible | infeasible | c3_xby: >= 0 became == 0 |
+| test | `-1770860412` | wording | IP | infeasible | infeasible | c0_xby: >= 0 became == 0 |
+| test | `912269019` | wording | IP | infeasible | infeasible | c1_xby: >= 0 became == 0 |
+| test | `-169306566` | review | IP | 56 | 32 | c1_xby: >= 0 became == 0 |
+| test | `602019445` | wording | IP | infeasible | infeasible | c0_xby: >= 0 became == 0 |
 
 ## Do-nothing optima
 

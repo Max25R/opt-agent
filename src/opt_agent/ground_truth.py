@@ -8,7 +8,8 @@ problem's integrality label (integrality.py) picks which of the two answers is t
 Test problems used while building the agent are excluded from scoring
 (data/nl4opt/exclusions.json). For integer problems with strict wording ("more than"),
 the answer with that wording read strictly is stored too, and either reading is accepted
-(strict.py, matching_reading). So is the "=" reading of a constraint that an
+(strict.py, matching_reading). So is the "=" reading of a ratio constraint whose wording
+names no inequality ("must be twice as many": nl4opt.ratio_wording), or of a constraint an
 ambiguous-text review names (pre-registration, section 3c).
 
 Run:  python -m opt_agent.data && python -m opt_agent.ground_truth
@@ -36,7 +37,7 @@ from opt_agent.data import (
 )
 from opt_agent.highs import solve_with_highs
 from opt_agent.integrality import Integrality, guess
-from opt_agent.nl4opt import ConversionError, Note, convert, load_split
+from opt_agent.nl4opt import ConversionError, Note, convert, load_split, ratio_wording
 from opt_agent.schema import LPModel
 from opt_agent.solver import Status, solve
 from opt_agent.strict import strict_constraints, strict_model
@@ -106,7 +107,10 @@ class Record(BaseModel):
     review: Review | None = None
     excluded: str | None = None  # why it's left out of scoring although its answer is fine
     strict: StrictReading | None = None  # integer problems with strict wording only
-    equality: EqualityReading | None = None  # only where a review names constraints
+    # Ratio constraints worded with no inequality (nl4opt.ratio_wording): "=" is accepted too.
+    ratio_wording: list[str] | None = None
+    # Where the wording (ratio_wording) or a review leaves a constraint open to "=".
+    equality: EqualityReading | None = None
 
 
 def build_record(problem_id: str, annotation: dict, label: Integrality | None) -> Record:
@@ -125,21 +129,35 @@ def build_record(problem_id: str, annotation: dict, label: Integrality | None) -
     if names and integrality.kind == "integer":
         tight, changed = strict_model(as_integer(model), names)
         strict = StrictReading(changed=changed, ip=solve_checked(tight))
-    return Record(
+    record = Record(
         **base,
         notes=notes,
         model=model,
         lp=solve_checked(model),
         ip=solve_checked(as_integer(model)),
         strict=strict,
+        ratio_wording=ratio_wording(annotation) or None,
     )
+    if record.ratio_wording:
+        record.equality = equality_reading(model, record.ratio_wording)
+    return record
 
 
 def attach_review(record: Record, review: Review | None) -> None:
-    """A review, and the "=" reading of the constraints it names (section 3c)."""
+    """A review, and the "=" reading of every constraint the wording or the review leaves
+    open (section 3c)."""
     record.review = review
-    if review is not None and review.equality and record.model is not None:
-        record.equality = equality_reading(record.model, review.equality)
+    names = equality_names(record)
+    if names and record.model is not None:
+        record.equality = equality_reading(record.model, names)
+
+
+def equality_names(record: Record) -> list[str]:
+    """The constraints the "=" reading changes: the rule's, then any a review adds."""
+    names = list(record.ratio_wording or [])
+    if record.review is not None and record.review.equality:
+        names += [n for n in record.review.equality if n not in names]
+    return names
 
 
 def equality_reading(model: LPModel, names: list[str]) -> EqualityReading:
@@ -583,16 +601,20 @@ def _equality_section(by_split: dict[str, list[Record]]) -> list[str]:
     for split, r in with_equality:
         kind = "ip" if r.integrality.kind == "integer" else "lp"
         annotated, equal = getattr(r, kind), getattr(r.equality, kind)
-        rows.append([split, f"`{r.id}`", kind.upper(), _show_answer(annotated),
-                     _show_answer(equal), "; ".join(r.equality.changed)])  # fmt: skip
+        sources = [("wording", r.ratio_wording), ("review", r.review and r.review.equality)]
+        found_by = [name for name, names in sources if names]
+        rows.append([split, f"`{r.id}`", " and ".join(found_by), kind.upper(),
+                     _show_answer(annotated), _show_answer(equal),
+                     "; ".join(r.equality.changed)])  # fmt: skip
     intro = (
-        "Problems whose text supports two readings of one constraint (verdict "
-        "`ambiguous-text`): >= as annotated, or =. The review names the constraint; the "
-        '"=" reading is solved and checked like the annotated one, and either answer is '
-        "accepted (pre-registration, section 3c)."
+        "Problems whose text supports two readings of a constraint: the annotated "
+        'inequality, or =. Either the wording says so (a ratio such as "must be twice as '
+        'many" that names no inequality: nl4opt.ratio_wording) or an `ambiguous-text` review '
+        'names the constraint. The "=" reading is solved and checked like the annotated one, '
+        "and either answer is accepted (pre-registration, section 3c)."
     )
-    header = ["split", "id", "label", "annotated", "= reading", "changed"]
-    return ["## Ambiguous text: the = reading", "", intro, "", *_table(header, rows)]
+    header = ["split", "id", "found by", "label", "annotated", "= reading", "changed"]
+    return ["## Two readings: the = reading", "", intro, "", *_table(header, rows)]
 
 
 def _show_answer(s: CheckedSolve) -> str:

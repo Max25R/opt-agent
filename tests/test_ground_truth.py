@@ -19,6 +19,7 @@ from opt_agent.ground_truth import (
     blind_gradable,
     does_nothing,
     equality_model,
+    equality_names,
     lacks_optimum,
     load_exclusions,
     load_integrality,
@@ -31,7 +32,7 @@ from opt_agent.ground_truth import (
     scorable,
 )
 from opt_agent.highs import solve_with_highs
-from opt_agent.solver import Solution
+from opt_agent.solver import Solution, Status
 from opt_agent.strict import strict_constraints, strict_model
 from opt_agent.verify import same_answer
 
@@ -60,7 +61,7 @@ def test_highs_reproduces_every_committed_answer(split):
             assert changed == r.strict.changed, r.id
             assert same_answer(tight, committed(r.strict.ip), solve_with_highs(tight)), r.id
         if r.equality is not None:
-            equal, changed = equality_model(r.model, r.review.equality)
+            equal, changed = equality_model(r.model, equality_names(r))
             assert changed == r.equality.changed, r.id
             assert same_answer(equal, committed(r.equality.lp), solve_with_highs(equal)), r.id
             integer = as_integer(equal)
@@ -191,13 +192,38 @@ def test_the_equality_readings_match_the_hand_reviews(problem, annotated, equal)
     assert matching_reading(r, r.ip.status, equal) == "equality"
 
 
-def test_only_reviewed_ambiguous_problems_have_an_equality_reading():
+def test_an_equality_reading_comes_from_the_wording_or_an_ambiguous_text_review():
     for records in RECORDS.values():
         for r in records:
-            named = r.review is not None and bool(r.review.equality)
-            assert (r.equality is not None) == named, r.id
-            if named:
+            assert (r.equality is not None) == bool(equality_names(r)), r.id
+            if r.review is not None and r.review.equality:
                 assert r.review.verdict == "ambiguous-text", r.id
+
+
+@pytest.mark.parametrize(
+    "problem, annotated, equal",
+    [
+        # Liquid L = 2 solid S: 85S <= 1500 and 55S <= 1000 allow 17, but S <= 10, so
+        # S = 10, L = 20: 10*20 + 3*10 = 230. As annotated (L >= 2S): L = 50, S = 0: 500.
+        ("-1384117219", 500, 230),
+        # Large L = 3 medium M: 25M + 120M >= 500 needs M >= 3.45, so M = 4, L = 12:
+        # 5*4 + 2*12 = 44 checks. As annotated (L >= 3M): 37.
+        ("-1633326119", 37, 44),
+        # Medium M = 2 large L, M <= 35: L = 17, M = 34: 5*17 + 3.5*34 = 204.
+        # As annotated (M >= 2L): L = 17, M = 35: 207.5.
+        ("-654999513", 207.5, 204),
+    ],
+)
+def test_the_ratio_wording_readings_by_hand(problem, annotated, equal):
+    """The 4 dev problems where the rule changes the answer: all three conditions gave
+    exactly these "=" answers in both dev passes (the 4th, -1188104412, is infeasible)."""
+    r = {x.id: x for x in RECORDS["dev"]}[problem]
+    assert r.ratio_wording and r.review is None  # the wording alone, no review
+    assert (r.ip.objective, r.equality.ip.objective) == approx((annotated, equal))
+    assert matching_reading(r, r.ip.status, equal) == "equality"
+    vending = {x.id: x for x in RECORDS["dev"]}["-1188104412"]
+    assert vending.equality.ip.status is Status.INFEASIBLE
+    assert matching_reading(vending, Status.INFEASIBLE, None) == "equality"
 
 
 def test_lenient_scoring_accepts_either_integrality():

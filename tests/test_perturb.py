@@ -20,6 +20,7 @@ from opt_agent.ground_truth import (
     build_record,
     does_nothing,
     equality_model,
+    equality_names,
     load_records,
 )
 from opt_agent.highs import solve_with_highs
@@ -228,7 +229,7 @@ def test_highs_reproduces_every_perturbed_answer(split):
             tight, _ = strict_model(integer, strict_constraints(r.notes))
             assert same_answer(tight, committed(r.strict.ip), solve_with_highs(tight)), r.id
         if r.equality is not None:
-            equal, _ = equality_model(r.model, r.review.equality)
+            equal, _ = equality_model(r.model, equality_names(r))
             assert same_answer(equal, committed(r.equality.lp), solve_with_highs(equal)), r.id
 
 

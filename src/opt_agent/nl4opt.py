@@ -176,6 +176,19 @@ def implied_operator(direction: str, document: str) -> str | None:
     return ">=" if ge else "<="
 
 
+def ratio_wording(annotation: dict) -> list[str]:
+    """Constraints of the form x >= k*y (or <=) whose wording names no inequality: "must be
+    twice as many", "have three times the number of". The annotator chose the operator; the
+    text reads as "=" just as well (pre-registration, section 3c). Named like the model's
+    constraints."""
+    return [
+        f"c{i}_{decl['type']}"
+        for i, decl in enumerate(annotation["const_declarations"])
+        if decl["type"] in ("xby", "xy")
+        and implied_operator(decl.get("direction", ""), annotation["document"]) is None
+    ]
+
+
 def is_strict(direction: str, document: str) -> bool:
     return bool(_STRICT.search(direction.lower())) and not _negated(direction, document)
 

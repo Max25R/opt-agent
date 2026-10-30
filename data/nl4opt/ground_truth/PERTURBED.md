@@ -5,8 +5,8 @@ seed 20261028, factor 0.5 to 2, at most 200 draws per problem. Don't edit by han
 
 | split | problems | perturbed | integrality-sensitive | strict wording | ambiguous | numbers changed (median) |
 |---|---|---|---|---|---|---|
-| dev | 99 | 85 | 54 | 11 | 0 | 6 |
-| test | 289 | 242 | 130 | 18 | 3 | 6 |
+| dev | 99 | 85 | 54 | 11 | 5 | 6 |
+| test | 289 | 242 | 130 | 18 | 5 | 6 |
 
 ## dev
 

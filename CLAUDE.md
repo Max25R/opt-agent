@@ -116,9 +116,7 @@ point is a trustworthy evaluation, not a demo.
        prices).
      - The smoke run (`runs/smoke`, given a manifest after the fact) reports exactly the
        step 1 numbers.
-     - Not yet: `results/eval.json` and the README-number test (after the test run), and
-       the pre-registration's 3c line that says the "=" reading is "still to be
-       implemented" (to update at the hand-off).
+     - Not yet: `results/eval.json` and the README-number test (after the test run).
    - **Step 2, the perturbed-numbers set (2026-10-28; no API calls):** all three
      conditions run on it (owner's decision). `perturb.py` (the rule is its docstring)
      changes every annotated number written in digits except 1, by a log-uniform factor in
@@ -150,6 +148,19 @@ point is a trustworthy evaluation, not a demo.
      the owner can see a test run's worst case first. Every pass's log line records its
      fingerprint digest; the report's provenance says whether every pass ran on the
      approved one. Section 6 of the draft now names the code and the lock.
+   - **Step 4, the first dev runs (2026-10-29; owner approved $0.50 caps):** `runs/dev-1`
+     (all 92 scorable dev problems, 188 paid calls, $0.0955) and `runs/dev-perturbed-1`
+     (85, 170 calls, $0.0857); no API errors, no loud failures. Prices re-checked first
+     (unchanged). Baseline 84/92, single-shot and self-correction 85/92; on the perturbed
+     set no answer equaled the original problem's and accuracy held, so no sign of
+     memorization. Self-correction revised 4 times (Claude stood by each status model) and
+     changed no answer. Four dev failures in every condition were "twice as many" read as
+     "=", which led to the owner's ratio-wording rule (3c, 2026-10-30); the dev runs were
+     re-scored with it, with no new calls. Other failures, for the error taxonomy: baseline
+     rounding (2 answers wrong at 1e-6 only because they were rounded; a baseline-prompt
+     question for step 5), `562583112` (the objective read as the count of drones and
+     couriers), `-577606329` (an integrality label every condition disagreed with), and
+     run-to-run sampling (the bakery and the volcano problems).
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -256,12 +267,15 @@ python -m opt_agent.report runs/P --original runs/NAME   # a perturbed run, pair
   as >=): for integer problems, `Record.strict` stores the answer with each noted
   constraint read strictly (`strict.py`), and `matching_reading` accepts either reading
   and says which one matched.
-- **The "=" reading** (pre-registration 3c, owner's decision): an `ambiguous-text` review
-  names the constraint (`Review.equality` in `reviews.json`), and `Record.equality` stores
-  that model with the inequality made an equation, solved as LP and IP and checked like
-  the annotated one. `matching_reading` accepts it as "equality". Only the 3 test problems
-  have one, and their answers (50, 1215, 32) match the hand reviews. The owner's packets
-  don't show it, so they're unchanged.
+- **The "=" reading** (pre-registration 3c, owner's decisions): `Record.equality` stores the
+  model with some inequalities made equations, solved as LP and IP and checked like the
+  annotated one, and `matching_reading` accepts it as "equality". The constraints
+  (`equality_names`) come from two places: **the wording**, by rule (owner, 2026-10-30):
+  every `xby`/`xy` ratio whose direction names no inequality, such as "must be twice as many"
+  (`nl4opt.ratio_wording`, stored as `Record.ratio_wording`); and an `ambiguous-text`
+  review (`Review.equality`). The 3 reviewed test answers (50, 1215, 32) match the hand
+  reviews. It's a field, not a converter note, because the review packet prints notes; the
+  owner's packets are unchanged.
 - **Exclusions:** test problems used while building the agent are not scorable
   (`data/nl4opt/exclusions.json`: the fishery and ads problems). Demos, fakes and live
   tests use dev problems only.
