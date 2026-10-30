@@ -40,7 +40,8 @@ hashes are frozen (section 6).
 
 1. **No-solver baseline:** Claude answers the problem directly, with no solver. It's
    scored as in section 2a. Its prompt is fixed in milestone 6, on dev only, before
-   approval.
+   approval. It asks for the objective unrounded (at least 8 significant digits), since
+   answers are scored at 1e-6 and the solver gives the other conditions full precision.
 2. **Single-shot:** one formulation, solved and checked (`max_attempts=1`).
 3. **Self-correction:** up to 3 attempts (`max_attempts=3`). Its first attempt is
    byte-identical to single-shot, so with the response cache the two are a paired

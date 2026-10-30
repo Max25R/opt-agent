@@ -6,7 +6,10 @@ number, and for the other statuses it's ignored. Anything else (a refusal, a cut
 a failed validation) is unusable and counts as wrong. One attempt, no revision.
 
 The system prompt gives the same modeling guidance as formulate.SYSTEM_PROMPT, so the one
-difference between this condition and single-shot is the solver.
+difference between this condition and single-shot is the solver. It also asks for the
+objective unrounded: the solver gives single-shot about 8 significant digits, answers are
+scored at 1e-6, and in the first dev runs the baseline rounded every answer that wasn't a
+whole number, to 4 to 7 digits, so 2 were scored wrong for rounding alone.
 """
 
 import hashlib
@@ -35,7 +38,8 @@ writing or running code. Reply with its status and, if it has an optimal solutio
 optimal objective value.
 
 - "optimal": some choice meets every requirement, and there is a best one. Give the \
-objective value of the best choice.
+objective value of the best choice, unrounded: exactly, or to at least 8 significant \
+digits (2/3 as 0.66666667, not 0.67).
 - "infeasible": no choice meets every requirement.
 - "unbounded": the objective can be made better without limit.
 - A decision that counts whole things (vehicles, trips, people, products, servings) takes \
