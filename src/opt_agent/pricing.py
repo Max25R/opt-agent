@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from opt_agent.api import TokenUsage, canonical_json
 
 PRICING_URL = "https://platform.claude.com/docs/en/about-claude/pricing"
-PRICES_CHECKED = "2026-10-29"
+PRICES_CHECKED = "2026-10-30"
 
 
 class Prices(BaseModel):

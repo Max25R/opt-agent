@@ -161,6 +161,16 @@ point is a trustworthy evaluation, not a demo.
      question for step 5), `562583112` (the objective read as the count of drones and
      couriers), `-577606329` (an integrality label every condition disagreed with), and
      run-to-run sampling (the bakery and the volcano problems).
+   - **Step 5, prompts (2026-10-30; owner approved $0.25 caps):** one change, to the
+     baseline prompt: give the objective unrounded (at least 8 significant digits, with
+     2/3 as a generic example). The formulation prompts are unchanged (the pipeline's
+     remaining dev failures are one-offs). Baseline re-runs: `runs/dev-2-baseline` 90/92
+     ($0.0420) and `runs/dev-perturbed-2-baseline` 83/85 ($0.0395); every non-whole answer
+     now has 8+ digits, and no answer flips at 1e-4. The baseline's remaining failures are
+     the pipeline's own two (`-577606329`, `562583112`), so on dev the baseline is as
+     accurate as the pipeline: the pipeline's case rests on checked answers and loud
+     failures, not accuracy. That was 1 of the 2 extra dev passes the plan allows. Total
+     spent so far: $0.2693.
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -337,6 +347,10 @@ python -m opt_agent.report runs/P --original runs/NAME   # a perturbed run, pair
   Python 3.13 then skips them.
 - python.org's macOS Python has no CA certificates, so downloads pass `certifi`'s bundle
   explicitly (`data.py`).
+- **Claude Code's Bash sandbox breaks Python's TLS on macOS** (`OSStatus -26276`, which
+  the SDK reports as `APIConnectionError: Connection error.`), while `curl` gets through.
+  Paid runs go outside the sandbox. A keyless check costs nothing: `httpx2.get(
+  "https://api.anthropic.com/v1/models")` should return 401.
 
 ## Settled decisions
 
