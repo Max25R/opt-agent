@@ -8,20 +8,19 @@ a test can check every number the README quotes against it.
 Every answer is scored here, from the status and objective the run recorded
 (scoring.py). The table evaluate.py prints is a convenience; this is the result.
 
-Each (problem, condition) pair in the manifest is, following Amendment 1:
-- **scored**: done in some pass, or errored in the first pass and in each of the
-  RESUME_PASSES after it. The second counts as wrong (loud, "api error") and is listed
-  separately.
-- **open**: errored in fewer passes, or pending (no line yet). A report with any open pair
-  is marked incomplete: its numbers are provisional, and the test run isn't over.
+Each (problem, condition) pair in the manifest is scored or open, following Amendment 1
+(run_results.py). An errored pair that outlasted every resume pass counts as wrong (loud,
+"api error") and is listed separately. A report with any open pair is marked incomplete:
+its numbers are provisional, and the test run isn't over.
 
 What's reported, by section of docs/PREREGISTRATION.md: accuracy with 95% Wilson intervals
 per condition and subset (4, 5), lenient accuracy on the integrality-sensitive subset (3f),
 which reading each correct answer needed (3c, 3e), answers that would flip at a 1e-4
 tolerance (1), LP optima on "says LP" problems (3d), optima claimed for problems that have
 none, with revision flags (3a), silent and loud failures (3g), McNemar's exact test with
-Holm's correction (4), latency, retry and wall time, tokens, and cost (4), and re-runs
-(Amendment 1).
+Holm's correction (4), latency, retry and wall time, tokens, and cost (4), re-runs
+(Amendment 1), and the owner's hand checks of the run once they're done: blind grades
+against scores, and failures by category (5a).
 
 A run on a perturbed split (perturb.py; section 2, condition 4) is outside the McNemar
 family, so its report has no tests. It says instead which answers are the original
@@ -34,13 +33,11 @@ import hashlib
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Literal
 
 import numpy as np
-from pydantic import BaseModel
 
-from opt_agent import freeze, packets
-from opt_agent.evaluate import CONDITIONS, Item, Manifest
+from opt_agent import blind_grading, freeze, packets, run_results, taxonomy
+from opt_agent.evaluate import CONDITIONS, Manifest
 from opt_agent.ground_truth import (
     GROUND_TRUTH_DIR,
     REVIEWS_PATH,
@@ -55,42 +52,23 @@ from opt_agent.ground_truth import (
 )
 from opt_agent.perturb import PERTURBED_SPLITS
 from opt_agent.pricing import PRICES, PRICES_CHECKED, PRICING_URL
+from opt_agent.run_results import RESUME_PASSES, Pair, load_pairs
 from opt_agent.scoring import Score, score
 from opt_agent.solver import Status
 from opt_agent.stats import holm, mcnemar_exact, wilson
 
-RESUME_PASSES = 3  # Amendment 1: after the first pass and 3 resumes, an error counts as wrong
 ALPHA = 0.05  # family-wise, over the McNemar tests (section 4)
 COMPARISONS = [("single-shot", "self-correction"), ("baseline", "single-shot"),
                ("baseline", "self-correction")]  # fmt: skip
 COMPARISON_SUBSETS = ["has an optimum", "is a status"]
 
 
-class Pair(BaseModel):
-    problem_id: str
-    condition: str
-    state: Literal["scored", "errored", "pending"]  # errored and pending are open
-    item: Item | None = None  # the done line, else the last errored one
-    errored_passes: int = 0  # a pass writes at most one line per pair
-    score: Score | None = None  # scored pairs only
-    retry_s: float = 0.0  # over every pass, errored ones included
-    wall_s: float = 0.0  # likewise
-
-    @property
-    def no_answer(self) -> str | None:
-        if self.state != "scored" or self.score.correct or self.score.failure != "loud":
-            return None
-        return self.item.no_answer if self.item.outcome == "done" else "api error"
-
-
 def build(run_dir: Path, original_run: Path | None = None) -> dict:
     """The whole report for one run directory. For a run on a perturbed split,
     `original_run` is the same conditions' run on the original problems, if there is one."""
-    manifest = Manifest.model_validate_json((run_dir / "manifest.json").read_text())
-    by_id = {r.id: r for r in load_records(GROUND_TRUTH_DIR / f"{manifest.split}.json")}
-    records = [by_id[i] for i in manifest.problem_ids]
-    pairs = load_pairs(manifest, run_dir / "results.jsonl", by_id)
-    groups = subsets(records)
+    run = run_results.load(run_dir)
+    manifest, by_id, pairs = run.manifest, run.by_id, run.pairs
+    groups = subsets(run.records)
     open_pairs = [p for p in pairs if p.state != "scored"]
     perturbed = manifest.split in PERTURBED_SPLITS
     report = {
@@ -107,6 +85,11 @@ def build(run_dir: Path, original_run: Path | None = None) -> dict:
         # The perturbed set is outside the McNemar family (section 4): no tests on it.
         "comparisons": [] if perturbed else comparisons(pairs, groups, manifest.conditions),
         "paid_usd": _ledger_usd(run_dir / "spend.jsonl"),
+        # Section 5a; each says "pending" until its packet's sheet is filled in.
+        "hand_checks": {
+            "blind grading": blind_grading.summary(run),
+            "taxonomy": taxonomy.summary(run),
+        },
         "provenance": provenance(run_dir, manifest),
     }
     if perturbed:
@@ -116,38 +99,6 @@ def build(run_dir: Path, original_run: Path | None = None) -> dict:
     if manifest.split == "test":
         report["integrality_agreement"] = integrality_agreement(list(by_id.values()))
     return report
-
-
-def load_pairs(manifest: Manifest, results: Path, by_id: dict[str, Record]) -> list[Pair]:
-    lines: dict[tuple[str, str], list[Item]] = {}
-    for line in results.read_text().splitlines() if results.exists() else []:
-        entry = json.loads(line)
-        if entry["kind"] == "item":
-            item = Item.model_validate(entry)
-            lines.setdefault((item.problem_id, item.condition), []).append(item)
-    pairs = []
-    for problem_id in manifest.problem_ids:
-        for condition in manifest.conditions:
-            items = lines.get((problem_id, condition), [])
-            done = [i for i in items if i.outcome == "done"]
-            errored = [i for i in items if i.outcome == "errored"]
-            pair = Pair(problem_id=problem_id, condition=condition, state="pending",
-                        errored_passes=len(errored), retry_s=sum(i.retry_s for i in items),
-                        wall_s=sum(i.wall_s for i in items))  # fmt: skip
-            if done:
-                record = by_id[problem_id]
-                item = done[-1]
-                pair = pair.model_copy(update={"state": "scored", "item": item,
-                                               "score": score(record, item.status,
-                                                              item.objective)})  # fmt: skip
-            elif len(errored) >= 1 + RESUME_PASSES:
-                pair = pair.model_copy(update={"state": "scored", "item": errored[-1],
-                                               "score": Score(correct=False,
-                                                              failure="loud")})  # fmt: skip
-            elif errored:
-                pair = pair.model_copy(update={"state": "errored", "item": errored[-1]})
-            pairs.append(pair)
-    return pairs
 
 
 def subsets(records: list[Record]) -> dict[str, list[str]]:
@@ -378,6 +329,10 @@ def provenance(run_dir: Path, manifest: Manifest) -> dict:
             path.name: hashlib.sha256(path.read_bytes()).hexdigest()
             for path in _inputs(manifest.split)
         },
+        "hand_check_sheets_sha256": {
+            "/".join(path.parts[-3:]): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in _sheets(run_dir.name)
+        },
         "tolerance": TOLERANCE,
         "sensitivity_tolerance": SENSITIVITY_TOLERANCE,
         "resume_passes": RESUME_PASSES,
@@ -395,6 +350,12 @@ def _inputs(split: str) -> list[Path]:
     answers against its original split ("gave the original answer")."""
     splits = [split] + ([PERTURBED_SPLITS[split]] if split in PERTURBED_SPLITS else [])
     return [GROUND_TRUTH_DIR / f"{s}.json" for s in splits] + [REVIEWS_PATH]
+
+
+def _sheets(run_name: str) -> list[Path]:
+    """The owner's hand-check sheets for this run that exist so far (section 5a)."""
+    paths = [blind_grading.sheet_path(run_name), taxonomy.sheet_path(run_name)]
+    return [path for path in paths if path.exists()]
 
 
 def _ledger_usd(path: Path) -> float:

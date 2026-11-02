@@ -260,6 +260,18 @@ def mark_sheet(rows: list[tuple[Record, str, str | None]], path: Path) -> None:
             writer.writerow([number, r.id, r.review.verdict, level, "", ""])
 
 
+# ---- sheets the run packets regenerate (blind_grading.py, taxonomy.py) ------------------
+
+
+def kept_marks(path: Path, key: str, columns: list[str]) -> dict[str, dict[str, str]]:
+    """What the owner already wrote in a sheet, by each row's key, so that regenerating its
+    packet keeps it."""
+    if not path.exists():
+        return {}
+    with path.open(newline="") as f:
+        return {row[key]: {c: row[c] for c in columns} for row in csv.DictReader(f)}
+
+
 # ---- 3. "says LP" labels ---------------------------------------------------------------
 
 _ROW = re.compile(r"^\| `(?P<variable>[^`]+)` \| (?P<label>[^|]*?) \|$")

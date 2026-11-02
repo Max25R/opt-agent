@@ -2,7 +2,7 @@
 
 import re
 
-from opt_agent import perturb
+from opt_agent import blind_grading, perturb, taxonomy
 from opt_agent.ground_truth import (
     GROUND_TRUTH_DIR,
     answer,
@@ -129,6 +129,16 @@ def test_the_perturbed_counts_and_rule():
     assert says(f"seed {perturb.SEED}") and says(f"up to {perturb.MAX_DRAWS} times")
     low, high = perturb.FACTOR
     assert (low, high) == (0.5, 2.0) and says("log-uniformly from [1/2, 2]")
+
+
+def test_the_hand_checks_are_the_codes():
+    section = DOC.split("## 5a.")[1].split("## 6.")[0]
+    assert f"(seed {blind_grading.SEED})" in section
+    size = blind_grading.SIZE
+    assert f"up to {size // 2} models scored wrong, and models scored right to make {size}" in (
+        section
+    )
+    assert re.findall(r"\| `([a-z-]+)` \|", section) == list(taxonomy.CATEGORIES)
 
 
 def test_the_freeze_list_names_everything_a_run_depends_on():

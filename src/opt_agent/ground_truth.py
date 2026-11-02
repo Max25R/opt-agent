@@ -186,6 +186,12 @@ def as_integer(model: LPModel) -> LPModel:
     return model.model_copy(update={"variables": variables})
 
 
+def reference_model(record: Record) -> LPModel:
+    """The annotated model as its answer reads it: every variable integer if the label
+    says so. The stored model is all-continuous, since both optima are solved from it."""
+    return as_integer(record.model) if record.integrality.kind == "integer" else record.model
+
+
 def solve_checked(model: LPModel) -> CheckedSolve:
     cbc, highs = solve(model), solve_with_highs(model)
     return CheckedSolve(

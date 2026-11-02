@@ -171,7 +171,8 @@ and IP optima differ).
   solver error, unusable reply, refusal, or an API error that outlasted every resume
   pass: Amendment 1).
 
-Silent failures are the dangerous kind, and they're reported first.
+Silent failures are the dangerous kind, and they're reported first. Each one also gets a
+hand label for its cause (section 5a).
 
 ## 4. Statistics
 
@@ -212,6 +213,53 @@ Every table gives these rows, with n:
 - strict wording;
 - ambiguous (either reading accepted);
 - text says "LP" but labeled integer.
+
+## 5a. Hand checks of the run
+
+The owner does two checks after the test run, from packets the code builds in `review/`.
+The blind grading comes first, since the taxonomy packet shows which answers are wrong.
+Both are reported with counts and intervals, with no tests.
+
+**Blind grading** (`blind_grading.py`). The score compares answers, not models. A wrong
+model can still reach an accepted answer, and a right one can miss when the reference reads
+the text another way or is wrong. So:
+- **The pool** is every distinct final model with a confirmed answer, from single-shot and
+  self-correction (a model both gave counts once), on the blind-gradable problems: scorable,
+  with no known annotation error, since the reference model is shown.
+- **The sample** (seed 20261030): up to 20 models scored wrong, and models scored right to
+  make 40, in shuffled order. Wrong answers are rare, so an unstratified sample of 40 would
+  hold too few of them to say anything.
+- **The owner grades** each model `right`, `wrong` or `unsure` against the text, next to
+  the reference model and its integrality label, without seeing any answer, score,
+  condition or problem id.
+- **Reported:** for the models scored right, how many were graded wrong, and for those
+  scored wrong, how many were graded right; each stratum's agreement with its Wilson
+  interval (`unsure` counted, but kept out of the rate); and every disagreement, listed.
+- **Known limit:** the owner knows the sample is about half wrong by design, far above the
+  run's rate, and has seen the reference models while confirming the reviews.
+
+**Error taxonomy** (`taxonomy.py`). Every distinct silent failure of the main test run, in
+every condition, gets one category: its main error, the one whose fix alone would give an
+accepted answer, if there is one. Any others go in a note. The categories were drawn up
+from the dev failures (`review/taxonomy/dev-1/`), and a failure that fits none is `other`:
+
+| category | meaning |
+|---|---|
+| `objective` | optimizes the wrong quantity, or in the wrong direction |
+| `constraint-scope` | a limit applied to the wrong set of things: one combined limit read as one per item, or the reverse |
+| `missing-constraint` | leaves out a requirement the text states (also when a revision deleted it) |
+| `invented-constraint` | adds a requirement the text doesn't state |
+| `coefficient` | a wrong number: misread, attached to the wrong variable, or converted between units wrongly |
+| `direction` | a constraint points the wrong way (at least vs at most), and no accepted reading allows it |
+| `integrality` | whole numbers vs fractions differ from the label |
+| `rounding` | the right answer, rounded too far to match at 1e-6 (baseline) |
+| `calculation` | no misreading found that gives this answer: a slip in the arithmetic or in finding the best choice (baseline) |
+| `reference` | Claude's reading is one the text supports but no accepted reading allows, or the reference is wrong |
+| `other` | none of these, with a note |
+
+Reported: per condition, the number of silent failures in each category. Loud failures
+keep their automatic kinds (3g). A `reference` label doesn't change the score: the ground
+truth is frozen, and those failures stay wrong.
 
 ## 6. Frozen before the test run
 

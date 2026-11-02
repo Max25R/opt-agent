@@ -66,10 +66,11 @@ point is a trustworthy evaluation, not a demo.
      (first: the review packet shows labels), `review/test_reviews/`, and
      `review/says_lp.md`, and approves the pre-registration (its 4 decisions were made on
      2026-10-19; it's still a draft). Apply their marks: `confirmed_by_owner` for
-     confirmed reviews, source `owner` for labels. Milestone 6 must still do, before
-     approval: fix the baseline's prompt on dev (`baseline.py` has a first draft; its
-     schema and parsing follow pre-registration 2a). (The "=" reading, the 1e-4 count,
-     Amendment 1, the perturbation rule and the freeze checks are done; see milestone 6.)
+     confirmed reviews, source `owner` for labels. Also the owner's, on dev: label
+     `review/taxonomy/dev-1/` (after the optional blind pilot, `review/blind_grading/dev-1/`),
+     which settles the pre-registered categories. (The "=" reading, the 1e-4 count,
+     Amendment 1, the perturbation rule, the freeze checks, the baseline's prompt and the
+     hand-check packets are done; see milestone 6.)
      `python -m opt_agent.freeze` lists what's left before the owner can freeze. Known and
      unfixed: the integrality rule matches ingredient names ("units of chicken" meat), so
      it labels countable products continuous in at least 3 reviewed test problems
@@ -171,6 +172,27 @@ point is a trustworthy evaluation, not a demo.
      accurate as the pipeline: the pipeline's case rests on checked answers and loud
      failures, not accuracy. That was 1 of the 2 extra dev passes the plan allows. Total
      spent so far: $0.2693.
+   - **Step 6, the hand checks (2026-10-30; no API calls):** two run packets, both for
+     after the test run, pre-registered in the draft's new section 5a. Both read a run
+     back with `run_results.py` (split out of `report.py`: the scored pairs, and each
+     answer's final model from the attempt log) and key their sheet rows by a hash of the
+     problem and the model (`model_key`; `answer_key` for the baseline), so a regenerated
+     packet keeps the owner's marks (`packets.kept_marks`).
+     - **Blind grading** (`blind_grading.py`): the owner grades Claude's models against
+       the text, next to the reference, with no answers, scores, conditions or ids shown.
+       The pool is every distinct confirmed model on a blind-gradable problem; the sample
+       (seed 20261030, 40) is stratified, up to half scored wrong, since wrong answers are
+       rare. The report gives each stratum's agreement with a Wilson interval and lists
+       every disagreement. It checks the score itself: a lucky right answer, or a
+       reference that reads the text another way.
+     - **Taxonomy** (`taxonomy.py`): every distinct silent failure gets one category, its
+       main error, from 11 categories drawn up from the dev failures. The packet shows
+       facts the scores give for free (correct if integrality weren't graded, within
+       1e-4, revision flags, a baseline answer equal to a model's). The report counts
+       categories per condition.
+     - `report.build` has `hand_checks` ("pending" until a sheet is filled) and the
+       sheets' hashes in its provenance. Dev packets: `review/taxonomy/dev-1/` (7
+       failures) and a 10-model pilot, `review/blind_grading/dev-1/`.
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -253,6 +275,8 @@ python -m opt_agent.freeze          # what's left before the freeze; whether inp
 python -m opt_agent.freeze approve  # THE OWNER'S STEP ONLY: writes docs/FREEZE.json
 python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.json
 python -m opt_agent.report runs/P --original runs/NAME   # a perturbed run, paired
+python -m opt_agent.blind_grading runs/NAME [--size N]   # review/blind_grading/NAME/, first
+python -m opt_agent.taxonomy runs/NAME   # review/taxonomy/NAME/: label each silent failure
 ```
 
 ## Ground truth (milestone 3 decisions)
