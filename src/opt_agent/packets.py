@@ -11,11 +11,17 @@
    integrality changes the answer. The pre-registration lets the label decide, so the
    owner sets these labels (review/says_lp.md). They're not a blind check of Claude's
    labels, so `agreement` leaves them out.
+4. **The judges' integrality labels** (pre-registration, Amendment 2): the problems of 1
+   and 3 in one prompt for an LLM judge, which labels each problem integer, continuous or
+   either. Two judges answer the same prompt, each in its own sheet, so their labels can
+   be compared. The owner's packets 1 and 3 are left as they are.
 
 Run:  python -m opt_agent.packets integrality    # writes review/integrality_blind/
       python -m opt_agent.packets reviews        # writes review/test_reviews/
       python -m opt_agent.packets says-lp        # writes review/says_lp.md
       python -m opt_agent.packets agreement      # after labels.csv is filled in
+      python -m opt_agent.packets judge          # writes review/integrality_judge/
+      python -m opt_agent.packets judge --merge judge --reply REPLY.csv --grader "MODEL"
 """
 
 import argparse
@@ -288,8 +294,10 @@ def merge_reply(sheet: Path, reply: Path, columns: list[str], grader: str) -> in
         raise ValueError(f"{reply} answers rows {given}, not each of {numbers} once")
     for row in rows:
         answer = replies[row["number"]]
-        if answer.get("key") and answer["key"].strip() != row["key"]:
-            raise ValueError(f"row {row['number']}: key {answer['key']!r}, not {row['key']!r}")
+        for name in ("key", "problem_id"):  # whichever the sheet and the reply both have
+            if answer.get(name) and name in row and answer[name].strip() != row[name]:
+                raise ValueError(f"row {row['number']}: {name} {answer[name]!r}, "
+                                 f"not {row[name]!r}")  # fmt: skip
         row.update({c: (answer.get(c) or "").strip() for c in columns}, grader=grader)
     fields = [*rows[0].keys()]
     with sheet.open("w", newline="") as f:
@@ -349,15 +357,110 @@ def read_says_lp(path: Path) -> dict[str, dict[str, str]]:
     return labels
 
 
+# ---- 4. the judges' integrality labels -------------------------------------------------
+
+JUDGE_DIR = REVIEW_DIR / "integrality_judge"
+JUDGE_LABELS = ("integer", "continuous", "either")
+# Sheet name -> role. Both judges answer the same prompt (Amendment 2).
+JUDGE_SHEETS = {"judge": "judge.csv", "second": "second_judge.csv"}
+
+
+def judged_problems(records: list[Record]) -> list[tuple[str, Record]]:
+    """(set, record): the blind sample in draw order, then the 4 "says LP" problems."""
+    by_id = {r.id: r for r in records}
+    return [("blind sample", r) for r in blind_sample(records)] + [
+        ("says LP", by_id[i]) for i in SAYS_LP
+    ]
+
+
+def judge_prompt(problems: list[tuple[str, Record]]) -> str:
+    """For an LLM judge in a new conversation: the text and the decisions' names only, as
+    in the owner's blind packet. It doesn't say which set a problem is from, or name the
+    system or who wrote the labels. Labels are per problem, because the ground truth
+    stores only the all-integer and the all-continuous optimum."""
+    lines = [
+        "# Whole numbers or fractions?",
+        "",
+        f"Below are {len(problems)} optimization word problems. For each, decide whether "
+        "its decisions must be whole numbers, by what the text says each one counts or "
+        "measures, and give one label:",
+        "",
+        "- `integer`: only whole-number decisions make sense.",
+        "- `continuous`: fractional decisions make sense.",
+        "- `either`: the text supports both readings, so a whole-number answer and a "
+        "fractional one would both be right.",
+        "",
+        "Label each problem's decisions as a whole. If they differ (some must be whole and "
+        "some needn't), say so in the note.",
+        "",
+        "Reply with CSV only, and no other text: the header `number,problem_id,label,note`, "
+        "then one row per problem, with its number and problem id exactly as given, a "
+        "label, and a one-sentence note in double quotes.",
+        "",
+    ]
+    for number, (_, r) in enumerate(problems, 1):
+        names = ", ".join(f"`{v.name}`" for v in r.model.variables)
+        lines += [f"## {number}. `{r.id}`", "", f"> {r.document}", "", f"Decisions: {names}", ""]
+    return "\n".join(lines)
+
+
+def judge_sheet(problems: list[tuple[str, Record]], path: Path) -> None:
+    kept = kept_marks(path, "problem_id", ["label", "note", "grader"])
+    with path.open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["number", "problem_id", "set", "label", "note", "grader"])
+        for number, (which, r) in enumerate(problems, 1):
+            mark = kept.get(r.id, dict.fromkeys(["label", "note", "grader"], ""))
+            writer.writerow([number, r.id, which, mark["label"], mark["note"], mark["grader"]])
+
+
+def read_judge_labels(path: Path) -> dict[str, str]:
+    """problem id -> the judge's label. Every row must be filled in."""
+    labels = {}
+    with path.open(newline="") as f:
+        for row in csv.DictReader(f):
+            label = row["label"].strip().lower()
+            if label not in JUDGE_LABELS:
+                raise ValueError(f"problem {row['number']}: {label!r} is none of "
+                                 f"{', '.join(JUDGE_LABELS)}")  # fmt: skip
+            labels[row["problem_id"]] = label
+    return labels
+
+
+def write_judge_packet(records: list[Record]) -> int:
+    problems = judged_problems(records)
+    JUDGE_DIR.mkdir(parents=True, exist_ok=True)
+    (JUDGE_DIR / "LLM_PROMPT.md").write_text(judge_prompt(problems))
+    for name in JUDGE_SHEETS.values():
+        judge_sheet(problems, JUDGE_DIR / name)
+    return len(problems)
+
+
 # ---- command line ----------------------------------------------------------------------
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Hand-check packets for the owner.")
-    parser.add_argument("packet", choices=["integrality", "reviews", "says-lp", "agreement"])
+    parser.add_argument(
+        "packet", choices=["integrality", "reviews", "says-lp", "agreement", "judge"]
+    )
+    parser.add_argument(
+        "--merge", choices=list(JUDGE_SHEETS), help="judge: write a judge's reply into its sheet"
+    )
+    parser.add_argument("--reply", type=Path, help="with --merge: the reply, as a CSV file")
+    parser.add_argument("--grader", help="with --merge: the judge's model and version")
     args = parser.parse_args(argv)
     test = load_records(GROUND_TRUTH_DIR / "test.json")
-    if args.packet == "integrality":
+    if args.packet == "judge" and args.merge:
+        if not (args.reply and args.grader):
+            parser.error("--merge needs --reply and --grader")
+        sheet = JUDGE_DIR / JUDGE_SHEETS[args.merge]
+        n = merge_reply(sheet, args.reply, ["label", "note"], args.grader)
+        print(f"merged {n} labels from {args.reply} into {sheet}")
+    elif args.packet == "judge":
+        n = write_judge_packet(test)
+        print(f"wrote {JUDGE_DIR}/LLM_PROMPT.md, judge.csv and second_judge.csv ({n} problems)")
+    elif args.packet == "integrality":
         BLIND_DIR.mkdir(parents=True, exist_ok=True)
         sample = blind_sample(test)
         (BLIND_DIR / "PACKET.md").write_text(

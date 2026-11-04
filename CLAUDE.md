@@ -193,9 +193,9 @@ point is a trustworthy evaluation, not a demo.
      - `report.build` has `hand_checks` ("pending" until a sheet is filled) and the
        sheets' hashes in its provenance. Dev packets: `review/taxonomy/dev-1/` (7
        failures) and a 10-model pilot, `review/blind_grading/dev-1/`.
-   - **Owner's decision (2026-11-02): an LLM judge and an external cross-check**, drafted
-     as pre-registration Amendment 2 (not approved yet; `freeze.unfinished()` unchanged
-     until it is). The judge must be from another vendor than Anthropic, and is still to
+   - **Owner's decision (2026-11-02): an LLM judge and an external cross-check**, as
+     pre-registration Amendment 2 (approved 2026-11-04, below; the file as a whole is
+     still a draft). The judge must be from another vendor than Anthropic, and is still to
      be named. Sheets have a `grader` column, and `--merge REPLY --grader NAME` writes a
      judge's CSV reply into a sheet, refusing skipped, doubled or shifted rows. The
      taxonomy also writes `LLM_PROMPT.md`, which doesn't name the system. The dev pilot was
@@ -204,6 +204,14 @@ point is a trustworthy evaluation, not a demo.
      NL4OPT in ORLMBenchmark (`data.ORLM_BENCHMARK`, Apache-2.0, git-ignored download)
      and writes `review/external_check.md`. That benchmark lacks every do-nothing problem
      and some no-optimum ones, so 24 reviews still need the owner.
+   - **Revised, and Amendment 2 approved (owner, 2026-11-04):** the judge of record is Claude Opus 5.5
+     in Claude Code ("extra"), run outside this repository; free ChatGPT is a second,
+     cross-vendor judge on the integrality labels only (Claude wrote them). Both label the
+     40 blind and 4 "says LP" problems per problem as integer, continuous or either
+     (`packets judge` writes `review/integrality_judge/`; the owner's packets are untouched);
+     a label they differ on becomes `either`. The report is to show lenient accuracy next
+     to every strict one (McNemar on lenient scores as exploratory). The `either` kind,
+     the agreement counts, the lenient rows and `freeze.unfinished()` wait for approval.
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -290,6 +298,8 @@ python -m opt_agent.blind_grading runs/NAME [--size N]   # review/blind_grading/
 python -m opt_agent.taxonomy runs/NAME   # review/taxonomy/NAME/: label each silent failure
 python -m opt_agent.taxonomy runs/NAME --merge REPLY.csv --grader "MODEL, LLM judge"
 python -m opt_agent.external_check   # review/external_check.md: test answers vs ORLMBenchmark
+python -m opt_agent.packets judge   # review/integrality_judge/: one prompt, a sheet per judge
+python -m opt_agent.packets judge --merge judge|second --reply REPLY.csv --grader "MODEL"
 ```
 
 ## Ground truth (milestone 3 decisions)

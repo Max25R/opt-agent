@@ -156,3 +156,65 @@ def test_the_committed_says_lp_file_is_up_to_date():
         r"\| (integer|continuous) \|$", "| ? |", SAYS_LP_PATH.read_text(), flags=re.M
     )
     assert committed == says_lp_packet(TEST)
+
+
+# ---- 4. the judges' integrality labels (Amendment 2) -----------------------------------
+
+
+def test_the_judges_get_the_blind_sample_then_the_says_lp_problems():
+    problems = packets.judged_problems(TEST)
+    assert [r.id for _, r in problems] == [r.id for r in SAMPLE] + SAYS_LP
+    assert {which for which, _ in problems} == {"blind sample", "says LP"}
+
+
+def test_the_judge_prompt_shows_no_label_and_names_no_one():
+    problems = packets.judged_problems(TEST)
+    text = packets.judge_prompt(problems)
+    assert text.count("\n## ") == 44 and "`number,problem_id,label,note`" in text
+    for _, r in problems:
+        assert r.document in text
+        if r.integrality.note:
+            assert r.integrality.note not in text
+    assert "claude" not in text.lower() and "says LP" not in text and "blind" not in text
+
+
+def test_the_committed_judge_packet_is_up_to_date():
+    problems = packets.judged_problems(TEST)
+    prompt = (packets.JUDGE_DIR / "LLM_PROMPT.md").read_text()
+    assert prompt == packets.judge_prompt(problems)
+    for name in packets.JUDGE_SHEETS.values():  # the labels may be filled in by now
+        sheet = [row[:3] for row in csv.reader((packets.JUDGE_DIR / name).open())]
+        assert sheet == [["number", "problem_id", "set"]] + [
+            [str(n), r.id, which] for n, (which, r) in enumerate(problems, 1)]  # fmt: skip
+
+
+def test_a_judges_labels_merge_and_read_back(tmp_path):
+    problems = packets.judged_problems(TEST)[:2]
+    sheet = tmp_path / "judge.csv"
+    packets.judge_sheet(problems, sheet)
+    (_, first), (_, second) = problems
+    reply = tmp_path / "reply.csv"
+    reply.write_text(f'number,problem_id,label,note\n1,{first.id},either,"both"\n'
+                     f"2,{second.id},integer,\n")  # fmt: skip
+    assert packets.merge_reply(sheet, reply, ["label", "note"], "Some model") == 2
+    assert packets.read_judge_labels(sheet) == {first.id: "either", second.id: "integer"}
+    assert packets.graders(sheet) == ["Some model"]
+    packets.judge_sheet(problems, sheet)  # regenerating keeps them
+    assert packets.read_judge_labels(sheet) == {first.id: "either", second.id: "integer"}
+
+
+def test_a_judges_reply_with_a_wrong_problem_id_or_label_is_refused(tmp_path):
+    problems = packets.judged_problems(TEST)[:2]
+    sheet = tmp_path / "judge.csv"
+    packets.judge_sheet(problems, sheet)
+    (_, first), (_, second) = problems
+    reply = tmp_path / "reply.csv"
+    reply.write_text(f"number,problem_id,label,note\n1,{second.id},integer,\n"
+                     f"2,{first.id},integer,\n")  # fmt: skip
+    with pytest.raises(ValueError, match="problem_id"):
+        packets.merge_reply(sheet, reply, ["label", "note"], "judge")
+    reply.write_text(f"number,problem_id,label,note\n1,{first.id},mixed,\n"
+                     f"2,{second.id},integer,\n")  # fmt: skip
+    packets.merge_reply(sheet, reply, ["label", "note"], "judge")
+    with pytest.raises(ValueError, match="'mixed' is none of"):
+        packets.read_judge_labels(sheet)

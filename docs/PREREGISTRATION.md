@@ -144,7 +144,7 @@ labels are Claude's).
 - **The owner labels these 4** (`review/says_lp.md`), so their labels become the owner's.
   They're kept out of the blind-agreement statistic: that statistic measures Claude's
   labels against the owner's blind ones, and these won't be Claude's. None of the 4 is in
-  the blind sample.
+  the blind sample. (Amendment 2: two LLM judges label them instead.)
 - The report says how many of these the system answered with the LP optimum.
 
 **e. Strict wording** ("more than", "must exceed"; 25 scorable integer test problems).
@@ -164,6 +164,7 @@ and IP optima differ).
     optimum is accepted.
   - The owner's blind labeling of 40 of the 131 (`review/integrality_blind/`, seed
     20261019) is reported next to the scores: the agreement, with its Wilson interval.
+    (Amendment 2: two LLM judges label them instead, and may answer `either`.)
 
 **g. Failures** are classified for every problem:
 - **silent:** a confirmed answer that's wrong;
@@ -217,7 +218,7 @@ Every table gives these rows, with n:
 ## 5a. Hand checks of the run
 
 Two checks are done after the test run, from packets the code builds in `review/`: by an
-LLM judge from another vendor, not by the owner (Amendment 2). The blind grading comes
+LLM judge, not by the owner (Amendment 2). The blind grading comes
 first, since the taxonomy packet shows which answers are wrong.
 Both are reported with counts and intervals, with no tests.
 
@@ -290,8 +291,8 @@ subset is refused.
 
 Before freezing:
 - the owner marks the packets in `review/` (blind labels, test reviews, and the 4
-  "says LP" labels; for the test reviews, Amendment 2 replaces most of this with an
-  external cross-check);
+  "says LP" labels; Amendment 2 gives the labels to two LLM judges, and replaces most of
+  the review confirmations with an external cross-check);
 - disputed reviews are resolved;
 - labels the owner changes are written to `integrality.json` with source `owner`.
 
@@ -340,29 +341,39 @@ sections 1, 2a and 3g.
 - A solver time-out is still a loud failure (section 1): it's about Claude's model, not
   the API.
 
-### Amendment 2 (owner, 2026-11-02): an LLM judge and an external cross-check
+### Amendment 2 (owner, 2026-11-02; revised 2026-11-04): LLM judges and an external cross-check
 
 Made while this file is still a draft. It changes who does the hand checks of section 5a,
-and how the test reviews are confirmed before freezing (section 6).
+who labels integrality for 3d and 3f, how the test reviews are confirmed before freezing
+(section 6), and what the report shows next to each accuracy (sections 4 and 5).
 
-**1. An LLM judge from another vendor does the hand checks (5a), not the owner.**
-- **The judge** is a model not made by Anthropic. The system under test is Claude, and a
-  judge from the same vendor could share its blind spots. It's named here, with its exact
-  model version, before the test run: **(to be filled in)**.
-- **What it gets:** the generated prompt, byte for byte, in a new conversation with
-  nothing else (no repository, no run files, no other packet). For blind grading that's
-  `PACKET.md`. For the taxonomy it's `LLM_PROMPT.md`: the same rows as the owner's
-  packet, without naming the system or who wrote the labels. Blind grading comes first.
+**1. LLM judges do the hand checks (5a), not the owner.**
+- **The judge of record** is Claude Opus 5.5 in Claude Code ("extra"), the owner's
+  choice. It does the blind grading, the taxonomy, and the integrality labels (part 3).
+- **A second judge, from another vendor:** the free version of ChatGPT labels integrality
+  too (part 3). That's the one check where a Claude judge would be checking labels Claude
+  wrote. The free version may not say which model answered, so its sheet records what it
+  shows, and the date.
+- **The same-vendor limit:** the system under test, the author of the labels and reviews,
+  and the judge of record are all Claude, and may share blind spots. Blind grading and
+  the taxonomy have no cross-vendor check. Part 4 keeps every headline number from
+  resting on a judge's labels alone.
+- **What a judge gets:** the generated prompt, byte for byte, in a new conversation with
+  nothing else. The judge of record runs in a Claude Code session started outside this
+  repository, so it can't read the run, the labels or the other packets. For blind
+  grading that's `PACKET.md`; for the taxonomy, `LLM_PROMPT.md` (the same rows as the
+  owner's packet, without naming the system or who wrote the labels); for the
+  integrality labels, `review/integrality_judge/LLM_PROMPT.md`. Blind grading comes
+  first.
 - **Its reply** is saved verbatim next to the sheet and merged by row number (`--merge`).
   The merge refuses a reply that skips, doubles or shifts a row. The judge's name goes in
   the sheet's `grader` column, and the report lists the graders. A reply that can't be
   merged is asked for again in a new conversation, and every reply is kept.
 - **Reported** as section 5a says, but called what it is: agreement between an LLM judge
-  and the automatic score, not a human check. A judge makes mistakes of its own, and
-  nothing here measures them.
-- **The dev pilot** (`review/blind_grading/dev-1/`) was graded by Claude Opus 5.5, from
-  the same vendor as the system under test. It checked the packet's format only, and its
-  grades aren't reported as a result.
+  and the automatic score, not a human check. A judge makes mistakes of its own; the two
+  judges' agreement on the integrality labels (part 3) is the only measure of them.
+- **The dev pilot** (`review/blind_grading/dev-1/`) was graded by the judge of record. It
+  checked the packet's format only, and its grades aren't reported as a result.
 
 **2. An external cross-check replaces most of the owner's review confirmations (6).**
 - **The source:** the corrected NL4OPT in ORLMBenchmark (`chenyitian-shanshu/ORLMBenchmark`,
@@ -387,9 +398,42 @@ and how the test reviews are confirmed before freezing (section 6).
   NL4Opt problems, and possibly, through ORLM's answers, from the same annotations, so an
   error both inherit gets through. Its authors describe their review as quick. A
   disagreement is the informative signal.
-- **Code:** once this amendment is approved, `freeze.unfinished()` will require the
-  owner's decision on every listed problem, and `confirmed_by_owner` only for reviews the
-  benchmark doesn't cover. Until then it's unchanged.
 
-**Unchanged:** the owner's blind integrality labels (`review/integrality_blind/`, 3f) and
-the 4 "says LP" labels (3d).
+**3. Both judges label integrality where the owner would have (3d, 3f).**
+- **The problems:** the 40 of the blind sample (seed 20261019) and the 4 "says LP"
+  problems, in one prompt (`review/integrality_judge/LLM_PROMPT.md`). It shows the text
+  and the decisions' names, as the owner's blind packet does, with no label and no sign of
+  which set a problem is from. Each judge answers in its own conversation, into its own
+  sheet (`judge.csv`, `second_judge.csv`). The owner's packets (`review/integrality_blind/`,
+  `review/says_lp.md`) aren't used.
+- **A label is per problem:** `integer`, `continuous`, or `either` (the text supports both
+  readings, so both optima are accepted). It's per problem, not per variable, because the
+  ground truth stores only the all-integer and the all-continuous optimum. The dev pilot
+  showed why `either` is needed: the judge was unsure about an integrality choice the text
+  supports both ways (the method runs of dev `-577606329`).
+- **The label that scores:** where both judges give the same label, that's the problem's
+  label (source `judge` in `integrality.json`); where they differ, it's `either`. This
+  replaces the owner's labels in 3d and in section 6. So on the 4 "says LP" problems the
+  judges' label decides, and an `either` there accepts the LP optimum too. Every other
+  label stays Claude's (or the rule's).
+- **The agreement statistic (3f)** is reported for each judge against Claude's labels on
+  the 40, and for the two judges against each other: how many give the same label, a
+  different one, or `either`, and the Wilson interval of "the same label or `either`" (a
+  label the judge accepts). The second judge's is the independent one. The 4 "says LP"
+  problems stay out of it, as before.
+
+**4. Lenient accuracy next to every strict one (4, 5).**
+- Every accuracy the report gives, per condition and subset, comes with its lenient version
+  beside it: integrality not graded, so either optimum is accepted (3f's lenient score,
+  now on every row, not only the sensitive subset). So no headline number rests only on
+  labels, whether a judge's or Claude's. On the integrality-insensitive subset the two
+  are equal by construction.
+- The McNemar tests stay on the strict scores, as pre-registered. The same six on the
+  lenient scores are reported next to them as exploratory, outside the Holm family.
+
+**Code:** once this amendment is approved, `freeze.unfinished()` will require both judges'
+sheets filled, their combined labels applied to `integrality.json`, the owner's decision on
+every problem `review/external_check.md` lists, and `confirmed_by_owner` only for reviews
+the benchmark doesn't cover. It will no longer ask for the owner's `labels.csv` or "says
+LP" labels. The `either` label, the agreement counts and the lenient rows come with it.
+Until then, all of it is unchanged.
