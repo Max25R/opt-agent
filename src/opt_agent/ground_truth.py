@@ -93,6 +93,8 @@ class Review(BaseModel):
     answer_affected: bool = True  # for annotation errors: does the error change the answer?
     # For ambiguous text: constraints the text also supports reading as "=", not as annotated.
     equality: list[str] | None = None
+    # Amendment 2, part 6: both LLM judges agreed with the review ("confirmed"), or not.
+    judged: Literal["confirmed", "disputed"] | None = None
 
 
 class Record(BaseModel):
@@ -245,7 +247,7 @@ def readings(record: Record, lenient: bool = False) -> list[tuple[Reading, Check
     found: list[tuple[Reading, CheckedSolve]] = []
     if answer(record) is not None:  # no trusted annotated answer, nothing to score against
         found += [("annotated", getattr(record, kind)) for kind in kinds]
-    if record.strict is not None:
+    if record.strict is not None and (lenient or "ip" in label_kinds(record)):
         found.append(("strict", record.strict.ip))  # strictness only has meaning over integers
     if record.equality is not None:
         found += [("equality", getattr(record.equality, kind)) for kind in kinds]

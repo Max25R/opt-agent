@@ -62,13 +62,12 @@ point is a trustworthy evaluation, not a demo.
      fixtures and two excluded test problems; the strict reading (`strict.py`);
      `Result.confirmed`; the owner's packets (`review/`, `packets.py`); a draft
      pre-registration (`docs/PREREGISTRATION.md`); `requirements.lock`.
-   - **Still open before milestone 6** (as Amendment 2 has it): both judges label
-     `review/integrality_judge/` (then Claude applies their combined labels, source
-     `judge`); the owner decides every row of `review/external_check.csv` and confirms
-     the 24 reviews the cross-check can't cover (apply as `confirmed_by_owner`); the owner
-     approves the pre-registration as a whole (still a draft). The owner's own packets
-     (`review/integrality_blind/`, `review/says_lp.md`, `review/test_reviews/`) are no
-     longer required. Also the owner's, on dev: label
+   - **Still open before milestone 6:** only the owner's approval of the pre-registration
+     as a whole (still a draft), then `freeze approve` (the owner's step). Amendment 2's
+     judges, cross-check and review outcomes are all applied (2026-11-04). The owner's own
+     packets (`review/integrality_blind/`, `review/says_lp.md`, `review/test_reviews/`) are
+     no longer used, and are kept as sent: the review packet's label lines predate the
+     judges' labels. Also the owner's, on dev: label
      `review/taxonomy/dev-1/` (after the optional blind pilot, `review/blind_grading/dev-1/`),
      which settles the pre-registered categories. (The "=" reading, the 1e-4 count,
      Amendment 1, the perturbation rule, the freeze checks, the baseline's prompt and the
@@ -244,6 +243,21 @@ point is a trustworthy evaluation, not a demo.
      decisions (4 `either` labels, exclusions, review outcomes in `reviews.json`),
      `freeze` for them, and the report's 44-problem agreement, second-judge-only
      sensitivity check, and accuracy without disputed problems.
+   - **Review judges and the rest of Amendment 2 (2026-11-04):** both replies merged
+     (`review/review_judge/*_reply.csv` verbatim). `external_check judges --decide` fills
+     the sheet by the rules: 16 reviews confirmed, 8 disputed (the second judge disputes
+     all 8, the judge of record one, `1384123609`; 4 of the 8 are continuous rule labels
+     on countable products with strict wording, the known ingredient-name issue), and both
+     hard cases excluded. `external_check apply` wrote them in: `Review.judged`, 2 rows in
+     `exclusions.json`, 4 `either` labels (source owner), after `packets judge --apply`'s 44
+     (13 `either` in all). The decision sheet keeps every decided row when regenerated,
+     since applying takes problems off the list. Ground truth and perturbed splits rebuilt:
+     274 scorable (was 276), 240 perturbed (was 242), "says LP, labeled integer" empty;
+     the pre-registration's counts regenerated and tested. `freeze.cross_check` checks the
+     judged rows follow the replies and every decision is applied; `readings` accepts the
+     strict reading only where the label accepts whole numbers. `report.py`: accuracy
+     without disputed reviews, the second judge's labels alone (test), the judges'
+     agreement on all 44, and a note on the empty "says LP" subset.
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -331,6 +345,8 @@ python -m opt_agent.taxonomy runs/NAME   # review/taxonomy/NAME/: label each sil
 python -m opt_agent.taxonomy runs/NAME --merge REPLY.csv --grader "MODEL, LLM judge"
 python -m opt_agent.external_check   # review/external_check.md: test answers vs ORLMBenchmark
 python -m opt_agent.external_check judges   # review/review_judge/: the reviews it leaves
+python -m opt_agent.external_check judges --decide   # both replies in: fill the sheet by rule
+python -m opt_agent.external_check apply   # the decisions into reviews/exclusions/integrality
 python -m opt_agent.packets judge   # review/integrality_judge/: one prompt, a sheet per judge
 python -m opt_agent.packets judge --merge judge|second --reply REPLY.csv --grader "MODEL"
 python -m opt_agent.packets judge --apply   # both sheets filled: combined labels into integrality.json
@@ -368,7 +384,8 @@ python -m opt_agent.packets judge --apply   # both sheets filled: combined label
   reviews. It's a field, not a converter note, because the review packet prints notes; the
   owner's packets are unchanged.
 - **Exclusions:** test problems used while building the agent are not scorable
-  (`data/nl4opt/exclusions.json`: the fishery and ads problems). Demos, fakes and live
+  (`data/nl4opt/exclusions.json`: the fishery and ads problems), nor are the 2 that
+  Amendment 2's rules exclude (`1283305022`, `-1715698555`). Demos, fakes and live
   tests use dev problems only.
 - `answer()` returns None (and `scorable()` False) unless HiGHS agrees and the
   arithmetic checks pass.

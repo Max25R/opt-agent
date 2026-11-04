@@ -483,9 +483,11 @@ def judges_agreement(records: list[Record]) -> dict:
         counts = {k: verdicts[k] for k in ("same", "different", "either")}
         summary[f"{name} vs Claude"] = {**counts, "n": n, "accepts": accepts,
                                         "wilson95": list(wilson(accepts, n))}  # fmt: skip
-    same = sum(judge[r.id] == second[r.id] for r in sample)
-    summary["judge vs second"] = {"same": same, "different": n - same, "n": n,
-                                  "wilson95": list(wilson(same, n))}  # fmt: skip
+    for name, ids in (("judge vs second", [r.id for r in sample]),
+                      ("judge vs second, all judged", list(judge))):  # fmt: skip
+        same = sum(judge[i] == second[i] for i in ids)
+        summary[name] = {"same": same, "different": len(ids) - same, "n": len(ids),
+                         "wilson95": list(wilson(same, len(ids)))}  # fmt: skip
     return summary
 
 

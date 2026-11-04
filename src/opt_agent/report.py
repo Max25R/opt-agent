@@ -71,6 +71,7 @@ def build(run_dir: Path, original_run: Path | None = None) -> dict:
     run = run_results.load(run_dir)
     manifest, by_id, pairs = run.manifest, run.by_id, run.pairs
     groups = subsets(run.records)
+    disputed = {r.id for r in run.records if r.review and r.review.judged == "disputed"}
     open_pairs = [p for p in pairs if p.state != "scored"]
     perturbed = manifest.split in PERTURBED_SPLITS
     report = {
@@ -81,7 +82,7 @@ def build(run_dir: Path, original_run: Path | None = None) -> dict:
         },  # fmt: skip
         "subsets": {name: len(ids) for name, ids in groups.items()},
         "conditions": {
-            c: condition_summary([p for p in pairs if p.condition == c], by_id, groups)
+            c: condition_summary([p for p in pairs if p.condition == c], by_id, groups, disputed)
             for c in manifest.conditions
         },
         # The perturbed set is outside the McNemar family (section 4): no tests on it.
@@ -103,7 +104,20 @@ def build(run_dir: Path, original_run: Path | None = None) -> dict:
         raise ValueError("an original run only goes with a run on a perturbed split")
     if manifest.split == "test":
         report["integrality_agreement"] = integrality_agreement(list(by_id.values()))
+        report["second judge's labels alone"] = second_judge_labels(pairs, by_id, groups)
+    report["notes"] = notes(by_id, groups)
     return report
+
+
+def notes(by_id: dict[str, Record], groups: dict[str, list[str]]) -> list[str]:
+    """What a reader needs to read a row right."""
+    found = []
+    says = [by_id[i] for i in packets.SAYS_LP if i in by_id]
+    if says and not groups["says LP, labeled integer"]:
+        found.append('"says LP, labeled integer" is empty: the judges\' labels made all '
+                     f'{len(says)} "says LP" problems `either`, so both optima are accepted on '
+                     "them (pre-registration, Amendment 2, part 3).")  # fmt: skip
+    return found
 
 
 def subsets(records: list[Record]) -> dict[str, list[str]]:
@@ -127,8 +141,13 @@ def subsets(records: list[Record]) -> dict[str, list[str]]:
 
 
 def condition_summary(
-    pairs: list[Pair], by_id: dict[str, Record], groups: dict[str, list[str]]
+    pairs: list[Pair],
+    by_id: dict[str, Record],
+    groups: dict[str, list[str]],
+    disputed: set[str] = frozenset(),
 ) -> dict:
+    """`disputed`: problems whose review the judges disputed (Amendment 2, part 6). They're
+    scored as usual, and the accuracy without them is given as well."""
     scored = {p.problem_id: p for p in pairs if p.state == "scored"}
     done = [p for p in scored.values() if p.item.outcome == "done"]
 
@@ -154,6 +173,9 @@ def condition_summary(
     return {
         "accuracy": {name: accuracy(ids) for name, ids in groups.items()},
         "lenient accuracy": {name: accuracy(ids, lenient=True) for name, ids in groups.items()},
+        "accuracy without disputed reviews": {
+            name: accuracy([i for i in ids if i not in disputed]) for name, ids in groups.items()
+        },
         "correct by reading": dict(
             Counter(p.score.reading for p in scored.values() if p.score.correct)
         ),  # fmt: skip
@@ -311,6 +333,31 @@ def against_original(
     return rows
 
 
+def second_judge_labels(
+    pairs: list[Pair], by_id: dict[str, Record], groups: dict[str, list[str]]
+) -> dict:
+    """Amendment 2, part 3's sensitivity check: strict accuracy per condition and subset with
+    the second judge's labels alone on the problems the judges labeled (its own `either`
+    stays `either`), instead of the label the two give together."""
+    try:
+        theirs = packets.read_judge_labels(packets.JUDGE_DIR / packets.JUDGE_SHEETS["second"])
+    except ValueError as unfilled:
+        return {"pending": f"the second judge's sheet isn't filled in yet ({unfilled})"}
+    relabeled = {i: _relabel(r, theirs[i]) if i in theirs else r for i, r in by_id.items()}
+    scored = [p for p in pairs if p.state == "scored"]
+    result = {}
+    for c in sorted({p.condition for p in scored}, key=CONDITIONS.index):
+        mine = {p.problem_id: _rescore(p, relabeled).correct for p in scored if p.condition == c}
+        result[c] = {name: rate(sum(mine[i] for i in ids if i in mine),
+                                sum(i in mine for i in ids))
+                     for name, ids in groups.items()}  # fmt: skip
+    return result
+
+
+def _relabel(r: Record, kind: str) -> Record:
+    return r.model_copy(update={"integrality": r.integrality.model_copy(update={"kind": kind})})
+
+
 def integrality_agreement(records: list[Record]) -> dict:
     """The judges' blind labels against Claude's and each other's (section 3f, Amendment 2),
     once both judges' sheets are filled in."""
@@ -420,6 +467,15 @@ def render(report: dict) -> str:
         for r in report["comparisons, lenient (exploratory)"]:
             lines.append(f"| {_key(r)} | {r['n']} | {r['only a right']} | "
                          f"{r['only b right']} | {r['p']:.3g} |")  # fmt: skip
+    lines.append("")
+    for c in conditions:
+        without = report["conditions"][c]["accuracy without disputed reviews"]["all"]
+        lines.append(f"{c}, all, without disputed reviews: {_show_rate(without)}")
+    alone = report.get("second judge's labels alone", {})
+    for c in [c for c in conditions if c in alone]:
+        lines.append(f"{c}, all, with the second judge's labels alone: "
+                     f"{_show_rate(alone[c]['all'])}")  # fmt: skip
+    lines += [f"Note: {note}" for note in report.get("notes", [])]
     if "perturbed" in report:
         lines += _render_perturbed(report["perturbed"])
     lines += ["", f"Paid in this run directory: ${report['paid_usd']:.4f}"]

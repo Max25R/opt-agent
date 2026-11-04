@@ -91,7 +91,7 @@ def test_answer_follows_the_integrality_label():
     for records in RECORDS.values():
         for r in records:
             if r.error is None:
-                assert answer(r) is (r.ip if r.integrality.kind == "integer" else r.lp), r.id
+                assert answer(r) is getattr(r, label_kinds(r)[0]), r.id
 
 
 @pytest.mark.parametrize(
@@ -170,7 +170,9 @@ def test_ground_truth_files_are_plain_json():
 
 def test_problems_used_while_building_the_agent_are_not_scored():
     exclusions = load_exclusions(EXCLUSIONS_PATH)
-    assert set(exclusions) == {("test", "1117636837"), ("test", "-725478241")}
+    # Used while building the agent, and the 2 that Amendment 2's rules exclude.
+    assert set(exclusions) == {("test", "1117636837"), ("test", "-725478241"),
+                               ("test", "1283305022"), ("test", "-1715698555")}  # fmt: skip
     by_key = {(split, r.id): r for split, rs in RECORDS.items() for r in rs}
     for key, reason in exclusions.items():
         r = by_key[key]
@@ -268,3 +270,13 @@ def test_an_either_answer_needs_both_solves_trusted():
                       if r.id == "439170086"))  # fmt: skip
     untrusted = gas.model_copy(update={"lp": gas.lp.model_copy(update={"highs_agrees": False})})
     assert answer(untrusted) is None and not scorable(untrusted)
+
+
+def test_the_strict_reading_needs_a_label_that_accepts_whole_numbers():
+    r = next(r for r in load_records(GROUND_TRUTH_DIR / "test.json") if scorable(r) and r.strict
+             and r.integrality.kind == "integer")  # fmt: skip
+    continuous = r.model_copy(update={"integrality": r.integrality.model_copy(
+        update={"kind": "continuous"})})  # fmt: skip
+    assert "strict" in [reading for reading, _ in readings(r)]
+    assert "strict" not in [reading for reading, _ in readings(continuous)]
+    assert "strict" in [reading for reading, _ in readings(continuous, lenient=True)]

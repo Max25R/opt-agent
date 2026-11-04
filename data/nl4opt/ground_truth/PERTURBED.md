@@ -6,7 +6,7 @@ seed 20261028, factor 0.5 to 2, at most 200 draws per problem. Don't edit by han
 | split | problems | perturbed | integrality-sensitive | strict wording | ambiguous | numbers changed (median) |
 |---|---|---|---|---|---|---|
 | dev | 99 | 85 | 54 | 11 | 5 | 6 |
-| test | 289 | 242 | 130 | 18 | 5 | 6 |
+| test | 289 | 240 | 130 | 18 | 4 | 6 |
 
 ## dev
 
@@ -24,7 +24,7 @@ Draws needed: 1: 50, 2: 16, 3: 8, 4: 3, 5: 3, 6: 1, 7: 1, 9: 2, 107: 1
 Not perturbed, by reason:
 
 - no optimum as written: 20
+- not scorable: 15
 - does nothing as written: 14
-- not scorable: 13
 
-Draws needed: 1: 135, 2: 33, 3: 22, 4: 15, 5: 9, 6: 5, 7: 1, 8: 4, 9: 5, 10: 2, 12: 1, 14: 2, 17: 1, 19: 1, 23: 1, 30: 1, 35: 1, 41: 1, 46: 1, 75: 1
+Draws needed: 1: 135, 2: 33, 3: 21, 4: 15, 5: 9, 6: 5, 7: 1, 8: 4, 9: 4, 10: 2, 12: 1, 14: 2, 17: 1, 19: 1, 23: 1, 30: 1, 35: 1, 41: 1, 46: 1, 75: 1

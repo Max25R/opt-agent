@@ -2,7 +2,7 @@
 
 import re
 
-from opt_agent import blind_grading, packets, perturb, taxonomy
+from opt_agent import blind_grading, external_check, packets, perturb, taxonomy
 from opt_agent.ground_truth import (
     GROUND_TRUTH_DIR,
     answer,
@@ -60,11 +60,17 @@ def test_ambiguous_count():
 
 
 def test_lp_text_problems():
+    """The 4 are the problems 3d names. Amendment 2's judges made all 4 `either`, so
+    says_lp (a "says LP" text with an integer label) flags none of them now."""
     listed = set(re.findall(r"`(-?\d+)`", DOC.split("**d.")[1].split("**e.")[0]))
-    flagged = {r.id for r in SCORABLE if says_lp(r)}
     owner_precedents = {"-640645082", "892653388"}
-    assert listed - owner_precedents == flagged == set(SAYS_LP)
-    assert says(f"{len(flagged)} scorable test problems where integrality changes the answer")
+    assert listed - owner_precedents == set(SAYS_LP)
+    by_id = {r.id: r for r in SCORABLE}
+    assert all(integrality_matters(by_id[i]) for i in SAYS_LP)
+    assert {r.id for r in SCORABLE if says_lp(r)} == set()
+    assert all(by_id[i].integrality.kind == "either" for i in SAYS_LP)
+    assert says(f"{len(SAYS_LP)} scorable test problems where integrality changes the answer")
+    assert says("Amendment 2's judges made them `either`")
     assert says(f"**The owner labels these {len(SAYS_LP)}** (`review/says_lp.md`)")
     assert SAYS_LP_PATH.exists()
 
@@ -87,9 +93,12 @@ def test_integrality_counts():
 
 
 def test_the_ambiguous_constraints_exist():
+    """The table lists every ambiguous-text test review, also the one Amendment 2 excludes."""
     rows = re.findall(r"\| `(-?\d+)` \| `(\w+)` \|", DOC)
-    ambiguous = {r.id: r for r in SCORABLE if r.review and r.review.verdict == "ambiguous-text"}
+    ambiguous = {r.id: r for r in TEST if r.review and r.review.verdict == "ambiguous-text"}
     assert {pid for pid, _ in rows} == set(ambiguous)
+    excluded = {i for i, r in ambiguous.items() if not scorable(r)}
+    assert excluded == {"-1715698555"} and says("`-1715698555`, that Amendment 2 excludes")
     for pid, constraint in rows:
         assert constraint in {c.name for c in ambiguous[pid].model.constraints}, pid
         assert ambiguous[pid].review.equality == [constraint], pid  # the "=" reading's input
@@ -97,7 +106,7 @@ def test_the_ambiguous_constraints_exist():
 
 def test_the_ratio_wording_counts():
     def changed(r):
-        kind = "ip" if r.integrality.kind == "integer" else "lp"
+        kind = "ip" if r.integrality.kind != "continuous" else "lp"
         return (getattr(r.equality, kind).status, getattr(r.equality, kind).objective) != (
             answer(r).status, answer(r).objective)  # fmt: skip
 
@@ -110,8 +119,8 @@ def test_the_ratio_wording_counts():
                 f"answer in {len(test_changed)}")  # fmt: skip
     reviewed = {r.id for r in SCORABLE if r.review and r.review.equality}
     [unreviewed] = test_changed - reviewed
-    assert says(f"two of the reviewed problems above, and `{unreviewed}`")
-    assert len(test_changed & reviewed) == 2
+    assert says(f"one of the reviewed problems above, and `{unreviewed}`")
+    assert len(test_changed & reviewed) == 1
 
 
 def test_the_status_subset_power_floor():
@@ -176,7 +185,23 @@ def test_the_judges_integrality_replies_are_as_the_amendment_says():
     combined = packets.combined_labels(judge, second)
     by_id = {r.id: r for r in TEST}
     turned = [
-        i for i, k in combined.items() if k == "either" and by_id[i].integrality.kind == "integer"
+        i
+        for i, k in combined.items()
+        if k == "either" and packets.claude_label(by_id[i]) == "integer"
     ]
     assert says(f"turn {len(turned)} of Claude's `integer` labels into `either`")
     assert set(SAYS_LP) <= set(turned)
+
+
+def test_the_review_judges_outcomes_are_as_the_amendment_says():
+    judge, second = (external_check.read_judgments(external_check.REVIEW_JUDGE_DIR / name)
+                     for name in packets.JUDGE_SHEETS.values())  # fmt: skip
+    outcomes = external_check.review_outcomes(judge, second)
+    reviews = {i: o for i, o in outcomes.items() if i not in external_check.HARD_CASES}
+    disputed = [i for i, o in reviews.items() if o == "disputed"]
+    assert says(f"of the {len(reviews)} reviews, {len(reviews) - len(disputed)} are confirmed "
+                f"and {len(disputed)} disputed")  # fmt: skip
+    assert all(second[i] != "agree" for i in disputed)
+    [by_record] = [i for i in disputed if judge[i] != "agree"]
+    assert says(f"the judge of record one of them (`{by_record}`)")
+    assert all(outcomes[i] == "disputed" for i in external_check.HARD_CASES)

@@ -12,10 +12,11 @@ Counts below come from the committed ground truth (`data/nl4opt/ground_truth/`,
 
 ## 1. What is measured
 
-- **Problems:** the scorable test problems (`ground_truth.scorable`): 276 of 289. They
+- **Problems:** the scorable test problems (`ground_truth.scorable`): 274 of 289. They
   exclude rejected annotations, annotation errors that change the answer, untrusted
-  answers (CBC and HiGHS disagree, or an arithmetic check fails), and the two problems
-  used while building the agent (`data/nl4opt/exclusions.json`).
+  answers (CBC and HiGHS disagree, or an arithmetic check fails), the two problems used
+  while building the agent, and the two that Amendment 2 excludes (part 5; all four in
+  `data/nl4opt/exclusions.json`).
 - **The answer** is the status and, if optimal, the objective value. Variable values aren't
   compared: alternative optima are equally right.
 - **The system's answer** is what the pipeline reports: the final model's status and
@@ -63,7 +64,7 @@ hashes are frozen (section 6).
      label that picks an answer is still a hand label), and no answer accepted for the
      original is accepted for it, even at 1e-4. Otherwise it's drawn again, up to 200
      times.
-   - **Problems:** 242 of the 276 scorable test problems: those with an optimum that does
+   - **Problems:** 240 of the 274 scorable test problems: those with an optimum that does
      something and no known annotation error. A problem whose answer is a status can't
      test memory, since the same status would still be right.
    - **Reported**, with no tests (section 4): accuracy with Wilson intervals per condition
@@ -110,13 +111,14 @@ objective 0).
   so these problems can't tell a right model from a careless one.
 - 3 of the 14 have a nonzero optimum under the strict reading (rule e), which is accepted.
 
-**c. Ambiguous text** (verdict `ambiguous-text`; 3 scorable test problems). Each has two
-defensible readings of one constraint, ">= as annotated" or "=":
+**c. Ambiguous text** (verdict `ambiguous-text`; 2 scorable test problems, and a third,
+`-1715698555`, that Amendment 2 excludes). Each has two defensible readings of one
+constraint, ">= as annotated" or "=":
 
 | problem | constraint | wording |
 |---|---|---|
 | `-1765797791` | `c0_xby` | "three times as many apple ... as carrot" |
-| `-1715698555` | `c1_xby` | "must be three times the number of large bins" |
+| `-1715698555` | `c1_xby` | "must be three times the number of large bins" (excluded: Amendment 2, part 5) |
 | `-169306566` | `c1_xby` | "2 times more protein bars than smoothies" |
 
 - **Decided (owner): accept either reading, as for strict wording.**
@@ -130,14 +132,15 @@ defensible readings of one constraint, ">= as annotated" or "=":
   the inequality; the text reads as "=" at least as naturally.
   - Why: the rule changes the answer in 4 scorable dev problems, and in both dev passes
     every condition answered each of those 4 with exactly its "=" answer.
-  - On test, the rule gives 8 scorable problems an "=" reading and changes the answer in
-    3: two of the reviewed problems above, and `-2015083686`. (The third reviewed problem
-    says "2 times more", which names an inequality, so only its review covers it.)
+  - On test, the rule gives 7 scorable problems an "=" reading and changes the answer in
+    2: one of the reviewed problems above, and `-2015083686`. (Of the other two,
+    `-1715698555` is excluded, and `-169306566` says "2 times more", which names an
+    inequality, so only its review covers it.)
 - The report gives how many correct answers needed the "=" reading.
 
 **d. Text says "LP", but the label is integer** (4 scorable test problems where integrality
 changes the answer: `1040407495`, `-1536845616`, `1703643437`, `1054847148`; all four
-labels are Claude's).
+labels were Claude's, and Amendment 2's judges made them `either`).
 - **Decided (owner): the label decides**, so only the labeled answer is accepted. This
   follows the owner's dev decisions on `-640645082` ("text says LP, but trips are
   integer") and `892653388`.
@@ -153,12 +156,12 @@ labels are Claude's).
 - The report gives how many correct answers needed the strict reading.
 - The strict reading changes the answer in 9 of the 25.
 
-**f. Integrality.** 131 of the 276 scorable test problems are integrality-sensitive (the LP
+**f. Integrality.** 131 of the 274 scorable test problems are integrality-sensitive (the LP
 and IP optima differ).
 - Their labels are all Claude's, and the formulation prompt uses the same rule of thumb.
   So the grader and the system under test can agree by construction.
 - Therefore:
-  - Accuracy is reported **separately** on the insensitive subset (145) and the sensitive
+  - Accuracy is reported **separately** on the insensitive subset (143) and the sensitive
     one (131).
   - On the sensitive subset, a lenient accuracy is reported too: either the LP or the IP
     optimum is accepted.
@@ -183,7 +186,7 @@ hand label for its cause (section 5a).
   - single-shot vs self-correction;
   - baseline vs single-shot;
   - baseline vs self-correction.
-- Each comparison is run **separately** on problems whose answer has an optimum (256) and
+- Each comparison is run **separately** on problems whose answer has an optimum (254) and
   on problems whose answer is a status (20). The two kinds fail in different ways: a wrong
   number, or a "fix" of a problem that has no optimum.
 - That makes 6 tests. Their p-values get Holm's correction together (`stats.holm`), at a
@@ -479,6 +482,10 @@ before any test run, and recorded with each decision in `review/external_check.c
 - **Reported:** every accuracy with and without the disputed problems.
 - **Limit:** the judge of record is checking reviews Claude wrote. The second judge is the
   independent check, and either judge alone can dispute a review.
+- **The replies (2026-11-04):** of the 24 reviews, 16 are confirmed and 8 disputed: the
+  second judge disputes all 8, and the judge of record one of them (`1384123609`). Neither hard
+  case is confirmed, so both are excluded: on `1283305022` the second judge is unsure, and
+  on `-1715698555` both judges disagree.
 
 **Code:** once parts 5 and 6 are approved, `freeze.unfinished()` will require both judges'
 integrality sheets filled and their combined labels applied; a decision on every row of

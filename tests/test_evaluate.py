@@ -183,7 +183,7 @@ def test_a_test_split_takes_all_plans_freely_and_runs_only_frozen(tmp_path, caps
     with pytest.raises(SystemExit, match="use --all"):
         evaluate.main(["1040407495", "--split", "test", "--out", str(tmp_path), "--plan"])
     evaluate.main(["--all", "--split", "test", "--out", str(tmp_path / "plan"), "--plan"])
-    assert "828 pairs pending" in capsys.readouterr().out  # 276 problems x 3 conditions
+    assert "822 pairs pending" in capsys.readouterr().out  # 274 problems x 3 conditions
     with pytest.raises(SystemExit, match="REFUSED: nothing is frozen yet"):
         evaluate.main(["--all", "--split", "test-perturbed", "--out", str(tmp_path / "run")])
     assert not (tmp_path / "run").exists()

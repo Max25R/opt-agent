@@ -202,9 +202,10 @@ def judged_labels() -> list[str]:
 
 
 def cross_check() -> list[str]:
-    """Amendment 2, part 2: a decision on every problem the external cross-check lists
-    (review/external_check.csv), and the owner's confirmation of every review it can't
-    cover. Read from the committed sheet, since the benchmark itself isn't committed."""
+    """Amendment 2, parts 2, 5 and 6: a decision on every problem the external cross-check
+    lists (review/external_check.csv), the judged ones as the review judges' replies give
+    them, and every decision applied to the hand inputs. Read from the committed sheet,
+    since the benchmark itself isn't committed."""
     path = external_check.DECISIONS_PATH
     if not path.exists():
         return ["the external cross-check hasn't been run (python -m opt_agent.external_check)"]
@@ -212,22 +213,40 @@ def cross_check() -> list[str]:
         rows = external_check.read_decisions(path)
     except ValueError as wrong:
         return [f"review/external_check.csv has a decision it doesn't allow ({wrong})"]
+    try:
+        judged = external_check.judged_decisions()
+    except ValueError as unfilled:
+        return [f"the review judges' sheets aren't all filled in ({unfilled})"]
     todo = []
     undecided = sum(not row["decision"] for row in rows)
     if undecided:
         todo.append(f"{undecided} of the {len(rows)} problems in review/external_check.csv "
                     "have no decision yet")  # fmt: skip
-    disputed = sum(row["decision"] == "disputed" for row in rows)
-    if disputed:
-        todo.append(f"{disputed} disputed reviews in review/external_check.csv aren't "
-                    "resolved yet")  # fmt: skip
-    reviews = load_reviews(REVIEWS_PATH)
-    uncovered = [row["problem_id"] for row in rows if row["why"] == external_check.UNCOVERED]
-    unconfirmed = sum(not reviews[("test", pid)].confirmed_by_owner for pid in uncovered)
-    if unconfirmed:
-        todo.append(f"{unconfirmed} of the {len(uncovered)} reviews the cross-check can't "
-                    "cover aren't confirmed_by_owner in reviews.json yet")  # fmt: skip
+    decided = {row["problem_id"]: row["decision"] for row in rows}
+    off = [pid for pid, (decision, _) in judged.items() if decided.get(pid) != decision]
+    if off:
+        todo.append(f"review/external_check.csv doesn't follow the review judges for {off} "
+                    "(python -m opt_agent.external_check judges --decide)")  # fmt: skip
+    unapplied = [row["problem_id"] for row in rows if not _applied(row)]
+    if unapplied:
+        todo.append(f"{len(unapplied)} decisions in review/external_check.csv aren't in the "
+                    "hand inputs yet (python -m opt_agent.external_check apply)")  # fmt: skip
     return todo
+
+
+def _applied(row: dict[str, str]) -> bool:
+    """A decision as the hand inputs must show it: a review's outcome in reviews.json, an
+    exclusion in exclusions.json, a changed label as `either` from the owner."""
+    key, decision = ("test", row["problem_id"]), row["decision"]
+    if decision in ("confirmed", "disputed"):
+        review = load_reviews(REVIEWS_PATH).get(key)
+        return review is not None and review.judged == decision
+    if decision == "exclude":
+        return key in load_exclusions(EXCLUSIONS_PATH)
+    if decision == "change":
+        label = load_integrality(INTEGRALITY_PATH).get(key)
+        return label is not None and (label.kind, label.source) == ("either", "owner")
+    return True  # keep, or not decided yet (counted above)
 
 
 def stale_ground_truth() -> list[str]:

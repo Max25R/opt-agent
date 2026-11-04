@@ -109,7 +109,11 @@ def test_the_committed_packets_are_up_to_date():
     """Regenerate both packets and compare. The mark columns may be filled in by now, so
     the sheets are compared on everything else."""
     rows = review_order(TEST, load_sureness(REVIEWS_DIR / "sureness.json"))
-    assert (REVIEWS_DIR / "PACKET.md").read_text() == review_packet(rows, {r.id for r in SAMPLE})
+    # The review packet stays as the owner received it: Amendment 2 retired it, and the
+    # owner's packets aren't edited (its label lines predate the judges' labels). So it
+    # must still cover every test review, in order.
+    sent = re.findall(r"^## \d+\. `(-?\d+)`", (REVIEWS_DIR / "PACKET.md").read_text(), re.M)
+    assert sent == [r.id for r, _, _ in rows]
     assert (BLIND_DIR / "PACKET.md").read_text() == integrality_packet(SAMPLE, 131)
     sheet = [row[:3] for row in csv.reader((BLIND_DIR / "labels.csv").open())]
     expected = [["number", "problem_id", "variable"]] + [
@@ -247,7 +251,12 @@ def test_applying_the_judges_labels_keeps_what_they_replaced(tmp_path, monkeypat
     fill_judges(tmp_path, monkeypatch, lambda r: "continuous",
                 lambda r: "either" if r.id == first_id else "continuous")  # fmt: skip
     labels = tmp_path / "integrality.json"
-    labels.write_text(packets.INTEGRALITY_PATH.read_text())
+    data = json.loads(packets.INTEGRALITY_PATH.read_text())
+    for row in data["labels"]:  # back to Claude's labels, as before the judges' were applied
+        if row["source"] == "judge":
+            row.update(kind=row.pop("replaced"), source="claude")
+            row.pop("note", None)
+    labels.write_text(json.dumps(data, indent=1))
     before = {row["id"]: row for row in json.loads(labels.read_text())["labels"]
               if row["split"] == "test"}  # fmt: skip
     assert packets.apply_judged_labels(labels) == 44
@@ -264,10 +273,10 @@ def test_the_judges_agreement_with_claude_and_each_other(tmp_path, monkeypatch):
     """The judge copies Claude's labels; the second says either on every integer one."""
 
     def second(r):
-        return "either" if r.integrality.kind == "integer" else r.integrality.kind
+        return "either" if packets.claude_label(r) == "integer" else packets.claude_label(r)
 
-    fill_judges(tmp_path, monkeypatch, lambda r: r.integrality.kind, second)
-    integer = sum(r.integrality.kind == "integer" for r in SAMPLE)
+    fill_judges(tmp_path, monkeypatch, packets.claude_label, second)
+    integer = sum(packets.claude_label(r) == "integer" for r in SAMPLE)
     a = packets.judges_agreement(TEST)
     assert a["judge vs Claude"] == {"same": 40, "different": 0, "either": 0, "n": 40,
                                     "accepts": 40, "wilson95": list(wilson(40, 40))}  # fmt: skip

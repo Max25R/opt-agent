@@ -178,10 +178,11 @@ def test_provenance_names_the_inputs_and_settings(mixed_run, monkeypatch):
 def test_the_subsets_are_the_pre_registered_ones():
     test = [r for r in load_records(GROUND_TRUTH_DIR / "test.json") if scorable(r)]
     sizes = {name: len(ids) for name, ids in report.subsets(test).items()}
-    assert sizes == {"all": 276, "has an optimum": 256, "is a status": 20,
-                     "integrality-insensitive": 145, "integrality-sensitive": 131,
-                     "do-nothing": 14, "strict wording": 25, "ambiguous": 3,
-                     "says LP, labeled integer": 4}  # fmt: skip
+    # Amendment 2 excluded 2 problems and made the 4 "says LP" labels either.
+    assert sizes == {"all": 274, "has an optimum": 254, "is a status": 20,
+                     "integrality-insensitive": 143, "integrality-sensitive": 131,
+                     "do-nothing": 14, "strict wording": 25, "ambiguous": 2,
+                     "says LP, labeled integer": 0}  # fmt: skip
 
 
 def test_the_integrality_agreement_waits_for_the_judges_labels(tmp_path, monkeypatch):
@@ -269,3 +270,38 @@ def test_gas_reply_fixture_is_right_for_every_condition(tmp_path):
     r = report.build(tmp_path)
     assert all(r["conditions"][c]["accuracy"]["all"]["right"] == 1 for c in CONDITIONS)
     assert r["conditions"]["self-correction"]["correct by reading"] == {"annotated": 1}
+
+
+def test_accuracy_without_disputed_reviews_leaves_them_out(mixed_run):
+    """Gas's review disputed: without it, single-shot is 1 of 1 (lotion), not 1 of 2."""
+    r = report.build(mixed_run)
+    pairs = report.load_pairs(evaluate.Manifest.model_validate_json(
+        (mixed_run / "manifest.json").read_text()), mixed_run / "results.jsonl", DEV)  # fmt: skip
+    groups = report.subsets([GAS, LOTION])
+    single = [p for p in pairs if p.condition == "single-shot"]
+    without = report.condition_summary(single, DEV, groups, {GAS.id})
+    assert without["accuracy without disputed reviews"]["all"]["right"] == 1
+    assert without["accuracy without disputed reviews"]["all"]["n"] == 1
+    assert r["conditions"]["single-shot"]["accuracy without disputed reviews"]["all"]["n"] == 2
+
+
+def test_the_second_judges_labels_alone_rescore_the_answers(mixed_run, tmp_path, monkeypatch):
+    """If the second judge called gas continuous, single-shot's 250 (the LP optimum) is
+    right under its labels, though wrong under the integer label."""
+    monkeypatch.setattr(packets, "JUDGE_DIR", tmp_path)
+    (tmp_path / "second_judge.csv").write_text(
+        f"number,problem_id,set,label,note,grader\n1,{GAS.id},blind sample,continuous,,j\n"
+    )
+    pairs = report.load_pairs(evaluate.Manifest.model_validate_json(
+        (mixed_run / "manifest.json").read_text()), mixed_run / "results.jsonl", DEV)  # fmt: skip
+    alone = report.second_judge_labels(pairs, DEV, report.subsets([GAS, LOTION]))
+    assert alone["single-shot"]["all"]["right"] == 2 and alone["baseline"]["all"]["right"] == 1
+
+
+def test_an_empty_says_lp_subset_is_explained():
+    test = {r.id: r for r in load_records(GROUND_TRUTH_DIR / "test.json")}
+    groups = report.subsets([r for r in test.values() if scorable(r)])
+    assert groups["says LP, labeled integer"] == []
+    [note] = report.notes(test, groups)
+    assert "all 4" in note and "`either`" in note
+    assert report.notes(DEV, report.subsets([TRIPS])) == []

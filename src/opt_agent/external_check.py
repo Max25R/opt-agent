@@ -41,11 +41,14 @@ Run:  python -m opt_agent.data         # fetches the pinned benchmark (git-ignor
       python -m opt_agent.external_check   # writes review/external_check.md and .csv
       python -m opt_agent.external_check judges   # writes review/review_judge/
       python -m opt_agent.external_check judges --merge judge --reply R.csv --grader "MODEL"
+      python -m opt_agent.external_check judges --decide   # both replies in: fill the sheet
+      python -m opt_agent.external_check apply   # the sheet's decisions into the hand inputs
 """
 
 import argparse
 import csv
 import difflib
+import json
 import math
 from pathlib import Path
 from typing import Literal
@@ -56,7 +59,10 @@ from opt_agent import orlm
 from opt_agent.agent import format_model
 from opt_agent.data import DATA_DIR, ORLM_BENCHMARK, ORLM_BENCHMARK_REVISION
 from opt_agent.ground_truth import (
+    EXCLUSIONS_PATH,
     GROUND_TRUTH_DIR,
+    INTEGRALITY_PATH,
+    REVIEWS_PATH,
     CheckedSolve,
     Record,
     load_records,
@@ -281,15 +287,26 @@ def _uncovered(ids: list[str], by_id: dict[str, Record]) -> list[str]:
 
 
 def decision_sheet(decide: dict[str, list[str]], path) -> None:
-    """One row per problem to decide; a regenerated sheet keeps the owner's decisions."""
-    kept = kept_marks(path, "problem_id", ["decision", "note"])
+    """One row per problem to decide. A regenerated sheet keeps every row it had, with its
+    decision: applying a decision can take a problem off the list (an `either` label leaves
+    no label question), and the sheet is the record of how it was settled. New rows go at
+    the end."""
+    listed, kept = _pairs(decide), []
+    if path.exists():
+        with path.open(newline="") as f:
+            rows = list(csv.DictReader(f))
+        kept = [row for row in rows if row["decision"] or (row["problem_id"], row["why"]) in listed]
+    have = {(row["problem_id"], row["why"]) for row in kept}
+    new = [{"problem_id": i, "why": why, "decision": "", "note": ""}
+           for why, ids in decide.items() for i in ids if (i, why) not in have]  # fmt: skip
     with path.open("w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["problem_id", "why", "decision", "note"])
-        for why, ids in decide.items():
-            for i in ids:
-                mark = kept.get(i, {"decision": "", "note": ""})
-                writer.writerow([i, why, mark["decision"], mark["note"]])
+        writer = csv.DictWriter(f, fieldnames=["problem_id", "why", "decision", "note"])
+        writer.writeheader()
+        writer.writerows(kept + new)
+
+
+def _pairs(decide: dict[str, list[str]]) -> set[tuple[str, str]]:
+    return {(i, why) for why, ids in decide.items() for i in ids}
 
 
 def read_decisions(path) -> list[dict[str, str]]:
@@ -440,6 +457,80 @@ def review_outcomes(judge: dict[str, str], second: dict[str, str]) -> dict[str, 
             for pid, j in judge.items()}  # fmt: skip
 
 
+def judged_decisions() -> dict[str, tuple[str, str]]:
+    """problem id -> (decision, note) for the rows the review judges settle: a review is
+    confirmed or disputed (part 6); a hard case is kept only if both judges agree with our
+    answer, else excluded (part 5)."""
+    judge, second = (read_judgments(REVIEW_JUDGE_DIR / name) for name in JUDGE_SHEETS.values())
+    decided = {}
+    for pid, outcome in review_outcomes(judge, second).items():
+        said = f"judge of record: {judge[pid]}; second judge: {second[pid]}"
+        if outcome == "confirmed":
+            decision = "keep" if pid in HARD_CASES else "confirmed"
+            rule = "part 5" if pid in HARD_CASES else "part 6"
+            decided[pid] = (decision, f"rule ({rule}): both judges agree")
+        elif pid in HARD_CASES:
+            decided[pid] = ("exclude", f"rule (part 5): the judges don't both agree ({said})")
+        else:
+            decided[pid] = ("disputed", f"rule (part 6): disputed ({said})")
+    return decided
+
+
+def decide_judged(path: Path = DECISIONS_PATH) -> int:
+    """Write judged_decisions into the sheet; every other row is left as it is."""
+    decided = judged_decisions()
+    with path.open(newline="") as f:
+        rows = list(csv.DictReader(f))
+    for row in rows:
+        if row["problem_id"] in decided:
+            row["decision"], row["note"] = decided[row["problem_id"]]
+    with path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    return len(decided)
+
+
+def apply_decisions(path: Path = DECISIONS_PATH) -> dict[str, int]:
+    """Write the sheet's decisions into the hand inputs: a review's outcome into
+    reviews.json (`judged`), an exclusion into exclusions.json, and a `change` on a label
+    question (part 5's rule) into integrality.json as `either`, source owner. Then the
+    ground truth and the perturbed splits must be rebuilt. Returns counts by kind."""
+    rows = read_decisions(path)
+    if undecided := [row["problem_id"] for row in rows if not row["decision"]]:
+        raise ValueError(f"undecided rows: {undecided}")
+    paths = (REVIEWS_PATH, EXCLUSIONS_PATH, INTEGRALITY_PATH)
+    reviews, exclusions, labels = (json.loads(path.read_text()) for path in paths)
+    by_review = {r["id"]: r for r in reviews["reviews"] if r["split"] == "test"}
+    by_label = {r["id"]: r for r in labels["labels"] if r["split"] == "test"}
+    excluded = {r["id"] for r in exclusions["exclusions"] if r["split"] == "test"}
+    done = {"reviews": 0, "exclusions": 0, "labels": 0}
+    for row in rows:
+        pid, decision = row["problem_id"], row["decision"]
+        if decision in ("confirmed", "disputed"):
+            by_review[pid]["judged"] = decision
+            done["reviews"] += 1
+        elif decision == "exclude":
+            if pid in by_review:  # a hard case with a review: its judges' outcome too
+                by_review[pid]["judged"] = "disputed"
+            if pid not in excluded:
+                why = f"Amendment 2: excluded by the cross-check's rules; {row['note']}"
+                exclusions["exclusions"].append({"split": "test", "id": pid, "reason": why})
+            done["exclusions"] += 1
+        elif decision == "change":
+            if row["why"] != "other integrality":
+                raise ValueError(f"{pid}: no rule changes a {row['why']}; change it by hand")
+            label = by_label[pid]
+            kind = label.get("replaced") or label["kind"]
+            label.update(kind="either", source="owner", replaced=kind, note=(
+                "Amendment 2, part 5: the benchmark has the other optimum, and no judges' "
+                "label, so either"))  # fmt: skip
+            done["labels"] += 1
+    for path, data in zip(paths, (reviews, exclusions, labels), strict=True):
+        path.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
+    return done
+
+
 def write_review_packet(records: list[Record]) -> int:
     judged = judged_reviews(records)
     REVIEW_JUDGE_DIR.mkdir(parents=True, exist_ok=True)
@@ -451,15 +542,25 @@ def write_review_packet(records: list[Record]) -> int:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="The external cross-check of test answers.")
-    parser.add_argument("what", nargs="?", choices=["list", "judges"], default="list")
+    parser.add_argument("what", nargs="?", choices=["list", "judges", "apply"], default="list")
     parser.add_argument(
         "--merge", choices=list(JUDGE_SHEETS), help="judges: write a judge's reply into its sheet"
     )
     parser.add_argument("--reply", type=Path, help="with --merge: the reply, as a CSV file")
     parser.add_argument("--grader", help="with --merge: the judge's model and version")
+    parser.add_argument(
+        "--decide", action="store_true", help="judges: fill the sheet's judged rows by the rules"
+    )
     args = parser.parse_args(argv)
     records = load_records(GROUND_TRUTH_DIR / "test.json")
-    if args.what == "judges" and args.merge:
+    if args.what == "apply":
+        print(
+            f"applied {apply_decisions()}; now rebuild the ground truth "
+            "(python -m opt_agent.ground_truth) and the perturbed splits (perturb)"
+        )
+    elif args.what == "judges" and args.decide:
+        print(f"decided {decide_judged()} rows of {DECISIONS_PATH} by the judges' rules")
+    elif args.what == "judges" and args.merge:
         if not (args.reply and args.grader):
             parser.error("--merge needs --reply and --grader")
         sheet = REVIEW_JUDGE_DIR / JUDGE_SHEETS[args.merge]

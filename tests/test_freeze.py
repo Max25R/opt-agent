@@ -88,7 +88,7 @@ def test_a_test_run_is_the_whole_experiment(monkeypatch, tmp_path):
     monkeypatch.setattr(freeze, "check", lambda: "approved")
     test = scorable_records("test")
     require_whole_experiment("test", test, CONDITIONS)  # all of it: fine
-    with pytest.raises(ValueError, match="all 276 scorable problems"):
+    with pytest.raises(ValueError, match="all 274 scorable problems"):
         evaluate.evaluate(test[:3], CONDITIONS, client=None, out=tmp_path, split="test")
     with pytest.raises(ValueError, match="every condition"):
         require_whole_experiment("test", test, ("single-shot",))
@@ -146,12 +146,11 @@ def test_status_says_what_is_left_and_that_nothing_is_approved(freeze_file, caps
 # ---- what's left, as Amendment 2 has it --------------------------------------------------
 
 
-def test_the_list_follows_amendment_2():
-    todo = " ".join(freeze.unfinished())
-    assert "still a draft" in todo and "external_check.csv" in todo
-    assert " ".join(freeze.judged_labels()) in todo  # tested on its own below
-    # No longer the owner's: the blind labels, the "says LP" labels, all 62 reviews.
-    assert "labels.csv" not in todo and "says_lp" not in todo and "test reviews" not in todo
+def test_only_the_owners_approval_is_left():
+    """Amendment 2's judges and cross-check are applied, so the draft is all that's left.
+    No longer the owner's: the blind labels, the "says LP" labels, the reviews."""
+    assert freeze.unfinished() == [
+        "docs/PREREGISTRATION.md is still a draft: the owner approves it first"]  # fmt: skip
 
 
 def judge_sheets(tmp_path, monkeypatch, first: str, second: str):
@@ -167,10 +166,18 @@ def judge_sheets(tmp_path, monkeypatch, first: str, second: str):
     return [r.id for _, r in problems]
 
 
+def claudes_labels():
+    """integrality.json as it was before the judges' labels were applied."""
+    labels = freeze.load_integrality(freeze.INTEGRALITY_PATH)
+    return {k: v.model_copy(update={"kind": v.replaced, "source": "claude", "replaced": None})
+            if v.source == "judge" else v for k, v in labels.items()}  # fmt: skip
+
+
 def test_judged_labels_must_be_applied_and_a_difference_is_either(tmp_path, monkeypatch):
     ids = judge_sheets(tmp_path, monkeypatch, "integer", "continuous")
+    labels = claudes_labels()
+    monkeypatch.setattr(freeze, "load_integrality", lambda path: labels)
     assert "44 of the 44 judged labels" in " ".join(freeze.judged_labels())
-    labels = freeze.load_integrality(freeze.INTEGRALITY_PATH)
     judged = {("test", i): labels[("test", i)].model_copy(update={"source": "judge"}) for i in ids}
     monkeypatch.setattr(freeze, "load_integrality", lambda path: {**labels, **judged})
     # The judges differ everywhere, so every label must be "either": none of these fits.
@@ -190,24 +197,20 @@ def test_judged_labels_that_agree_and_are_applied_leave_nothing(tmp_path, monkey
     assert freeze.judged_labels() == []
 
 
-def test_every_listed_problem_needs_a_decision_and_uncovered_reviews_a_confirmation(
-    tmp_path, monkeypatch
-):
-    sheet = tmp_path / "external_check.csv"
-    monkeypatch.setattr(external_check, "DECISIONS_PATH", sheet)
-    assert "hasn't been run" in " ".join(freeze.cross_check())
-    reviews = freeze.load_reviews(freeze.REVIEWS_PATH)
-    uncovered = next(pid for (split, pid) in reviews if split == "test")
-    sheet.write_text(f"problem_id,why,decision,note\n1040407495,other integrality,,\n"
-                     f"{uncovered},not cross-checked,disputed,\n")  # fmt: skip
-    todo = " ".join(freeze.cross_check())
-    assert "1 of the 2 problems" in todo and "1 disputed" in todo
-    assert "1 of the 1 reviews the cross-check can't cover" in todo
-    sheet.write_text(f"problem_id,why,decision,note\n1040407495,other integrality,keep,\n"
-                     f"{uncovered},not cross-checked,confirmed,\n")  # fmt: skip
-    confirmed = {**reviews, ("test", uncovered): reviews[("test", uncovered)].model_copy(
-        update={"confirmed_by_owner": True})}  # fmt: skip
-    monkeypatch.setattr(freeze, "load_reviews", lambda path: confirmed)
+def test_the_cross_check_is_settled_and_applied():
+    """The committed sheet: every row decided, the judged ones as the review judges' replies
+    give them, and every decision in the hand inputs."""
     assert freeze.cross_check() == []
-    sheet.write_text("problem_id,why,decision,note\n1040407495,other integrality,confirmed,\n")
-    assert "doesn't allow" in " ".join(freeze.cross_check())
+
+
+def test_an_unapplied_or_hand_changed_decision_is_caught(tmp_path, monkeypatch):
+    rows = external_check.read_decisions(external_check.DECISIONS_PATH)
+    disputed = next(r for r in rows if r["decision"] == "disputed")
+    disputed["decision"] = "confirmed"  # against the judges' replies
+    sheet = tmp_path / "external_check.csv"
+    sheet.write_text("problem_id,why,decision,note\n" + "".join(
+        f"{r['problem_id']},{r['why']},{r['decision']},\n" for r in rows))  # fmt: skip
+    monkeypatch.setattr(external_check, "DECISIONS_PATH", sheet)
+    todo = " ".join(freeze.cross_check())
+    assert f"doesn't follow the review judges for ['{disputed['problem_id']}']" in todo
+    assert "1 decisions in review/external_check.csv aren't in the hand inputs" in todo

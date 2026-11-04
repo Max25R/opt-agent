@@ -87,7 +87,8 @@ def test_strict_constraints_are_read_from_the_notes():
 def test_every_integer_problem_with_strict_wording_has_a_strict_reading():
     for r in BY_ID.values():
         noted = r.error is None and strict_constraints(r.notes)
-        assert (r.strict is not None) == bool(noted and r.integrality.kind == "integer"), r.id
+        # Every label but continuous accepts whole numbers (integer, and Amendment 2's either).
+        assert (r.strict is not None) == bool(noted and r.integrality.kind != "continuous"), r.id
 
 
 @pytest.mark.parametrize(
