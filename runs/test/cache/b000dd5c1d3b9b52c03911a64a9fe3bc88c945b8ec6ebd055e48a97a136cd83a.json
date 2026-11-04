@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "A taxi company will purchase vehicles to rent to their drivers. They are interested in purchasing either motorcycles or sedans. A motorcycle can transport 30 people, produces 4 units of pollution, and earns the taxi company $100 per shift. A sedan can transport 70 people, produces 15 units of pollution and earns the company $225 per shift. Because not every customer is comfortable with a motorcycle, at most 25% of vehicles can be motorcycles. Additionally, the company has committed to producing less than 200 units of pollution. The company needs to transport at least 1200 people every shift. How many of each type of vehicle should be used to maximize the total earnings for the taxi company per shift?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiFLAMyVep7DJt5Rm9GY",
+  "container": null,
+  "content": [
+   {
+    "signature": "CAQS0woKEAgTGAI4AUIIdGhpbmtpbmcSDG0vhWNzMp/+WEcSQBoMAOL4FwybyqkReq7zIjDrCr2apVtReJ6zAbQ6i9sg7k7cGRkB7KaAE8drShvb1IwZomlHr7ZYkfJH6VQ6GmQq8AmkkvRCdU3O4/HYsq4DXdW8RgLjl2cnoopug14lJax2WEcICxyQ9J8hT4IjGmrLIzt8kZbKxw44aMm0soOvFlPcwkShspSHUotIQszRueGJiyorWZLpOGmLobHuHXOq6t2B4Xa2QYUP1O01mTnJaj55bnMqHwASPZwoZ8e7Djgz0h9ZRL5gFmeP7X7ZNnbDmWXVyv/z5wop/pZPDyfUT6wLGN2dNYoKcMbYazG5hQ+BUajC6VMg+hrMp5LnhLK+2Wz18BAURISFR7TDuKZtcI+FwpNHbo73SG5jIWP5YYgY8YjNT9Prl9QJsxXOPRzAft9H2CLO5BcOY4dkit8eUJMA7a/lRcxhkALXGRujXno0VrB0wkntkI3ynrVfWGHzeM43zTKwTzpQVXCxy4OPRndMzmQhvMO5F8FOgB7AiGCqyAxweCBVrHkZemyT0/1YngiUwLXTJ9MUtZZnuADfUkfVfKbkl+dvbGeMfZEj5ioEGSL4oR6T3EIcQHJlQTB5WBpwnOUmg6/5udrEV0hdTgQ1wCOpjF/zU+eTUe94gQgfrm0cQwwsVNgKyQf7yks8gg8tW/xBGbfJ4J63hnhY+s/aSNP9omgqqPeii30cnDP01STB+yTrGhCOppklNOYBGZ++niph5VtErJijY28PWXtERQOzUwEGQxPJRVjEqdXlZCfoTUweHenY/t2d0Bb2VFxA3oIQsWTrfJeWSTUYR7jNdvhT+oUp9Dk337+bA+gQ0pxfqf3zb6xbrnJ9HNTXs6LzWwZVoh18o82jy8NIKXkBRSS+7wUhuOg+MHQp0DhAC3kPPpB9TbmhzABIQge1ja26kLc/tcpSo1aaYKCZBaGsV80a1ev3kczjY6TcC1OkaM4ZNjMmioDlGX12ldOcgWG0z+tes35zRoZ+h97EH9kR45fAMnGxf2GQcLsUcyVewkB7nZOqHaT81ClsM0oLJP6cbQnPSwrpPgcHGHIJPfuDSSmfZP4qQblwOAg41GnZKDbZa/D0l9f/AnkSPlBtkvRVch/7/cNL0cP8aYNFwnAWr6k2bJKz8OtpnZelgdWYgPv0X+fRo28nXxd/P8/Dv1SNOIRv31YvrkyQbHdQWyDBbtWE8JcCZO7SRi2KGh3dE7e4dEko0skc2n++lO5qrtz8/D/RqZ5rezjZXlfkL9HGMlh1iDbh13cDbEI+humhZ/wARBr+IR9GaXhrLJn6cB5BcZOahWEfU9RfYFnbY28q9XyvbFkMb6T7QD60CsApul5mJd/+cdfoQaw6NwpG0Ou8aRNEyNCGtozEPAk5gP48UTjc7TEgry/uTwc9GtefNHgh2zanD9c45APPEJl59PPFeWBcAEo7L/xHIw34Tu1jCrQA70hTtXQROuQ73nElOaVTBKVOfWjo66HloSX6piE1Kj6tfPHNcWFQsEhto2tuuX3z00H6yZf3Fv23N+bJX92+ZAXe3Gs69UB2wwwc2xRegcKIeLpZtrM4WtdVqnhnxJ1muUpufTRk17VpRaXF5qjpHLRGTCB3a6ls9n69sKk1axjxve8vsXgIzZhNcMlVjDHtgp7ZywErA5dlcYlMVdalbupU/levTcXo0goIb4WwGPg5W7qucZOorNd9b0eKzqfIiiccdWRZLtyvEljnHdJ+80smubtcQHg4q6lMg/z3irSg5BsXe8upVxmN60iqGAE=",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"motorcycles\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"sedans\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"motorcycles\",\"coef\":100},{\"var\":\"sedans\",\"coef\":225}]},\"constraints\":[{\"name\":\"motorcycle_share\",\"terms\":[{\"var\":\"motorcycles\",\"coef\":0.75},{\"var\":\"sedans\",\"coef\":-0.25}],\"sense\":\"<=\",\"rhs\":0},{\"name\":\"pollution_limit\",\"terms\":[{\"var\":\"motorcycles\",\"coef\":4},{\"var\":\"sedans\",\"coef\":15}],\"sense\":\"<=\",\"rhs\":200},{\"name\":\"transport_requirement\",\"terms\":[{\"var\":\"motorcycles\",\"coef\":30},{\"var\":\"sedans\",\"coef\":70}],\"sense\":\">=\",\"rhs\":1200}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 1782,
+   "output_tokens": 670,
+   "output_tokens_details": {
+    "thinking_tokens": 362
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "b000dd5c1d3b9b52c03911a64a9fe3bc88c945b8ec6ebd055e48a97a136cd83a",
+  "tries": 1,
+  "latency_s": 3.3984558330121217,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

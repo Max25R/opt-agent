@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA bakery bakes bagels and croissants. A batch of bagels can be made using 3 hours of oven time and 0.13 hours of pastry chef time. A batch of croissants is more complicated, so while they take 1 hour of oven time, they take 3 hours of pastry chef time. In a day, the bakery has at most 60 hours available for the oven and 42 pastry chef hours available. Using all the available capacity, what is the maximum profit the bakery can generate assuming the profit per batch is $40 and $70 respectively for a batch of bagels and a batch of croissants.\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"bagel batches\",\"lower\":0.0,\"upper\":null,\"integer\":true},{\"name\":\"croissant batches\",\"lower\":0.0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"bagel batches\",\"coef\":40.0},{\"var\":\"croissant batches\",\"coef\":70.0}]},\"constraints\":[{\"name\":\"oven time fully used\",\"terms\":[{\"var\":\"bagel batches\",\"coef\":3.0},{\"var\":\"croissant batches\",\"coef\":1.0}],\"sense\":\"==\",\"rhs\":60.0},{\"name\":\"pastry chef time fully used\",\"terms\":[{\"var\":\"bagel batches\",\"coef\":0.13},{\"var\":\"croissant batches\",\"coef\":3.0}],\"sense\":\"==\",\"rhs\":42.0}]}\n</previous_model>\n\n<feedback>\nThe solver found the model infeasible: no values satisfy every constraint. These constraints can't all hold at once: 'oven time fully used', 'pastry chef time fully used'. Check them against the problem text for a reversed direction (<= vs >=), a wrong number, or a requirement the text doesn't state. Don't drop or loosen a requirement the text does state just to get a solution: some problems are infeasible as written.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiGiYGaPV96Ytc58X53c",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"bagel batches\",\"lower\":0.0,\"upper\":null,\"integer\":true},{\"name\":\"croissant batches\",\"lower\":0.0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"bagel batches\",\"coef\":40.0},{\"var\":\"croissant batches\",\"coef\":70.0}]},\"constraints\":[{\"name\":\"oven time available\",\"terms\":[{\"var\":\"bagel batches\",\"coef\":3.0},{\"var\":\"croissant batches\",\"coef\":1.0}],\"sense\":\"<=\",\"rhs\":60.0},{\"name\":\"pastry chef time available\",\"terms\":[{\"var\":\"bagel batches\",\"coef\":0.13},{\"var\":\"croissant batches\",\"coef\":3.0}],\"sense\":\"<=\",\"rhs\":42.0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2215,
+   "output_tokens": 670,
+   "output_tokens_details": {
+    "thinking_tokens": 402
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "c5e709040b53f7b684ffb5cbf0e67faccc3f6905efa44b0a053868d2b3184f3c",
+  "tries": 1,
+  "latency_s": 3.6560646670113783,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

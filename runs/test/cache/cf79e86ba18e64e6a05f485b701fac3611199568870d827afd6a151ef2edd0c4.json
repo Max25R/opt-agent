@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA pharmaceutical company has two labs, lab 1 and lab 2, where they make heart and lung medication in pill form. At lab 1, they can produce 20 heart medication pills and 30 lung medication pills per hour. At lab 2, they can produce 30 heart medication pills and 40 lung medication pills per hour. Each session at lab 1 requires 3 hours of worker labor while each session at lab 2 requires 5 hours of worker labor. The company has 1500 worker hours available and must make at least 20000 heart medication pills and at least 30000 lung medication pills. How many hours at each lab should be run to minimize the total time needed?\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"lab 1 hours\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"lab 2 hours\",\"lower\":0,\"upper\":null,\"integer\":false}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"lab 1 hours\",\"coef\":1},{\"var\":\"lab 2 hours\",\"coef\":1}]},\"constraints\":[{\"name\":\"worker labor\",\"terms\":[{\"var\":\"lab 1 hours\",\"coef\":3},{\"var\":\"lab 2 hours\",\"coef\":5}],\"sense\":\"<=\",\"rhs\":1500},{\"name\":\"heart medication pills\",\"terms\":[{\"var\":\"lab 1 hours\",\"coef\":20},{\"var\":\"lab 2 hours\",\"coef\":30}],\"sense\":\">=\",\"rhs\":20000},{\"name\":\"lung medication pills\",\"terms\":[{\"var\":\"lab 1 hours\",\"coef\":30},{\"var\":\"lab 2 hours\",\"coef\":40}],\"sense\":\">=\",\"rhs\":30000}]}\n</previous_model>\n\n<feedback>\nThe solver found the model infeasible: no values satisfy every constraint. These constraints can't all hold at once: 'worker labor', 'lung medication pills'. Check them against the problem text for a reversed direction (<= vs >=), a wrong number, or a requirement the text doesn't state. Don't drop or loosen a requirement the text does state just to get a solution: some problems are infeasible as written.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiD6aYQ8yRRfZme9FRBJ",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"lab 1 hours\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"lab 2 hours\",\"lower\":0,\"upper\":null,\"integer\":false}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"lab 1 hours\",\"coef\":1},{\"var\":\"lab 2 hours\",\"coef\":1}]},\"constraints\":[{\"name\":\"worker labor\",\"terms\":[{\"var\":\"lab 1 hours\",\"coef\":3},{\"var\":\"lab 2 hours\",\"coef\":5}],\"sense\":\"<=\",\"rhs\":1500},{\"name\":\"heart medication pills\",\"terms\":[{\"var\":\"lab 1 hours\",\"coef\":20},{\"var\":\"lab 2 hours\",\"coef\":30}],\"sense\":\">=\",\"rhs\":20000},{\"name\":\"lung medication pills\",\"terms\":[{\"var\":\"lab 1 hours\",\"coef\":30},{\"var\":\"lab 2 hours\",\"coef\":40}],\"sense\":\">=\",\"rhs\":30000}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2294,
+   "output_tokens": 2189,
+   "output_tokens_details": {
+    "thinking_tokens": 1858
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "cf79e86ba18e64e6a05f485b701fac3611199568870d827afd6a151ef2edd0c4",
+  "tries": 1,
+  "latency_s": 10.554443875007564,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

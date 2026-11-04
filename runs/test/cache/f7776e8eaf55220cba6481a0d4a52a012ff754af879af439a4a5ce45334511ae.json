@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA chemical plant can buy two types of generators, generator A and generator B, which use two different processes to generate hydrogen. Generator A uses an electrolysis process and produces 40 cubic meters of hydrogen as well as 300 units of pollutants every day. Generator B uses a fermentation process to produce 30 cubic meters of hydrogen per day while outputting 200 units of pollutants. The chemical plant must make a minimum of 1000 cubic meters of hydrogen per day but due to environmental restrictions they can produce at most 3000 units of pollutant. How many of each type of generator should they buy to minimize the number of generators needed?\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"generators of type A purchased\",\"lower\":0.0,\"upper\":null,\"integer\":true},{\"name\":\"generators of type B purchased\",\"lower\":0.0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"generators of type A purchased\",\"coef\":1},{\"var\":\"generators of type B purchased\",\"coef\":1}]},\"constraints\":[{\"name\":\"hydrogen_minimum\",\"terms\":[{\"var\":\"generators of type A purchased\",\"coef\":40},{\"var\":\"generators of type B purchased\",\"coef\":30}],\"sense\":\">=\",\"rhs\":1000},{\"name\":\"pollutant_maximum\",\"terms\":[{\"var\":\"generators of type A purchased\",\"coef\":300},{\"var\":\"generators of type B purchased\",\"coef\":200}],\"sense\":\"<=\",\"rhs\":3000}]}\n</previous_model>\n\n<feedback>\nThe solver found the model infeasible: no values satisfy every constraint. These constraints can't all hold at once: 'hydrogen_minimum', 'pollutant_maximum'. Check them against the problem text for a reversed direction (<= vs >=), a wrong number, or a requirement the text doesn't state. Don't drop or loosen a requirement the text does state just to get a solution: some problems are infeasible as written.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiCdBejznj8cZT9Bb1VP",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"generators of type A purchased\",\"lower\":0.0,\"upper\":null,\"integer\":true},{\"name\":\"generators of type B purchased\",\"lower\":0.0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"generators of type A purchased\",\"coef\":1},{\"var\":\"generators of type B purchased\",\"coef\":1}]},\"constraints\":[{\"name\":\"hydrogen_minimum\",\"terms\":[{\"var\":\"generators of type A purchased\",\"coef\":40},{\"var\":\"generators of type B purchased\",\"coef\":30}],\"sense\":\">=\",\"rhs\":1000},{\"name\":\"pollutant_maximum\",\"terms\":[{\"var\":\"generators of type A purchased\",\"coef\":300},{\"var\":\"generators of type B purchased\",\"coef\":200}],\"sense\":\"<=\",\"rhs\":3000}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2251,
+   "output_tokens": 663,
+   "output_tokens_details": {
+    "thinking_tokens": 380
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "f7776e8eaf55220cba6481a0d4a52a012ff754af879af439a4a5ce45334511ae",
+  "tries": 1,
+  "latency_s": 3.400379917002283,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

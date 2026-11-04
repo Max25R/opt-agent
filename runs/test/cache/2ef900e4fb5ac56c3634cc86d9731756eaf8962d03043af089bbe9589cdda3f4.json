@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA keyboard manufacturer makes mechanical and standard keyboards. Mechanical keyboards are becoming more popular and thus the manufacturer aims to have five times as many mechanical than standard keyboards. A mechanical keyboard costs five units of plastic and two units of solder whereas a standard keyboard costs two units of plastic and one unit of solder. There are still customers that prefer a less noisy alternative. Therefore, there must be at least 30 standard keyboards. If the company has available 1000 units of plastic and 250 units of solder, how many of each type should be manufactured to maximize the total number of keyboards?\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"mechanical keyboards\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"standard keyboards\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"mechanical keyboards\",\"coef\":1},{\"var\":\"standard keyboards\",\"coef\":1}]},\"constraints\":[{\"name\":\"mechanical is five times standard\",\"terms\":[{\"var\":\"mechanical keyboards\",\"coef\":1},{\"var\":\"standard keyboards\",\"coef\":-5}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"minimum standard keyboards\",\"terms\":[{\"var\":\"standard keyboards\",\"coef\":1}],\"sense\":\">=\",\"rhs\":30},{\"name\":\"plastic available\",\"terms\":[{\"var\":\"mechanical keyboards\",\"coef\":5},{\"var\":\"standard keyboards\",\"coef\":2}],\"sense\":\"<=\",\"rhs\":1000},{\"name\":\"solder available\",\"terms\":[{\"var\":\"mechanical keyboards\",\"coef\":2},{\"var\":\"standard keyboards\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":250}]}\n</previous_model>\n\n<feedback>\nThe solver found the model infeasible: no values satisfy every constraint. These constraints can't all hold at once: 'mechanical is five times standard', 'minimum standard keyboards', 'solder available'. Check them against the problem text for a reversed direction (<= vs >=), a wrong number, or a requirement the text doesn't state. Don't drop or loosen a requirement the text does state just to get a solution: some problems are infeasible as written.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiFVVuxiumjmt9PcdXNi",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"mechanical keyboards\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"standard keyboards\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"mechanical keyboards\",\"coef\":1},{\"var\":\"standard keyboards\",\"coef\":1}]},\"constraints\":[{\"name\":\"mechanical is five times standard\",\"terms\":[{\"var\":\"mechanical keyboards\",\"coef\":1},{\"var\":\"standard keyboards\",\"coef\":-5}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"minimum standard keyboards\",\"terms\":[{\"var\":\"standard keyboards\",\"coef\":1}],\"sense\":\">=\",\"rhs\":30},{\"name\":\"plastic available\",\"terms\":[{\"var\":\"mechanical keyboards\",\"coef\":5},{\"var\":\"standard keyboards\",\"coef\":2}],\"sense\":\"<=\",\"rhs\":1000},{\"name\":\"solder available\",\"terms\":[{\"var\":\"mechanical keyboards\",\"coef\":2},{\"var\":\"standard keyboards\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":250}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2350,
+   "output_tokens": 1104,
+   "output_tokens_details": {
+    "thinking_tokens": 723
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "2ef900e4fb5ac56c3634cc86d9731756eaf8962d03043af089bbe9589cdda3f4",
+  "tries": 1,
+  "latency_s": 5.532124375007697,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

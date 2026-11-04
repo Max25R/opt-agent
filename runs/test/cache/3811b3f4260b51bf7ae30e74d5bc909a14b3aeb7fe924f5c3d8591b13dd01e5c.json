@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA drug company is making pain killers and sleeping pills using two processes, process 1 and process 2. Process 1 produces 35 units of pain killers and 12 units of sleeping pills per hour. Process 2 produces 50 units of pain killers and 30 units of sleeping pills per hour. Process 1 requires 50 units of preliminary material while process 2 requires 60 units of preliminary material. The drug company has available 2000 units of preliminary material and must make at least 1200 units of pain killers and 1200 units of sleeping pills. How many of each process should be run to minimize the total time needed?\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"process 1 run hours\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"process 2 run hours\",\"lower\":0,\"upper\":null,\"integer\":false}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"process 1 run hours\",\"coef\":1},{\"var\":\"process 2 run hours\",\"coef\":1}]},\"constraints\":[{\"name\":\"pain killer requirement\",\"terms\":[{\"var\":\"process 1 run hours\",\"coef\":35},{\"var\":\"process 2 run hours\",\"coef\":50}],\"sense\":\">=\",\"rhs\":1200},{\"name\":\"sleeping pill requirement\",\"terms\":[{\"var\":\"process 1 run hours\",\"coef\":12},{\"var\":\"process 2 run hours\",\"coef\":30}],\"sense\":\">=\",\"rhs\":1200},{\"name\":\"preliminary material limit\",\"terms\":[{\"var\":\"process 1 run hours\",\"coef\":50},{\"var\":\"process 2 run hours\",\"coef\":60}],\"sense\":\"<=\",\"rhs\":2000}]}\n</previous_model>\n\n<feedback>\nThe solver found the model infeasible: no values satisfy every constraint. These constraints can't all hold at once: 'sleeping pill requirement', 'preliminary material limit'. Check them against the problem text for a reversed direction (<= vs >=), a wrong number, or a requirement the text doesn't state. Don't drop or loosen a requirement the text does state just to get a solution: some problems are infeasible as written.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiDCbiWRyuok3cDx3Xsn",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"process 1 run hours\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"process 2 run hours\",\"lower\":0,\"upper\":null,\"integer\":false}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"process 1 run hours\",\"coef\":1},{\"var\":\"process 2 run hours\",\"coef\":1}]},\"constraints\":[{\"name\":\"pain killer requirement\",\"terms\":[{\"var\":\"process 1 run hours\",\"coef\":35},{\"var\":\"process 2 run hours\",\"coef\":50}],\"sense\":\">=\",\"rhs\":1200},{\"name\":\"sleeping pill requirement\",\"terms\":[{\"var\":\"process 1 run hours\",\"coef\":12},{\"var\":\"process 2 run hours\",\"coef\":30}],\"sense\":\">=\",\"rhs\":1200},{\"name\":\"preliminary material limit\",\"terms\":[{\"var\":\"process 1 run hours\",\"coef\":50},{\"var\":\"process 2 run hours\",\"coef\":60}],\"sense\":\"<=\",\"rhs\":2000}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2290,
+   "output_tokens": 705,
+   "output_tokens_details": {
+    "thinking_tokens": 367
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "3811b3f4260b51bf7ae30e74d5bc909a14b3aeb7fe924f5c3d8591b13dd01e5c",
+  "tries": 1,
+  "latency_s": 3.084845250006765,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

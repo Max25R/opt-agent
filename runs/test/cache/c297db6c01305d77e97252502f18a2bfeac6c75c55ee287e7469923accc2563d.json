@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA soda company sells soda in two types of containers: cans and glass bottles. A can holds 250 ml of soda whereas a bottle holds 1000 ml of soda. The soda company needs to bottle at least 1000000 ml of soda every day and due to the ability to sell soda cans as packs, there must be at least three times more cans than glass bottles. However, because of previous contracts with gas stations, there must be at least 100 glass bottles made. How many of each should be made to maximize the total number of units produced?\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"cans\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"glass bottles\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"cans\",\"coef\":1},{\"var\":\"glass bottles\",\"coef\":1}]},\"constraints\":[{\"name\":\"volume\",\"terms\":[{\"var\":\"cans\",\"coef\":250},{\"var\":\"glass bottles\",\"coef\":1000}],\"sense\":\">=\",\"rhs\":1000000},{\"name\":\"can_ratio\",\"terms\":[{\"var\":\"cans\",\"coef\":1},{\"var\":\"glass bottles\",\"coef\":-3}],\"sense\":\">=\",\"rhs\":0},{\"name\":\"min_bottles\",\"terms\":[{\"var\":\"glass bottles\",\"coef\":1}],\"sense\":\">=\",\"rhs\":100}]}\n</previous_model>\n\n<feedback>\nThe solver found the model unbounded: the objective can increase forever. Usually a limit the text states (a budget, a capacity, an amount available) is missing or points the wrong way. Don't invent a limit the text doesn't state: some problems are unbounded as written.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiFDcH1P4PtZVtwsAG6a",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"cans\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"glass bottles\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"cans\",\"coef\":1},{\"var\":\"glass bottles\",\"coef\":1}]},\"constraints\":[{\"name\":\"volume\",\"terms\":[{\"var\":\"cans\",\"coef\":250},{\"var\":\"glass bottles\",\"coef\":1000}],\"sense\":\">=\",\"rhs\":1000000},{\"name\":\"can_ratio\",\"terms\":[{\"var\":\"cans\",\"coef\":1},{\"var\":\"glass bottles\",\"coef\":-3}],\"sense\":\">=\",\"rhs\":0},{\"name\":\"min_bottles\",\"terms\":[{\"var\":\"glass bottles\",\"coef\":1}],\"sense\":\">=\",\"rhs\":100}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2147,
+   "output_tokens": 855,
+   "output_tokens_details": {
+    "thinking_tokens": 576
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "c297db6c01305d77e97252502f18a2bfeac6c75c55ee287e7469923accc2563d",
+  "tries": 1,
+  "latency_s": 4.794702083003358,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

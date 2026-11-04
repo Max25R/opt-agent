@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA nutritionist is making a special vitamin mix using two drinks: A and B. The vitamin mix must contain at least 150 units of Vitamin A, at least 300 units of vitamin D, and at most 400 units of vitamin E. A cup of drink A contains 8 units of Vitamin A, 6 units of Vitamin D, 10 units of Vitamin E, and 4 units of Vitamin K. A cup of drink B contains 15 units of Vitamin A, 2 units of Vitamin D, 20 units of Vitamin E, and 12 units of Vitamin K. How many cups of each drink should be used to make the vitamin mix in order to minimize the amount of Vitamin K?\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"cups of drink A\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"cups of drink B\",\"lower\":0,\"upper\":null,\"integer\":false}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"cups of drink A\",\"coef\":4},{\"var\":\"cups of drink B\",\"coef\":12}]},\"constraints\":[{\"name\":\"vitamin A minimum\",\"terms\":[{\"var\":\"cups of drink A\",\"coef\":8},{\"var\":\"cups of drink B\",\"coef\":15}],\"sense\":\">=\",\"rhs\":150},{\"name\":\"vitamin D minimum\",\"terms\":[{\"var\":\"cups of drink A\",\"coef\":6},{\"var\":\"cups of drink B\",\"coef\":2}],\"sense\":\">=\",\"rhs\":300},{\"name\":\"vitamin E maximum\",\"terms\":[{\"var\":\"cups of drink A\",\"coef\":10},{\"var\":\"cups of drink B\",\"coef\":20}],\"sense\":\"<=\",\"rhs\":400}]}\n</previous_model>\n\n<feedback>\nThe solver found the model infeasible: no values satisfy every constraint. These constraints can't all hold at once: 'vitamin D minimum', 'vitamin E maximum'. Check them against the problem text for a reversed direction (<= vs >=), a wrong number, or a requirement the text doesn't state. Don't drop or loosen a requirement the text does state just to get a solution: some problems are infeasible as written.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiBzV4xJrt8kq9HzWmJa",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"cups of drink A\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"cups of drink B\",\"lower\":0,\"upper\":null,\"integer\":false}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"cups of drink A\",\"coef\":4},{\"var\":\"cups of drink B\",\"coef\":12}]},\"constraints\":[{\"name\":\"vitamin A minimum\",\"terms\":[{\"var\":\"cups of drink A\",\"coef\":8},{\"var\":\"cups of drink B\",\"coef\":15}],\"sense\":\">=\",\"rhs\":150},{\"name\":\"vitamin D minimum\",\"terms\":[{\"var\":\"cups of drink A\",\"coef\":6},{\"var\":\"cups of drink B\",\"coef\":2}],\"sense\":\">=\",\"rhs\":300},{\"name\":\"vitamin E maximum\",\"terms\":[{\"var\":\"cups of drink A\",\"coef\":10},{\"var\":\"cups of drink B\",\"coef\":20}],\"sense\":\"<=\",\"rhs\":400}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2314,
+   "output_tokens": 947,
+   "output_tokens_details": {
+    "thinking_tokens": 621
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "0e6bfc4f9eb91b83239c810ed63fb78add6457114ce8d5de55399eaebf25474d",
+  "tries": 1,
+  "latency_s": 4.2121205419971375,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

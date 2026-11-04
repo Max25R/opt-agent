@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA snow removal company removes snow from neighborhoods using small trucks and large trucks. A small truck requires 2 people to shovel the snow and can carry 30 units of snow. A large truck require 4 people to shovel the snow and car carry 50 units of snow. The company has available 30 people. In addition, because some neighbourhood don’t allow big trucks, at least 10 trucks must be small. There must be at least 3 large trucks as well and the number of small trucks must be twice as much as the number of large trucks. How many of each truck should be used to maximize the total amount of snow that can be transported?\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"small trucks\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"large trucks\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"small trucks\",\"coef\":30},{\"var\":\"large trucks\",\"coef\":50}]},\"constraints\":[{\"name\":\"people available\",\"terms\":[{\"var\":\"small trucks\",\"coef\":2},{\"var\":\"large trucks\",\"coef\":4}],\"sense\":\"<=\",\"rhs\":30},{\"name\":\"at least 10 small trucks\",\"terms\":[{\"var\":\"small trucks\",\"coef\":1}],\"sense\":\">=\",\"rhs\":10},{\"name\":\"at least 3 large trucks\",\"terms\":[{\"var\":\"large trucks\",\"coef\":1}],\"sense\":\">=\",\"rhs\":3},{\"name\":\"small trucks twice large trucks\",\"terms\":[{\"var\":\"small trucks\",\"coef\":1},{\"var\":\"large trucks\",\"coef\":-2}],\"sense\":\"==\",\"rhs\":0}]}\n</previous_model>\n\n<feedback>\nThe solver found the model infeasible: no values satisfy every constraint. These constraints can't all hold at once: 'people available', 'at least 10 small trucks', 'small trucks twice large trucks'. Check them against the problem text for a reversed direction (<= vs >=), a wrong number, or a requirement the text doesn't state. Don't drop or loosen a requirement the text does state just to get a solution: some problems are infeasible as written.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiEbHBnzeWWjHqz42m5w",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"small trucks\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"large trucks\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"small trucks\",\"coef\":30},{\"var\":\"large trucks\",\"coef\":50}]},\"constraints\":[{\"name\":\"people available\",\"terms\":[{\"var\":\"small trucks\",\"coef\":2},{\"var\":\"large trucks\",\"coef\":4}],\"sense\":\"<=\",\"rhs\":30},{\"name\":\"at least 10 small trucks\",\"terms\":[{\"var\":\"small trucks\",\"coef\":1}],\"sense\":\">=\",\"rhs\":10},{\"name\":\"at least 3 large trucks\",\"terms\":[{\"var\":\"large trucks\",\"coef\":1}],\"sense\":\">=\",\"rhs\":3},{\"name\":\"small trucks twice large trucks\",\"terms\":[{\"var\":\"small trucks\",\"coef\":1},{\"var\":\"large trucks\",\"coef\":-2}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2294,
+   "output_tokens": 1116,
+   "output_tokens_details": {
+    "thinking_tokens": 779
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "010892bd9cbb47acddc5ff4bf6dd0111d755390f7461aec551042affe94e9b3b",
+  "tries": 1,
+  "latency_s": 5.054985750000924,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

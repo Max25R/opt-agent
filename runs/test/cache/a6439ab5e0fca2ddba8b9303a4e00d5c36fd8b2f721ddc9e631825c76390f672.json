@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA pharmaceutical company has 800 units of painkiller medicine and makes daytime and nighttime painkiller. A daytime pill has 6 units of painkiller medicine and 2 units of sleep medicine. A nighttime pill has 5 units of painkiller medicine and 5 units of sleep medicine. Since some people don’t want the sleeping effect, at least 40% of the pills must be daytime pills. However at least 200 nighttime pills must be made. How many of each pill should be made to minimize the total amount of sleep medicine required?\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"daytime pills\",\"lower\":0.0,\"upper\":null,\"integer\":true},{\"name\":\"nighttime pills\",\"lower\":0.0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"daytime pills\",\"coef\":2.0},{\"var\":\"nighttime pills\",\"coef\":5.0}]},\"constraints\":[{\"name\":\"painkiller medicine\",\"terms\":[{\"var\":\"daytime pills\",\"coef\":6.0},{\"var\":\"nighttime pills\",\"coef\":5.0}],\"sense\":\"<=\",\"rhs\":800.0},{\"name\":\"daytime share at least 40%\",\"terms\":[{\"var\":\"daytime pills\",\"coef\":0.6},{\"var\":\"nighttime pills\",\"coef\":-0.4}],\"sense\":\">=\",\"rhs\":0.0},{\"name\":\"minimum nighttime pills\",\"terms\":[{\"var\":\"nighttime pills\",\"coef\":1.0}],\"sense\":\">=\",\"rhs\":200.0}]}\n</previous_model>\n\n<feedback>\nThe solver found the model infeasible: no values satisfy every constraint. These constraints can't all hold at once: 'painkiller medicine', 'minimum nighttime pills'. Check them against the problem text for a reversed direction (<= vs >=), a wrong number, or a requirement the text doesn't state. Don't drop or loosen a requirement the text does state just to get a solution: some problems are infeasible as written.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiD4yWDe2SRSpNgtmd9J",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"daytime pills\",\"lower\":0.0,\"upper\":null,\"integer\":true},{\"name\":\"nighttime pills\",\"lower\":0.0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"daytime pills\",\"coef\":2.0},{\"var\":\"nighttime pills\",\"coef\":5.0}]},\"constraints\":[{\"name\":\"painkiller medicine\",\"terms\":[{\"var\":\"daytime pills\",\"coef\":6.0},{\"var\":\"nighttime pills\",\"coef\":5.0}],\"sense\":\"<=\",\"rhs\":800.0},{\"name\":\"daytime share at least 40%\",\"terms\":[{\"var\":\"daytime pills\",\"coef\":0.6},{\"var\":\"nighttime pills\",\"coef\":-0.4}],\"sense\":\">=\",\"rhs\":0.0},{\"name\":\"minimum nighttime pills\",\"terms\":[{\"var\":\"nighttime pills\",\"coef\":1.0}],\"sense\":\">=\",\"rhs\":200.0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2267,
+   "output_tokens": 1000,
+   "output_tokens_details": {
+    "thinking_tokens": 669
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "a6439ab5e0fca2ddba8b9303a4e00d5c36fd8b2f721ddc9e631825c76390f672",
+  "tries": 1,
+  "latency_s": 4.240453374994104,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

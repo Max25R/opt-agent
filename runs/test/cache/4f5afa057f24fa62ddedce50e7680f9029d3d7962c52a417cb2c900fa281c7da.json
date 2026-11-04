@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA burger chain is buying both gas and electric grills to make burger patties. A gas grill can cook 20 patties per minute while an electric grill can cook 30 patties per minute. The gas grill requires 20 units of cooking oil per minute while the electric grill requires 25 units of cooking oil per minute. Since the gas grill patties taste better, the number of electric grills must be less than the number of gas grills. Further, the burger chain wants to be able to make at least 150 patties per minute and use at most 140 units of cooking oil per minute. How many of each grill should be bought to minimize the total number of grills in the store?\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"gas grills\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"electric grills\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"gas grills\",\"coef\":1},{\"var\":\"electric grills\",\"coef\":1}]},\"constraints\":[{\"name\":\"patties\",\"terms\":[{\"var\":\"gas grills\",\"coef\":20},{\"var\":\"electric grills\",\"coef\":30}],\"sense\":\">=\",\"rhs\":150},{\"name\":\"cooking oil\",\"terms\":[{\"var\":\"gas grills\",\"coef\":20},{\"var\":\"electric grills\",\"coef\":25}],\"sense\":\"<=\",\"rhs\":140},{\"name\":\"fewer electric than gas\",\"terms\":[{\"var\":\"gas grills\",\"coef\":1},{\"var\":\"electric grills\",\"coef\":-1}],\"sense\":\">=\",\"rhs\":1}]}\n</previous_model>\n\n<feedback>\nThe solver found the model infeasible: no values satisfy every constraint. These constraints can't all hold at once: 'patties', 'cooking oil', 'fewer electric than gas'. Check them against the problem text for a reversed direction (<= vs >=), a wrong number, or a requirement the text doesn't state. Don't drop or loosen a requirement the text does state just to get a solution: some problems are infeasible as written.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiCKk1uH7FGBtiJXCNgv",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"gas grills\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"electric grills\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"gas grills\",\"coef\":1},{\"var\":\"electric grills\",\"coef\":1}]},\"constraints\":[{\"name\":\"patties\",\"terms\":[{\"var\":\"gas grills\",\"coef\":20},{\"var\":\"electric grills\",\"coef\":30}],\"sense\":\">=\",\"rhs\":150},{\"name\":\"cooking oil\",\"terms\":[{\"var\":\"gas grills\",\"coef\":20},{\"var\":\"electric grills\",\"coef\":25}],\"sense\":\"<=\",\"rhs\":140},{\"name\":\"fewer electric than gas\",\"terms\":[{\"var\":\"gas grills\",\"coef\":1},{\"var\":\"electric grills\",\"coef\":-1}],\"sense\":\">=\",\"rhs\":1}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2256,
+   "output_tokens": 1276,
+   "output_tokens_details": {
+    "thinking_tokens": 978
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "4f5afa057f24fa62ddedce50e7680f9029d3d7962c52a417cb2c900fa281c7da",
+  "tries": 1,
+  "latency_s": 5.928987499995856,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

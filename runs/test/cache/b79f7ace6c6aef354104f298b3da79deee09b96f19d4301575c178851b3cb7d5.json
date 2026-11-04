@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA banana company sells their bananas in small and large crates. A small crate can hold 20 bananas while a large crate can hole 50 bananas. Since large crates are more manageable, the number of large crates must be at least twice the number of small crates. However, at least 5 small crates should be used. If the company has available 500 bananas, how many of each crate should the company use to maximize the total number of crates produced?\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"small crates\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"large crates\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"small crates\",\"coef\":1},{\"var\":\"large crates\",\"coef\":1}]},\"constraints\":[{\"name\":\"large at least twice small\",\"terms\":[{\"var\":\"large crates\",\"coef\":1},{\"var\":\"small crates\",\"coef\":-2}],\"sense\":\">=\",\"rhs\":0},{\"name\":\"at least 5 small crates\",\"terms\":[{\"var\":\"small crates\",\"coef\":1}],\"sense\":\">=\",\"rhs\":5},{\"name\":\"available bananas\",\"terms\":[{\"var\":\"small crates\",\"coef\":20},{\"var\":\"large crates\",\"coef\":50}],\"sense\":\"<=\",\"rhs\":500}]}\n</previous_model>\n\n<feedback>\nThe solver found the model infeasible: no values satisfy every constraint. These constraints can't all hold at once: 'large at least twice small', 'at least 5 small crates', 'available bananas'. Check them against the problem text for a reversed direction (<= vs >=), a wrong number, or a requirement the text doesn't state. Don't drop or loosen a requirement the text does state just to get a solution: some problems are infeasible as written.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011CgiCSccMf5YzYDX6GJSWm",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"small crates\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"large crates\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"small crates\",\"coef\":1},{\"var\":\"large crates\",\"coef\":1}]},\"constraints\":[{\"name\":\"large at least twice small\",\"terms\":[{\"var\":\"large crates\",\"coef\":1},{\"var\":\"small crates\",\"coef\":-2}],\"sense\":\">=\",\"rhs\":0},{\"name\":\"at least 5 small crates\",\"terms\":[{\"var\":\"small crates\",\"coef\":1}],\"sense\":\">=\",\"rhs\":5},{\"name\":\"available bananas\",\"terms\":[{\"var\":\"small crates\",\"coef\":20},{\"var\":\"large crates\",\"coef\":50}],\"sense\":\"<=\",\"rhs\":500}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2164,
+   "output_tokens": 940,
+   "output_tokens_details": {
+    "thinking_tokens": 663
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "b79f7ace6c6aef354104f298b3da79deee09b96f19d4301575c178851b3cb7d5",
+  "tries": 1,
+  "latency_s": 4.953792333995807,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}
