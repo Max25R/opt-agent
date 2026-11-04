@@ -2,7 +2,7 @@
 
 import re
 
-from opt_agent import blind_grading, perturb, taxonomy
+from opt_agent import blind_grading, packets, perturb, taxonomy
 from opt_agent.ground_truth import (
     GROUND_TRUTH_DIR,
     answer,
@@ -156,3 +156,27 @@ def test_the_freeze_list_names_everything_a_run_depends_on():
 def test_it_is_still_a_draft():
     assert says("**Status: DRAFT") and says("Not approved.")
     assert "approved by the owner" not in DOC.lower()
+
+
+def test_the_judges_integrality_replies_are_as_the_amendment_says():
+    judge, second = (packets.read_judge_labels(packets.JUDGE_DIR / name)
+                     for name in packets.JUDGE_SHEETS.values())  # fmt: skip
+    problems = packets.judged_problems(TEST)
+    differ = [n for n, (_, r) in enumerate(problems, 1) if judge[r.id] != second[r.id]]
+    assert says(f"give the same label to {44 - len(differ)} of the 44 problems")
+    listed = ", ".join(map(str, differ[:-1])) + f" and {differ[-1]}"
+    assert says(f"They differ on {len(differ)} (numbers {listed} of the prompt)")
+    a = packets.judges_agreement(TEST)
+    assert says(f"and to {a['judge vs second']['same']} of the 40 in the blind sample")
+    j, s = a["judge vs Claude"], a["second vs Claude"]
+    assert says(f"accepts all {j['accepts']} of Claude's labels ({j['same']} the same, "
+                f"{j['either']} `either`)") and j["accepts"] == 40  # fmt: skip
+    assert says(f"the second judge {s['accepts']} ({s['same']} the same, {s['either']} "
+                f"`either`, {s['different']} different)")  # fmt: skip
+    combined = packets.combined_labels(judge, second)
+    by_id = {r.id: r for r in TEST}
+    turned = [
+        i for i, k in combined.items() if k == "either" and by_id[i].integrality.kind == "integer"
+    ]
+    assert says(f"turn {len(turned)} of Claude's `integer` labels into `either`")
+    assert set(SAYS_LP) <= set(turned)

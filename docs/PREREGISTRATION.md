@@ -345,33 +345,38 @@ sections 1, 2a and 3g.
 
 Made while this file is still a draft. It changes who does the hand checks of section 5a,
 who labels integrality for 3d and 3f, how the test reviews are confirmed before freezing
-(section 6), and what the report shows next to each accuracy (sections 4 and 5).
+(section 6), and what the report shows next to each accuracy (sections 4 and 5). Parts 5
+and 6 were added on 2026-11-04, after the judges' integrality labels came back and before
+any test run.
 
 **1. LLM judges do the hand checks (5a), not the owner.**
 - **The judge of record** is Claude Opus 5.5 in Claude Code ("extra"), the owner's
   choice. It does the blind grading, the taxonomy, and the integrality labels (part 3).
 - **A second judge, from another vendor:** the free version of ChatGPT labels integrality
-  too (part 3). That's the one check where a Claude judge would be checking labels Claude
-  wrote. The free version may not say which model answered, so its sheet records what it
-  shows, and the date.
+  too (part 3), and checks the reviews the cross-check leaves (part 6). Those are the two
+  checks where a Claude judge would be checking Claude's own work: Claude wrote the labels
+  and the reviews. The free version may not say which model answered, so its sheet records
+  what it shows, and the date.
 - **The same-vendor limit:** the system under test, the author of the labels and reviews,
   and the judge of record are all Claude, and may share blind spots. Blind grading and
   the taxonomy have no cross-vendor check. Part 4 keeps every headline number from
   resting on a judge's labels alone.
 - **What a judge gets:** the generated prompt, byte for byte, in a new conversation with
   nothing else. The judge of record runs in a Claude Code session started outside this
-  repository, so it can't read the run, the labels or the other packets. For blind
+  repository, or, for the reviews, in an incognito claude.ai chat (grader `Claude Opus 5.5
+  (claude.ai incognito)`), so it can't read the run, the labels or the other packets. For blind
   grading that's `PACKET.md`; for the taxonomy, `LLM_PROMPT.md` (the same rows as the
   owner's packet, without naming the system or who wrote the labels); for the
-  integrality labels, `review/integrality_judge/LLM_PROMPT.md`. Blind grading comes
-  first.
+  integrality labels, `review/integrality_judge/LLM_PROMPT.md`; for the reviews,
+  `review/review_judge/LLM_PROMPT.md`. Blind grading comes first.
 - **Its reply** is saved verbatim next to the sheet and merged by row number (`--merge`).
   The merge refuses a reply that skips, doubles or shifts a row. The judge's name goes in
   the sheet's `grader` column, and the report lists the graders. A reply that can't be
   merged is asked for again in a new conversation, and every reply is kept.
 - **Reported** as section 5a says, but called what it is: agreement between an LLM judge
   and the automatic score, not a human check. A judge makes mistakes of its own; the two
-  judges' agreement on the integrality labels (part 3) is the only measure of them.
+  judges' agreement on the integrality labels and the reviews (parts 3 and 6) is the only
+  measure of them.
 - **The dev pilot** (`review/blind_grading/dev-1/`) was graded by the judge of record. It
   checked the packet's format only, and its grades aren't reported as a result.
 
@@ -385,15 +390,16 @@ who labels integrality for 3d and 3f, how the test reviews are confirmed before 
   published values are rounded). The owner's list is `review/external_check.md`.
 - **Where the benchmark agrees** with our answer, or with another accepted reading (strict,
   "="), the answer stands with no hand check, and so does the review, if there is one.
-- **The owner decides every problem the list names:** each disagreement; each "other
-  integrality" (the benchmark has our optimum with the other integrality, so the label is
-  in question); and each problem whose text the benchmark edited, since an edit says its
-  authors found the text wrong. A decision that changes the ground truth goes into
-  `reviews.json`, or `integrality.json` with source `owner`, before the freeze.
+- **Every problem the list names is decided by rule (part 5):** each disagreement; each
+  "other integrality" (the benchmark has our optimum with the other integrality, so the
+  label is in question); and each problem whose text the benchmark edited, since an edit
+  says its authors found the text wrong. The decision and its rule are recorded in
+  `review/external_check.csv`. A decision that changes the ground truth goes into
+  `reviews.json`, `integrality.json` (source `owner`) or `exclusions.json`, before the
+  freeze.
 - **Reviewed problems the benchmark doesn't have can't be cross-checked.** It has none of
   the do-nothing problems (3b) and lacks about a third of those with no optimum (3a), so
-  these are most of the reviews it leaves. The owner still confirms those by hand
-  (`confirmed_by_owner`).
+  these are most of the reviews it leaves. Both judges check those instead (part 6).
 - **Limits:** agreement isn't independent proof. The benchmark descends from the same
   NL4Opt problems, and possibly, through ORLM's answers, from the same annotations, so an
   error both inherit gets through. Its authors describe their review as quick. A
@@ -421,6 +427,18 @@ who labels integrality for 3d and 3f, how the test reviews are confirmed before 
   different one, or `either`, and the Wilson interval of "the same label or `either`" (a
   label the judge accepts). The second judge's is the independent one. The 4 "says LP"
   problems stay out of it, as before.
+- **Also reported:** the two judges' agreement on all 44, and, as a sensitivity check of
+  the combined rule, strict accuracy with the second judge's labels alone on the 44 (its
+  own `either` labels stay `either`).
+- **The replies (2026-11-04):** the judges give the same label to 37 of the 44 problems,
+  and to 36 of the 40 in the blind sample. They differ on 7 (numbers 17, 20, 28, 37, 41,
+  42 and 43 of the prompt), which become `either`. On the 40, the judge of record accepts
+  all 40 of Claude's labels (35 the same, 5 `either`), and the second judge 39 (38 the
+  same, 1 `either`, 1 different). The combined labels turn 9 of Claude's `integer` labels
+  into `either`, all 4 "says LP" problems among them. So 3d's subset ("says LP", labeled
+  integer) becomes empty, and both optima are accepted on those 4; the report says so. The
+  judge of record ran outside this repository (the owner confirms); the second judge's
+  sheet names no model, since none was recorded.
 
 **4. Lenient accuracy next to every strict one (4, 5).**
 - Every accuracy the report gives, per condition and subset, comes with its lenient version
@@ -431,9 +449,41 @@ who labels integrality for 3d and 3f, how the test reviews are confirmed before 
 - The McNemar tests stay on the strict scores, as pre-registered. The same six on the
   lenient scores are reported next to them as exploratory, outside the Holm family.
 
-**Code:** once this amendment is approved, `freeze.unfinished()` will require both judges'
-sheets filled, their combined labels applied to `integrality.json`, the owner's decision on
-every problem `review/external_check.md` lists, and `confirmed_by_owner` only for reviews
-the benchmark doesn't cover. It will no longer ask for the owner's `labels.csv` or "says
-LP" labels. The `either` label, the agreement counts and the lenient rows come with it.
-Until then, all of it is unchanged.
+**5. The cross-check's list is settled by rule, not by the owner (2).** Set on 2026-11-04,
+before any test run, and recorded with each decision in `review/external_check.csv`:
+- **Other integrality:** the judges' label decides where there is one (part 3). Otherwise
+  the label becomes `either` (source `owner`), so both optima are accepted.
+- **Edited text:** graded against our text, the one the system is given. A problem that
+  already agrees, or isn't scorable, needs no action. An edited problem with a judges'
+  label (`102495722`) falls under the integrality rule.
+- **The two the rules can't settle:** `1283305022` (an edited text the benchmark answers
+  differently) and `-1715698555` (the benchmark finds no optimum; the review accepts 1240
+  or 1215). They go to both judges with the reviews (part 6). Our answer stands only if
+  both judges agree with it; anything else (a `disagree` or an `unsure` from either)
+  excludes the problem from scoring (`exclusions.json`), and the report lists it.
+
+**6. Both judges check the reviews the cross-check leaves (6), not the owner.**
+- **The prompt** (`review/review_judge/LLM_PROMPT.md`) covers the 24 reviewed problems the
+  benchmark doesn't have and the 2 problems of part 5. Each shows the text, the reference
+  model with its label, the answers scoring accepts, and the review's claim and reason.
+  For `1283305022`, which has no review, the claim is that the annotated answer is right.
+  The prompt doesn't name the system, who wrote the reviews, or what the benchmark answered.
+  One review's reason (`-1715698555`) ends by saying that ORLM found no solution, which
+  tells a judge what an answer key found. The prompt leaves those words out
+  (`external_check.REDACTED`), and `reviews.json` keeps them.
+- **Each judge answers** `agree`, `disagree` or `unsure`, with a reason, in its own
+  conversation and sheet.
+- **Confirmed** where both judges agree; **disputed** otherwise, so one `disagree` or
+  `unsure` from either judge is enough. A disputed review stays as it is, and its problem
+  stays scorable (except the 2 of part 5, which are excluded instead).
+- **Reported:** every accuracy with and without the disputed problems.
+- **Limit:** the judge of record is checking reviews Claude wrote. The second judge is the
+  independent check, and either judge alone can dispute a review.
+
+**Code:** once parts 5 and 6 are approved, `freeze.unfinished()` will require both judges'
+integrality sheets filled and their combined labels applied; a decision on every row of
+`review/external_check.csv`, applied to the ground truth (the `either` labels of part 5,
+and any exclusions); and both judges' review sheets filled, with each review's outcome
+(confirmed or disputed) recorded in `reviews.json`. It will no longer ask for
+`confirmed_by_owner`. The report gains the agreement on all 44, the sensitivity check of
+part 3, and every accuracy without the disputed problems.

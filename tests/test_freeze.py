@@ -148,8 +148,8 @@ def test_status_says_what_is_left_and_that_nothing_is_approved(freeze_file, caps
 
 def test_the_list_follows_amendment_2():
     todo = " ".join(freeze.unfinished())
-    assert "still a draft" in todo and "integrality_judge/judge.csv" in todo
-    assert "integrality_judge/second_judge.csv" in todo and "external_check.csv" in todo
+    assert "still a draft" in todo and "external_check.csv" in todo
+    assert " ".join(freeze.judged_labels()) in todo  # tested on its own below
     # No longer the owner's: the blind labels, the "says LP" labels, all 62 reviews.
     assert "labels.csv" not in todo and "says_lp" not in todo and "test reviews" not in todo
 

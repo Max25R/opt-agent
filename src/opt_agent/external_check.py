@@ -32,18 +32,28 @@ a disagreement, a label question or an edited text, `keep` (our answer stands) o
 have, `confirmed` or `disputed`, as for the owner's review packet. The sheet is committed,
 so the freeze can check it without the benchmark, which isn't committed.
 
+The reviews the benchmark can't cover, and the two problems its rules can't settle
+(HARD_CASES), go to both LLM judges instead of the owner (Amendment 2): one prompt, a
+sheet per judge, each judgment `agree`, `disagree` or `unsure` on the review's claim.
+Both agreeing confirms a review; anything else disputes it (review_outcomes).
+
 Run:  python -m opt_agent.data         # fetches the pinned benchmark (git-ignored)
       python -m opt_agent.external_check   # writes review/external_check.md and .csv
+      python -m opt_agent.external_check judges   # writes review/review_judge/
+      python -m opt_agent.external_check judges --merge judge --reply R.csv --grader "MODEL"
 """
 
+import argparse
 import csv
 import difflib
 import math
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel
 
 from opt_agent import orlm
+from opt_agent.agent import format_model
 from opt_agent.data import DATA_DIR, ORLM_BENCHMARK, ORLM_BENCHMARK_REVISION
 from opt_agent.ground_truth import (
     GROUND_TRUTH_DIR,
@@ -51,9 +61,10 @@ from opt_agent.ground_truth import (
     Record,
     load_records,
     readings,
+    reference_model,
     scorable,
 )
-from opt_agent.packets import REVIEW_DIR, kept_marks
+from opt_agent.packets import JUDGE_SHEETS, REVIEW_DIR, kept_marks, merge_reply
 from opt_agent.solver import Status
 
 EXTERNAL_CHECK_PATH = REVIEW_DIR / "external_check.md"
@@ -61,9 +72,9 @@ DECISIONS_PATH = REVIEW_DIR / "external_check.csv"
 UNCOVERED = "not cross-checked"  # a reviewed problem the benchmark doesn't have
 # Why the owner decides a problem -> the decisions that settle it.
 DECISIONS = {
-    "disagrees": ("keep", "change"),
+    "disagrees": ("keep", "change", "exclude"),
     "other integrality": ("keep", "change"),
-    "edited text": ("keep", "change"),
+    "edited text": ("keep", "change", "exclude"),
     UNCOVERED: ("confirmed", "disputed"),
 }
 EDITED_RATIO = 0.9  # word-level SequenceMatcher ratio; a one-word edit scores about 0.99
@@ -304,14 +315,167 @@ def _show(s: CheckedSolve | None) -> str:
     return f"{s.objective:.10g}" if s.status is Status.OPTIMAL else s.status.value
 
 
-def main() -> None:
+# ---- the judges' verdicts on the reviews it leaves (Amendment 2) ----------------------
+
+REVIEW_JUDGE_DIR = REVIEW_DIR / "review_judge"
+JUDGMENTS = ("agree", "disagree", "unsure")
+# The two problems the list's rules can't settle (owner, 2026-11-04): an edited text the
+# benchmark answers differently, and a disagreement on an ambiguous-text problem. Listed by
+# id, like packets.SAYS_LP.
+HARD_CASES = ["1283305022", "-1715698555"]
+# What each review verdict claims, in words a judge can check against the text.
+CLAIMS = {
+    "text-has-no-optimum": "As written, the problem has no optimal solution: no choice meets "
+    "every requirement, or the objective can improve without limit. That status is the "
+    "right answer.",
+    "degenerate-text": "As written, nothing has to be made, so making nothing (objective 0) "
+    "is optimal. That's the right answer, if a trivial one.",
+    "annotation-error": "The annotated model doesn't say what the text says.",
+    "ambiguous-text": "The text supports more than one reading of one constraint, and each "
+    "reading's answer below is right.",
+    "orlm-error": "The annotated answer is right.",
+    "ok": "The problem looked suspicious, but the annotated answer is right.",
+}
+NO_REVIEW = "The annotated model says what the text says, so its answer is right."
+# Words of a review's reason the prompt leaves out, because they say what an outside answer
+# key found (owner, 2026-11-04). reviews.json keeps them.
+REDACTED = {"-1715698555": "; ORLM found no solution"}
+
+
+def judged_reviews(records: list[Record], decisions: Path = DECISIONS_PATH) -> list[Record]:
+    """The reviewed problems the benchmark doesn't have, in the sheet's order, then the
+    hard cases. Read from the committed sheet, since the benchmark isn't committed."""
+    by_id = {r.id: r for r in records}
+    uncovered = [row["problem_id"] for row in read_decisions(decisions) if row["why"] == UNCOVERED]
+    return [by_id[i] for i in uncovered + HARD_CASES]
+
+
+def review_prompt(records: list[Record]) -> str:
+    """For an LLM judge in a new conversation. It doesn't name the system or who wrote the
+    reviews, or say what the benchmark answered."""
+    lines = [
+        "# Is each review right?",
+        "",
+        f"Below are {len(records)} optimization word problems from a dataset. Each comes with "
+        "the dataset's annotation (the reference model, with whole-number or fractional "
+        "variables as the problem's label says), the answer that model gives, and a "
+        "reviewer's claim about the problem, with the reviewer's reason. Decide whether the "
+        "claim is right for the text as written, and answer:",
+        "",
+        "- `agree`: the claim is right.",
+        "- `disagree`: it's wrong; say what's wrong in the reason.",
+        "- `unsure`: you can't tell from the text.",
+        "",
+        "Judge against the text, not the annotation: the annotation can be wrong.",
+        "",
+        "Reply with CSV only, and no other text: the header `number,problem_id,judgment,reason`, "
+        "then one row per problem, with its number and problem id exactly as given, a "
+        "judgment, and a one-sentence reason in double quotes.",
+        "",
+    ]
+    for number, r in enumerate(records, 1):
+        claim = CLAIMS[r.review.verdict] if r.review else NO_REVIEW
+        reason = _shown_reason(r) if r.review else "(no review: this is the annotation's claim)"
+        lines += [f"## {number}. `{r.id}`", "", f"> {r.document}", "",
+                  f"Reference model (label: {r.integrality.kind}):", "```",
+                  *format_model(reference_model(r)), "```", "",
+                  f"**Its answer:** {_answers(r)}  ", f"**The claim:** {claim}  ",
+                  f"**The reviewer's reason:** {reason}", ""]  # fmt: skip
+    return "\n".join(lines)
+
+
+def _shown_reason(r: Record) -> str:
+    """The review's reason, less any REDACTED words. A redaction that no longer matches is an
+    error, so a changed review can't slip an answer key's verdict back in."""
+    cut = REDACTED.get(r.id)
+    if cut is None:
+        return r.review.reason
+    if cut not in r.review.reason:
+        raise ValueError(f"{r.id}: the review no longer says {cut!r}; update REDACTED")
+    return r.review.reason.replace(cut, "")
+
+
+def _answers(r: Record) -> str:
+    """The answers scoring accepts, with any second reading said in words."""
+    found = [_show(s) + _how(r, reading) for reading, s in readings(r)]
+    if found:
+        return "; ".join(found)
+    return f"{_show(r.lp)} with fractions, {_show(r.ip)} with whole numbers (not scored)"
+
+
+def _how(r: Record, reading: str) -> str:
+    if reading == "annotated":
+        return ""
+    return f" ({reading} reading: {'; '.join(getattr(r, reading).changed)})"
+
+
+def review_sheet(records: list[Record], path: Path) -> None:
+    kept = kept_marks(path, "problem_id", ["judgment", "reason", "grader"])
+    with path.open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["number", "problem_id", "review", "judgment", "reason", "grader"])
+        for number, r in enumerate(records, 1):
+            mark = kept.get(r.id, dict.fromkeys(["judgment", "reason", "grader"], ""))
+            writer.writerow([number, r.id, r.review.verdict if r.review else "none",
+                             mark["judgment"], mark["reason"], mark["grader"]])  # fmt: skip
+
+
+def read_judgments(path: Path) -> dict[str, str]:
+    """problem id -> the judge's judgment. Every row must be filled in."""
+    judgments = {}
+    with path.open(newline="") as f:
+        for row in csv.DictReader(f):
+            judgment = row["judgment"].strip().lower()
+            if judgment not in JUDGMENTS:
+                raise ValueError(f"problem {row['number']}: {judgment!r} is none of "
+                                 f"{', '.join(JUDGMENTS)}")  # fmt: skip
+            judgments[row["problem_id"]] = judgment
+    return judgments
+
+
+def review_outcomes(judge: dict[str, str], second: dict[str, str]) -> dict[str, str]:
+    """Confirmed where both judges agree with the claim; disputed otherwise, so one
+    judge's doubt is enough (Amendment 2)."""
+    return {pid: "confirmed" if (j, second.get(pid)) == ("agree", "agree") else "disputed"
+            for pid, j in judge.items()}  # fmt: skip
+
+
+def write_review_packet(records: list[Record]) -> int:
+    judged = judged_reviews(records)
+    REVIEW_JUDGE_DIR.mkdir(parents=True, exist_ok=True)
+    (REVIEW_JUDGE_DIR / "LLM_PROMPT.md").write_text(review_prompt(judged))
+    for name in JUDGE_SHEETS.values():
+        review_sheet(judged, REVIEW_JUDGE_DIR / name)
+    return len(judged)
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="The external cross-check of test answers.")
+    parser.add_argument("what", nargs="?", choices=["list", "judges"], default="list")
+    parser.add_argument(
+        "--merge", choices=list(JUDGE_SHEETS), help="judges: write a judge's reply into its sheet"
+    )
+    parser.add_argument("--reply", type=Path, help="with --merge: the reply, as a CSV file")
+    parser.add_argument("--grader", help="with --merge: the judge's model and version")
+    args = parser.parse_args(argv)
     records = load_records(GROUND_TRUTH_DIR / "test.json")
-    answers = orlm.load_answers(DATA_DIR / ORLM_BENCHMARK.path)
-    matches, unmatched = match(records, answers)
-    EXTERNAL_CHECK_PATH.write_text(render(records, matches, unmatched))
-    decision_sheet(to_decide(records, matches), DECISIONS_PATH)
-    print(f"wrote {EXTERNAL_CHECK_PATH} and {DECISIONS_PATH.name} ({len(matches)} matched, "
-          f"{len(unmatched)} unmatched)")  # fmt: skip
+    if args.what == "judges" and args.merge:
+        if not (args.reply and args.grader):
+            parser.error("--merge needs --reply and --grader")
+        sheet = REVIEW_JUDGE_DIR / JUDGE_SHEETS[args.merge]
+        n = merge_reply(sheet, args.reply, ["judgment", "reason"], args.grader)
+        print(f"merged {n} judgments from {args.reply} into {sheet}")
+    elif args.what == "judges":
+        n = write_review_packet(records)
+        print(f"wrote {REVIEW_JUDGE_DIR}/LLM_PROMPT.md, judge.csv and second_judge.csv "
+              f"({n} problems)")  # fmt: skip
+    else:
+        answers = orlm.load_answers(DATA_DIR / ORLM_BENCHMARK.path)
+        matches, unmatched = match(records, answers)
+        EXTERNAL_CHECK_PATH.write_text(render(records, matches, unmatched))
+        decision_sheet(to_decide(records, matches), DECISIONS_PATH)
+        print(f"wrote {EXTERNAL_CHECK_PATH} and {DECISIONS_PATH.name} ({len(matches)} "
+              f"matched, {len(unmatched)} unmatched)")  # fmt: skip
 
 
 if __name__ == "__main__":

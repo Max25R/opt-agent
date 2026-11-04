@@ -229,6 +229,21 @@ point is a trustworthy evaluation, not a demo.
      as `comparisons, lenient (exploratory)` (no Holm), and `integrality_agreement` from
      `packets.judges_agreement` (each judge against Claude's labels, and each other; an
      `either` "accepts" Claude's label). REPORT.md's wording changed; no ground-truth data did.
+   - **Judges' integrality replies and Amendment 2 parts 5-6 (2026-11-04; parts 5-6
+     approved and pushed before the review judges ran, so the rules came first):** both replies are merged (`review/integrality_judge/*_reply.csv` kept
+     verbatim; ChatGPT's model wasn't recorded). They agree on 37 of 44 (36 of the 40);
+     the combined labels turn 9 of Claude's integer labels into `either`, all 4 "says LP"
+     among them, but they aren't applied yet (`packets judge --apply`, then rebuild).
+     `review/external_check.csv` is filled by the owner's rules (part 5), with the rule in
+     each note; 26 rows wait for the review judges. `external_check.py judges` writes
+     `review/review_judge/` (the 24 uncovered reviews and the 2 hard cases,
+     `HARD_CASES`; agree/disagree/unsure; both agree = confirmed, else disputed, `unsure`
+     included; a hard case not confirmed is excluded). The prompt leaves out "ORLM found no
+     solution" from one reason (`REDACTED`; reviews.json keeps it). The review judge of
+     record is an incognito claude.ai chat: grader "Claude Opus 5.5 (claude.ai incognito)". Still to build after approval: applying the
+     decisions (4 `either` labels, exclusions, review outcomes in `reviews.json`),
+     `freeze` for them, and the report's 44-problem agreement, second-judge-only
+     sensitivity check, and accuracy without disputed problems.
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -315,6 +330,7 @@ python -m opt_agent.blind_grading runs/NAME [--size N]   # review/blind_grading/
 python -m opt_agent.taxonomy runs/NAME   # review/taxonomy/NAME/: label each silent failure
 python -m opt_agent.taxonomy runs/NAME --merge REPLY.csv --grader "MODEL, LLM judge"
 python -m opt_agent.external_check   # review/external_check.md: test answers vs ORLMBenchmark
+python -m opt_agent.external_check judges   # review/review_judge/: the reviews it leaves
 python -m opt_agent.packets judge   # review/integrality_judge/: one prompt, a sheet per judge
 python -m opt_agent.packets judge --merge judge|second --reply REPLY.csv --grader "MODEL"
 python -m opt_agent.packets judge --apply   # both sheets filled: combined labels into integrality.json
