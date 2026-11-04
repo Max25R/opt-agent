@@ -9,7 +9,7 @@ import pytest
 from fakes import GAS_MODEL, INFEASIBLE_REPLY, FakeClient, model
 from pytest import approx
 
-from opt_agent import api, blind_grading, evaluate, report, run_results, taxonomy
+from opt_agent import api, blind_grading, evaluate, packets, report, run_results, taxonomy
 from opt_agent.budget import Budget, BudgetedClient
 from opt_agent.evaluate import CONDITIONS
 from opt_agent.ground_truth import GROUND_TRUTH_DIR, load_records
@@ -184,7 +184,7 @@ def test_the_blind_packet_shows_no_answer_score_condition_or_id(mixed_run):
                    GAS.id, LOTION.id):  # fmt: skip
         assert hidden not in text.split("## 1.")[1], hidden
     assert list(csv.DictReader((out / "grades.csv").open()))[0].keys() == {
-        "number", "key", "grade", "note"}  # fmt: skip
+        "number", "key", "grade", "note", "grader"}  # fmt: skip
 
 
 def test_grades_are_compared_with_scores_per_stratum(mixed_run):
@@ -250,3 +250,46 @@ def test_the_report_carries_the_hand_checks_and_hashes_their_sheets(mixed_run):
     assert r["hand_checks"]["blind grading"]["strata"]["scored wrong"]["graded right"] == 2
     assert set(r["provenance"]["hand_check_sheets_sha256"]) == {
         "blind/mixed/grades.csv", "taxonomy/mixed/labels.csv"}  # fmt: skip
+
+
+# ---- an LLM judge's reply ----------------------------------------------------------------
+
+
+def reply(tmp_path, text: str):
+    path = tmp_path / "reply.csv"
+    path.write_text(text)
+    return path
+
+
+def test_a_judges_reply_merges_by_number_and_names_the_judge(mixed_run, tmp_path):
+    blind_grading.write_packet(mixed_run)
+    sheet = blind_grading.sheet_path("mixed")
+    answer = reply(tmp_path, 'number,grade,note\n3,wrong,\n1,right,"fine"\n2,unsure,\n')
+    assert packets.merge_reply(sheet, answer, ["grade", "note"], "Some model, LLM judge") == 3
+    rows = list(csv.DictReader(sheet.open()))
+    assert [(r["number"], r["grade"]) for r in rows] == [("1", "right"), ("2", "unsure"),
+                                                         ("3", "wrong")]  # fmt: skip
+    assert blind_grading.summary(run_results.load(mixed_run))["graders"] == [
+        "Some model, LLM judge"]  # fmt: skip
+
+
+@pytest.mark.parametrize("text, problem", [
+    ("number,grade,note\n1,right,\n2,right,\n", "not each of"),  # a row skipped
+    ("number,grade,note\n1,right,\n2,right,\n2,wrong,\n3,right,\n", "not each of"),  # doubled
+    ("number,key,grade,note\n1,abc,right,\n2,abc,right,\n3,abc,right,\n", "key 'abc'"),
+])  # fmt: skip
+def test_a_reply_that_skips_doubles_or_shifts_a_row_is_refused(mixed_run, tmp_path, text,
+                                                               problem):  # fmt: skip
+    blind_grading.write_packet(mixed_run)
+    with pytest.raises(ValueError, match=problem):
+        packets.merge_reply(blind_grading.sheet_path("mixed"), reply(tmp_path, text),
+                            ["grade", "note"], "judge")  # fmt: skip
+
+
+def test_the_llm_prompt_names_neither_the_system_nor_the_labels_author(mixed_run):
+    out, _ = taxonomy.write_packet(mixed_run)
+    prompt = (out / "LLM_PROMPT.md").read_text()
+    assert "Claude" not in prompt and "(claude)" not in prompt and "(rule)" not in prompt
+    assert "`number,key,category,note`" in prompt and "The system's model:" in prompt
+    for f in taxonomy.failures(run_results.load(mixed_run)):
+        assert f"(key `{f.key}`)" in prompt

@@ -17,7 +17,11 @@ The categories were drawn up from the dev failures (docs/FAILURE_LOG.md and the 
 runs) and are pre-registered for the test run: a failure that fits none is "other", with a
 note, not a new category.
 
+An LLM judge gets LLM_PROMPT.md instead (Amendment 2): the same rows, without naming the
+system or who wrote the labels, and a reply format that --merge writes into labels.csv.
+
 Run:  python -m opt_agent.taxonomy runs/NAME    # writes review/taxonomy/NAME/
+      python -m opt_agent.taxonomy runs/NAME --merge REPLY.csv --grader "MODEL, LLM judge"
 """
 
 import argparse
@@ -35,7 +39,7 @@ from opt_agent.ground_truth import (
     reference_model,
     same_value,
 )
-from opt_agent.packets import REVIEW_DIR, kept_marks
+from opt_agent.packets import REVIEW_DIR, graders, kept_marks, merge_reply
 from opt_agent.run_results import ScoredRun, answer_key, final_models, load, model_key, model_of
 from opt_agent.schema import LPModel
 from opt_agent.scoring import score
@@ -59,11 +63,12 @@ CATEGORIES = {
     "calculation": "no misreading found that gives this answer: a slip in the arithmetic or "
     "in finding the best choice",
     # The reference, not Claude.
-    "reference": "Claude's reading is one the text supports but no accepted reading allows, "
-    "or the reference is wrong",
+    "reference": "the system's reading is one the text supports but no accepted reading "
+    "allows, or the reference is wrong",
     "other": "none of these; say what in the note",
 }
 UNLABELED = "unlabeled"
+MARKS = ["category", "note", "grader"]  # the labeler's columns; `grader` names who filled them
 
 
 class Failure(BaseModel):
@@ -139,30 +144,69 @@ def packet(run: ScoredRun, rows: list[Failure]) -> str:
         "**If this run has a blind-grading packet (`review/blind_grading/`), grade it "
         "first**: this one shows which answers are wrong.",
         "",
-        "| category | meaning |",
-        "|---|---|",
-        *(f"| `{name}` | {meaning} |" for name, meaning in CATEGORIES.items()),
-        "",
+        *_categories(),
     ]
     for number, f in enumerate(rows, 1):
         lines += _row(number, f, run.by_id[f.problem_id], rows)
     return "\n".join(lines)
 
 
-def _row(number: int, f: Failure, record: Record, rows: list[Failure]) -> list[str]:
+def llm_packet(run: ScoredRun, rows: list[Failure]) -> str:
+    """The same failures as a prompt for an LLM judge in a fresh conversation (Amendment 2).
+    It doesn't name the system or who wrote the labels, and asks for a CSV reply that
+    merges into labels.csv (packets.merge_reply)."""
+    lines = [
+        "# Why is each answer wrong?",
+        "",
+        "You are labeling the failures of a system that turns optimization word problems into "
+        f"linear or integer programs and solves them. Below are {len(rows)} problems it "
+        "answered wrongly. Each shows the problem text, the system's answer, the answers "
+        "accepted as right, the reference model (the dataset's annotation, with whole-number "
+        "or fractional variables as the problem's label says), and the system's own model. "
+        "Rows marked `baseline` are answers the system gave directly, with no model.",
+        "",
+        "For each failure, choose exactly one category from the table: the one for its main "
+        "error, the one whose fix alone would give an accepted answer, if there is one. "
+        "Mention any other errors in the note. Judge against the problem text: the reference "
+        "is usually right, but it can be wrong or be one of several readings.",
+        "",
+        "Reply with CSV only, and no other text: the header `number,key,category,note`, then "
+        "one row per failure, with its number and key exactly as given, a category name from "
+        "the table, and a one-sentence note in double quotes.",
+        "",
+        *_categories(),
+    ]
+    for number, f in enumerate(rows, 1):
+        lines += _row(number, f, run.by_id[f.problem_id], rows, neutral=True)
+    return "\n".join(lines)
+
+
+def _categories() -> list[str]:
+    return [
+        "| category | meaning |",
+        "|---|---|",
+        *(f"| `{name}` | {meaning} |" for name, meaning in CATEGORIES.items()),
+        "",
+    ]
+
+
+def _row(
+    number: int, f: Failure, record: Record, rows: list[Failure], neutral: bool = False
+) -> list[str]:
+    """`neutral`: for an outside judge, so the system and the labels' authors go unnamed."""
     accepted = "; ".join(f"{_show(s.status.value, s.objective)} ({reading})"
                          for reading, s in readings(record))  # fmt: skip
     label = record.integrality
+    source = "" if neutral else f" ({label.source})"
     lines = [
-        f"## {number}. `{f.problem_id}`: {', '.join(f.conditions)}",
+        f"## {number}. `{f.problem_id}`: {', '.join(f.conditions)} (key `{f.key}`)",
         "",
         f"> {record.document}",
         "",
         f"**Answered:** {_show(f.status, f.objective)}  ",
         f"**Accepted:** {accepted}  ",
         f"**As annotated:** LP {_show(record.lp.status.value, record.lp.objective)}, IP "
-        f"{_show(record.ip.status.value, record.ip.objective)}; label {label.kind} "
-        f"({label.source})",
+        f"{_show(record.ip.status.value, record.ip.objective)}; label {label.kind}{source}",
         "",
     ]
     if found := facts(f, record, rows):
@@ -177,7 +221,8 @@ def _row(number: int, f: Failure, record: Record, rows: list[Failure]) -> list[s
     if f.model is None:
         lines += ["No model: the baseline answers directly.", ""]
     else:
-        lines += ["Claude's model:", "```", *format_model(f.model), "```", ""]
+        whose = "The system's model:" if neutral else "Claude's model:"
+        lines += [whose, "```", *format_model(f.model), "```", ""]
     if record.review:
         lines += [f"Review ({record.review.verdict}): {record.review.reason}", ""]
     return lines
@@ -192,14 +237,14 @@ def sheet_path(run_name: str) -> Path:
 
 
 def label_sheet(rows: list[Failure], path: Path) -> None:
-    kept = kept_marks(path, "key", ["category", "note"])
+    kept = kept_marks(path, "key", MARKS)
     with path.open("w", newline="") as out:
         writer = csv.writer(out)
-        writer.writerow(["number", "key", "problem_id", "conditions", "category", "note"])
+        writer.writerow(["number", "key", "problem_id", "conditions", *MARKS])
         for number, f in enumerate(rows, 1):
-            mark = kept.get(f.key, {"category": "", "note": ""})
+            mark = kept.get(f.key, dict.fromkeys(MARKS, ""))
             writer.writerow([number, f.key, f.problem_id, " ".join(f.conditions),
-                             mark["category"], mark["note"]])  # fmt: skip
+                             *(mark[c] for c in MARKS)])  # fmt: skip
 
 
 def read_labels(path: Path) -> dict[str, str]:
@@ -231,6 +276,7 @@ def summary(run: ScoredRun) -> dict:
             counts[c][labels.get(f.key, UNLABELED)] += 1
     order = [*CATEGORIES, UNLABELED]
     return {
+        "graders": graders(path),
         "complete": not any(n[UNLABELED] for n in counts.values()),
         "by condition": {c: {k: n[k] for k in order if n[k]} for c, n in counts.items()},
     }
@@ -242,6 +288,7 @@ def write_packet(run_dir: Path) -> tuple[Path, int]:
     out = sheet_path(run.name).parent
     out.mkdir(parents=True, exist_ok=True)
     (out / "PACKET.md").write_text(packet(run, rows))
+    (out / "LLM_PROMPT.md").write_text(llm_packet(run, rows))
     label_sheet(rows, sheet_path(run.name))
     return out, len(rows)
 
@@ -249,9 +296,23 @@ def write_packet(run_dir: Path) -> tuple[Path, int]:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="The error-taxonomy packet for one run.")
     parser.add_argument("run_dir", type=Path, help="a directory evaluate.py wrote")
+    parser.add_argument(
+        "--merge",
+        type=Path,
+        metavar="REPLY",
+        help="a judge's reply (number,key,category,note) to write into labels.csv",
+    )
+    parser.add_argument("--grader", help="with --merge: who labeled, e.g. a model and version")
     args = parser.parse_args(argv)
+    if args.merge:
+        if not args.grader:
+            parser.error("--merge needs --grader")
+        sheet = sheet_path(load(args.run_dir).name)
+        n = merge_reply(sheet, args.merge, ["category", "note"], args.grader)
+        print(f"merged {n} labels from {args.merge} into {sheet}")
+        return
     out, n = write_packet(args.run_dir)
-    print(f"wrote {out}/PACKET.md and labels.csv ({n} failures)")
+    print(f"wrote {out}/PACKET.md, LLM_PROMPT.md and labels.csv ({n} failures)")
 
 
 if __name__ == "__main__":

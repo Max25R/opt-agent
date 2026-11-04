@@ -193,6 +193,17 @@ point is a trustworthy evaluation, not a demo.
      - `report.build` has `hand_checks` ("pending" until a sheet is filled) and the
        sheets' hashes in its provenance. Dev packets: `review/taxonomy/dev-1/` (7
        failures) and a 10-model pilot, `review/blind_grading/dev-1/`.
+   - **Owner's decision (2026-11-02): an LLM judge and an external cross-check**, drafted
+     as pre-registration Amendment 2 (not approved yet; `freeze.unfinished()` unchanged
+     until it is). The judge must be from another vendor than Anthropic, and is still to
+     be named. Sheets have a `grader` column, and `--merge REPLY --grader NAME` writes a
+     judge's CSV reply into a sheet, refusing skipped, doubled or shifted rows. The
+     taxonomy also writes `LLM_PROMPT.md`, which doesn't name the system. The dev pilot was
+     graded by Claude Opus 5.5 (same vendor: a format check only); its reply is
+     `judge_reply.csv`. `external_check.py` compares test answers with the corrected
+     NL4OPT in ORLMBenchmark (`data.ORLM_BENCHMARK`, Apache-2.0, git-ignored download)
+     and writes `review/external_check.md`. That benchmark lacks every do-nothing problem
+     and some no-optimum ones, so 24 reviews still need the owner.
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -277,6 +288,8 @@ python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.
 python -m opt_agent.report runs/P --original runs/NAME   # a perturbed run, paired
 python -m opt_agent.blind_grading runs/NAME [--size N]   # review/blind_grading/NAME/, first
 python -m opt_agent.taxonomy runs/NAME   # review/taxonomy/NAME/: label each silent failure
+python -m opt_agent.taxonomy runs/NAME --merge REPLY.csv --grader "MODEL, LLM judge"
+python -m opt_agent.external_check   # review/external_check.md: test answers vs ORLMBenchmark
 ```
 
 ## Ground truth (milestone 3 decisions)

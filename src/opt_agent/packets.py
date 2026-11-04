@@ -264,12 +264,45 @@ def mark_sheet(rows: list[tuple[Record, str, str | None]], path: Path) -> None:
 
 
 def kept_marks(path: Path, key: str, columns: list[str]) -> dict[str, dict[str, str]]:
-    """What the owner already wrote in a sheet, by each row's key, so that regenerating its
-    packet keeps it."""
+    """What a grader already wrote in a sheet, by each row's key, so that regenerating its
+    packet keeps it. A column the sheet doesn't have yet comes back empty."""
     if not path.exists():
         return {}
     with path.open(newline="") as f:
-        return {row[key]: {c: row[c] for c in columns} for row in csv.DictReader(f)}
+        return {row[key]: {c: row.get(c) or "" for c in columns} for row in csv.DictReader(f)}
+
+
+def merge_reply(sheet: Path, reply: Path, columns: list[str], grader: str) -> int:
+    """Write a judge's reply (a CSV with `number` and `columns`, as the judge gave it) into a
+    packet's sheet row by row, naming the judge in the sheet's `grader` column. The reply
+    must cover every row exactly once, and if it repeats the keys they must match, so a
+    skipped, doubled or shifted row can't slip in. Returns the number of rows merged."""
+    with sheet.open(newline="") as f:
+        rows = list(csv.DictReader(f))
+    with reply.open(newline="") as f:
+        answered = list(csv.DictReader(f))
+    replies = {r["number"].strip(): r for r in answered}
+    numbers = [row["number"] for row in rows]
+    if len(answered) != len(replies) or sorted(replies) != sorted(numbers):
+        given = [r["number"].strip() for r in answered]
+        raise ValueError(f"{reply} answers rows {given}, not each of {numbers} once")
+    for row in rows:
+        answer = replies[row["number"]]
+        if answer.get("key") and answer["key"].strip() != row["key"]:
+            raise ValueError(f"row {row['number']}: key {answer['key']!r}, not {row['key']!r}")
+        row.update({c: (answer.get(c) or "").strip() for c in columns}, grader=grader)
+    fields = [*rows[0].keys()]
+    with sheet.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    return len(rows)
+
+
+def graders(sheet: Path) -> list[str]:
+    """Who filled in a sheet, as its `grader` column names them."""
+    with sheet.open(newline="") as f:
+        return sorted({(row.get("grader") or "").strip() for row in csv.DictReader(f)} - {""})
 
 
 # ---- 3. "says LP" labels ---------------------------------------------------------------

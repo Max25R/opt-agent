@@ -21,6 +21,11 @@ ORLM_REVISION = "98da4f57462f03c0c8d44211647be87acd649d20"
 
 _NL4OPT = f"https://raw.githubusercontent.com/nl4opt/nl4opt-competition/{NL4OPT_COMMIT}"
 _ORLM = f"https://huggingface.co/datasets/CardinalOperations/NL4OPT/resolve/{ORLM_REVISION}"
+ORLM_BENCHMARK_REVISION = "54ca621042b4619b90ce23ba3edd710611822e02"
+_ORLM_BENCHMARK = (
+    "https://huggingface.co/datasets/chenyitian-shanshu/ORLMBenchmark/resolve/"
+    f"{ORLM_BENCHMARK_REVISION}"
+)
 
 
 @dataclass(frozen=True)
@@ -47,7 +52,15 @@ ORLM_ANSWERS = Source(
     f"{_ORLM}/NL4OPT_with_optimal_solution.json",
     "3ff8bb26595ae65c9a115ea3f578086007e10475e0ef7f508707558058f2d8a2",
 )
-SOURCES = [NL4OPT_DEV, NL4OPT_TEST, ORLM_ANSWERS]
+# The corrected NL4OPT in ORLMBenchmark (the SIRL paper's authors reviewed and corrected
+# it): 245 test problems with optimal values. The external cross-check of our test answers
+# (external_check.py; pre-registration, Amendment 2), never ground truth. License: Apache-2.0.
+ORLM_BENCHMARK = Source(
+    "thirdparty/orlmbench/NL4OPT.jsonl",
+    f"{_ORLM_BENCHMARK}/NL4OPT.jsonl",
+    "409b34856faba736bd6d4b3ab1569d74e7c513233389c691a9219bd2b9cc1689",
+)
+SOURCES = [NL4OPT_DEV, NL4OPT_TEST, ORLM_ANSWERS, ORLM_BENCHMARK]
 
 
 def fetch(source: Source, data_dir: Path = DATA_DIR) -> Path:

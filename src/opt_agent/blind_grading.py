@@ -18,6 +18,7 @@ The grade sheet links its rows to models only by key (run_results.model_key), wh
 nothing a grader could look up; the report recomputes the pool to read it.
 
 Run:  python -m opt_agent.blind_grading runs/NAME [--size N]   # writes review/blind_grading/NAME/
+      python -m opt_agent.blind_grading runs/NAME --merge REPLY.csv --grader "MODEL, LLM judge"
 """
 
 import argparse
@@ -30,7 +31,7 @@ from pydantic import BaseModel
 
 from opt_agent.agent import format_model
 from opt_agent.ground_truth import blind_gradable, reference_model
-from opt_agent.packets import REVIEW_DIR, kept_marks
+from opt_agent.packets import REVIEW_DIR, graders, kept_marks, merge_reply
 from opt_agent.run_results import ScoredRun, final_models, load, model_key, model_of
 from opt_agent.schema import LPModel
 from opt_agent.stats import wilson
@@ -39,6 +40,7 @@ BLIND_GRADING_DIR = REVIEW_DIR / "blind_grading"
 SEED = 20261030  # recorded so anyone can redraw the same sample
 SIZE = 40
 GRADES = ("right", "wrong", "unsure")
+MARKS = ["grade", "note", "grader"]  # the grader's columns; `grader` names who filled them in
 
 
 class Formulation(BaseModel):
@@ -131,13 +133,13 @@ def sheet_path(run_name: str) -> Path:
 
 
 def grade_sheet(sample: list[Formulation], path: Path) -> None:
-    kept = kept_marks(path, "key", ["grade", "note"])
+    kept = kept_marks(path, "key", MARKS)
     with path.open("w", newline="") as out:
         writer = csv.writer(out)
-        writer.writerow(["number", "key", "grade", "note"])
+        writer.writerow(["number", "key", *MARKS])
         for number, f in enumerate(sample, 1):
-            mark = kept.get(f.key, {"grade": "", "note": ""})
-            writer.writerow([number, f.key, mark["grade"], mark["note"]])
+            mark = kept.get(f.key, dict.fromkeys(MARKS, ""))
+            writer.writerow([number, f.key, *(mark[c] for c in MARKS)])
 
 
 def read_grades(path: Path) -> dict[str, tuple[str, str]]:
@@ -189,7 +191,7 @@ def summary(run: ScoredRun) -> dict:
         grades = read_grades(path)
     except ValueError as unfilled:
         return {"pending": f"grades.csv isn't filled in yet ({unfilled})"}
-    return agreement(pool(run), grades)
+    return {"graders": graders(path), **agreement(pool(run), grades)}
 
 
 def write_packet(run_dir: Path, size: int = SIZE) -> tuple[Path, int]:
@@ -206,7 +208,21 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="The blind-grading packet for one run.")
     parser.add_argument("run_dir", type=Path, help="a directory evaluate.py wrote")
     parser.add_argument("--size", type=int, default=SIZE, help=f"default: {SIZE}")
+    parser.add_argument(
+        "--merge",
+        type=Path,
+        metavar="REPLY",
+        help="a judge's reply (number,grade,note) to write into grades.csv",
+    )
+    parser.add_argument("--grader", help="with --merge: who graded, e.g. a model and version")
     args = parser.parse_args(argv)
+    if args.merge:
+        if not args.grader:
+            parser.error("--merge needs --grader")
+        sheet = sheet_path(load(args.run_dir).name)
+        n = merge_reply(sheet, args.merge, ["grade", "note"], args.grader)
+        print(f"merged {n} grades from {args.merge} into {sheet}")
+        return
     out, n = write_packet(args.run_dir, args.size)
     print(f"wrote {out}/PACKET.md and grades.csv ({n} models)")
 

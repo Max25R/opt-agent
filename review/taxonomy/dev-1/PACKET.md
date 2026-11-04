@@ -15,10 +15,10 @@ The 7 distinct silent failures in `runs/dev-1` (the dev split): answers that wer
 | `integrality` | whole numbers vs fractions differ from the label |
 | `rounding` | the right answer, rounded too far to match at 1e-6 |
 | `calculation` | no misreading found that gives this answer: a slip in the arithmetic or in finding the best choice |
-| `reference` | Claude's reading is one the text supports but no accepted reading allows, or the reference is wrong |
+| `reference` | the system's reading is one the text supports but no accepted reading allows, or the reference is wrong |
 | `other` | none of these; say what in the note |
 
-## 1. `793774916`: baseline
+## 1. `793774916`: baseline (key `e64fe050e36b`)
 
 > A bakery sells two types of cakes. They sell a chocolate cake and a vanilla cake. Let's say they make x1 chocolate cakes, at a profit of $10 each, and x2 vanilla cakes, at a profit of $11 each (x1 and x2 are unknowns both greater than or equal to 0). The daily demand for these cakes is at most 50 chocolate cakes and at most 30 vanilla cakes. The bakery is short staffed and can make a maximum of 50 cakes of either type per day. How much of each cake should the bakery make in order to maximize profit?
 
@@ -38,7 +38,7 @@ max 10*[chocolate cake] + 11*[vanilla cake]
 
 No model: the baseline answers directly.
 
-## 2. `562583112`: baseline
+## 2. `562583112`: baseline (key `dd4985001fb0`)
 
 > A company is delivering packages using two methods, drones and couriers. A drone can transport 4 packages every hour while a courier can transport 25 packages every hour. Drones cost an average of $2 per hour to maintain and couriers are paid $20 per hour. The company needs to deliver at least 800 packages and they can spend at most $1300 per hour for delivery. Since drones have a high up-front cost, the number of drones cannot exceed the number of couriers. How many of each method of delivering packages should be used to minimize the total number of deliveries using drones and couriers?
 
@@ -60,7 +60,7 @@ min 4*[drones] + 25*[couriers]
 
 No model: the baseline answers directly.
 
-## 3. `562583112`: single-shot, self-correction
+## 3. `562583112`: single-shot, self-correction (key `9edce1ec8e1d`)
 
 > A company is delivering packages using two methods, drones and couriers. A drone can transport 4 packages every hour while a courier can transport 25 packages every hour. Drones cost an average of $2 per hour to maintain and couriers are paid $20 per hour. The company needs to deliver at least 800 packages and they can spend at most $1300 per hour for delivery. Since drones have a high up-front cost, the number of drones cannot exceed the number of couriers. How many of each method of delivering packages should be used to minimize the total number of deliveries using drones and couriers?
 
@@ -88,7 +88,7 @@ min 1*[drones] + 1*[couriers]
   couriers: integer, in [0, inf]
 ```
 
-## 4. `-1303541177`: single-shot, self-correction
+## 4. `-1303541177`: single-shot, self-correction (key `fc37997ef2ef`)
 
 > A physics class is performing a volcano experiment using two mixtures, mixture A and mixture B. Mixture A uses 3 units of baking soda, 5 units of vinegar, and produces 2 units of eruption. Mixture B uses 4 units of baking soda, 7 units of vinegar, and produces 4 units of eruption. However, mixture A generates 2 units of garbage and mixture B generates 1 unit of garbage. The physics class has available 200 units of baking soda and 300 units of vinegar. If at most 60 units of garbage can be generated, how many of each type of mixture should be used to maximize the total amount of eruption produced?
 
@@ -118,7 +118,7 @@ max 2*[mixture A batches] + 4*[mixture B batches]
   mixture B batches: continuous, in [0, inf]
 ```
 
-## 5. `-577606329`: baseline
+## 5. `-577606329`: baseline (key `8f5558d857f5`)
 
 > There are two methods of extracting a chemical element, method X and method Y.  Method X requires 5 atomic units (au) of aluminum, 1 au of oxygen, and can extract 0.5 au of the desired chemical element. Method Y requires 6 au of aluminum, 2 au of oxygen, and can extract 0.7 au of the desired chemical element. There are 650 au of aluminum, and 425 au of oxygen available. What is the best combination of these two methods to maximize the total amount of desired chemical element?
 
@@ -140,7 +140,7 @@ max 0.5*[method X] + 0.7*[method Y.]
 
 No model: the baseline answers directly.
 
-## 6. `-577606329`: single-shot, self-correction
+## 6. `-577606329`: single-shot, self-correction (key `efbb5818d19b`)
 
 > There are two methods of extracting a chemical element, method X and method Y.  Method X requires 5 atomic units (au) of aluminum, 1 au of oxygen, and can extract 0.5 au of the desired chemical element. Method Y requires 6 au of aluminum, 2 au of oxygen, and can extract 0.7 au of the desired chemical element. There are 650 au of aluminum, and 425 au of oxygen available. What is the best combination of these two methods to maximize the total amount of desired chemical element?
 
@@ -168,7 +168,7 @@ max 0.5*[method X runs] + 0.7*[method Y runs]
   method Y runs: continuous, in [0, inf]
 ```
 
-## 7. `-1389517053`: baseline
+## 7. `-1389517053`: baseline (key `2795a876d06e`)
 
 > A chemical company makes an acidic liquid and a basic liquid using two types of techniques, reaction X and reaction Y. Reaction X can make 35 au of the acidic liquid and 75 au of the basic liquid per minute. Reaction Y can make 42 au of the acidic liquid and 35 au of the basic liquid per minute. Furthermore, reaction X requires 18 units of heat every minute while reaction Y requires 12 units of heat every minute. The chemical company has the capacity to generate at most 1400 units of heat every minute. If the chemical company needs to make at least 900 au of the acidic liquid and 1200 au of the basic liquid per minute, how many minutes should each reaction be run for to minimize the total time needed?
 

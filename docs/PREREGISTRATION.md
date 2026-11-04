@@ -216,8 +216,9 @@ Every table gives these rows, with n:
 
 ## 5a. Hand checks of the run
 
-The owner does two checks after the test run, from packets the code builds in `review/`.
-The blind grading comes first, since the taxonomy packet shows which answers are wrong.
+Two checks are done after the test run, from packets the code builds in `review/`: by an
+LLM judge from another vendor, not by the owner (Amendment 2). The blind grading comes
+first, since the taxonomy packet shows which answers are wrong.
 Both are reported with counts and intervals, with no tests.
 
 **Blind grading** (`blind_grading.py`). The score compares answers, not models. A wrong
@@ -254,7 +255,7 @@ from the dev failures (`review/taxonomy/dev-1/`), and a failure that fits none i
 | `integrality` | whole numbers vs fractions differ from the label |
 | `rounding` | the right answer, rounded too far to match at 1e-6 (baseline) |
 | `calculation` | no misreading found that gives this answer: a slip in the arithmetic or in finding the best choice (baseline) |
-| `reference` | Claude's reading is one the text supports but no accepted reading allows, or the reference is wrong |
+| `reference` | the system's reading is one the text supports but no accepted reading allows, or the reference is wrong |
 | `other` | none of these, with a note |
 
 Reported: per condition, the number of silent failures in each category. Loud failures
@@ -289,7 +290,8 @@ subset is refused.
 
 Before freezing:
 - the owner marks the packets in `review/` (blind labels, test reviews, and the 4
-  "says LP" labels);
+  "says LP" labels; for the test reviews, Amendment 2 replaces most of this with an
+  external cross-check);
 - disputed reviews are resolved;
 - labels the owner changes are written to `integrality.json` with source `owner`.
 
@@ -337,3 +339,57 @@ sections 1, 2a and 3g.
   each one took.
 - A solver time-out is still a loud failure (section 1): it's about Claude's model, not
   the API.
+
+### Amendment 2 (owner, 2026-11-02): an LLM judge and an external cross-check
+
+Made while this file is still a draft. It changes who does the hand checks of section 5a,
+and how the test reviews are confirmed before freezing (section 6).
+
+**1. An LLM judge from another vendor does the hand checks (5a), not the owner.**
+- **The judge** is a model not made by Anthropic. The system under test is Claude, and a
+  judge from the same vendor could share its blind spots. It's named here, with its exact
+  model version, before the test run: **(to be filled in)**.
+- **What it gets:** the generated prompt, byte for byte, in a new conversation with
+  nothing else (no repository, no run files, no other packet). For blind grading that's
+  `PACKET.md`. For the taxonomy it's `LLM_PROMPT.md`: the same rows as the owner's
+  packet, without naming the system or who wrote the labels. Blind grading comes first.
+- **Its reply** is saved verbatim next to the sheet and merged by row number (`--merge`).
+  The merge refuses a reply that skips, doubles or shifts a row. The judge's name goes in
+  the sheet's `grader` column, and the report lists the graders. A reply that can't be
+  merged is asked for again in a new conversation, and every reply is kept.
+- **Reported** as section 5a says, but called what it is: agreement between an LLM judge
+  and the automatic score, not a human check. A judge makes mistakes of its own, and
+  nothing here measures them.
+- **The dev pilot** (`review/blind_grading/dev-1/`) was graded by Claude Opus 5.5, from
+  the same vendor as the system under test. It checked the packet's format only, and its
+  grades aren't reported as a result.
+
+**2. An external cross-check replaces most of the owner's review confirmations (6).**
+- **The source:** the corrected NL4OPT in ORLMBenchmark (`chenyitian-shanshu/ORLMBenchmark`,
+  `NL4OPT.jsonl`, pinned by revision and SHA-256 in `data.py`; Apache-2.0), from the
+  authors of the SIRL paper. It gives optimal values for 245 of NL4Opt's test problems.
+- **The check** (`external_check.py`): each test problem is matched to the benchmark by
+  normalized text, or to a benchmark text that edits a few of its words, and the
+  benchmark's value is compared with the answers scoring accepts, at 1e-4 relative (the
+  published values are rounded). The owner's list is `review/external_check.md`.
+- **Where the benchmark agrees** with our answer, or with another accepted reading (strict,
+  "="), the answer stands with no hand check, and so does the review, if there is one.
+- **The owner decides every problem the list names:** each disagreement; each "other
+  integrality" (the benchmark has our optimum with the other integrality, so the label is
+  in question); and each problem whose text the benchmark edited, since an edit says its
+  authors found the text wrong. A decision that changes the ground truth goes into
+  `reviews.json`, or `integrality.json` with source `owner`, before the freeze.
+- **Reviewed problems the benchmark doesn't have can't be cross-checked.** It has none of
+  the do-nothing problems (3b) and lacks about a third of those with no optimum (3a), so
+  these are most of the reviews it leaves. The owner still confirms those by hand
+  (`confirmed_by_owner`).
+- **Limits:** agreement isn't independent proof. The benchmark descends from the same
+  NL4Opt problems, and possibly, through ORLM's answers, from the same annotations, so an
+  error both inherit gets through. Its authors describe their review as quick. A
+  disagreement is the informative signal.
+- **Code:** once this amendment is approved, `freeze.unfinished()` will require the
+  owner's decision on every listed problem, and `confirmed_by_owner` only for reviews the
+  benchmark doesn't cover. Until then it's unchanged.
+
+**Unchanged:** the owner's blind integrality labels (`review/integrality_blind/`, 3f) and
+the 4 "says LP" labels (3d).
