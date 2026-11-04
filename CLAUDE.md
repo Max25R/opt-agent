@@ -63,7 +63,11 @@ point is a trustworthy evaluation, not a demo.
      `Result.confirmed`; the owner's packets (`review/`, `packets.py`); a draft
      pre-registration (`docs/PREREGISTRATION.md`); `requirements.lock`.
    - **Still open before milestone 6:** only `freeze approve` (the owner's step). The
-     pre-registration was approved as a whole on 2026-11-04 (owner), with Amendments 1-2. Amendment 2's
+     pre-registration was approved as a whole on 2026-11-04 (owner), with Amendments 1-2. Prices
+     re-checked the same day, before the freeze: unchanged (`PRICES_CHECKED`). The owner
+     approved the test-run plan: `--cap 1.60` for `runs/test` and `--cap 1.40` for
+     `runs/test-perturbed` ($3 in all), run from the owner's terminal (the sandbox
+     breaks Python's TLS here). Amendment 2's
      judges, cross-check and review outcomes are all applied (2026-11-04). The owner's own
      packets (`review/integrality_blind/`, `review/says_lp.md`, `review/test_reviews/`) are
      no longer used, and are kept as sent: the review packet's label lines predate the
