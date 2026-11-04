@@ -435,5 +435,11 @@ python -m opt_agent.packets judge --apply   # both sheets filled: combined label
 
 ## Settled decisions
 
-- No license for this repo (owner's call, 2026-10-16).
+- MIT license, "Copyright (c) 2026 Max Reese" (owner, 2026-11-04; this reverses the
+  2026-10-16 "no license" call, so the repo can be used and installed). The
+  data keeps its own licenses: NL4Opt is MIT (`data/nl4opt/LICENSE`), ORLMBenchmark is
+  Apache-2.0 (credited in `review/external_check.md`), and ORLM's CC BY-NC answers are
+  never committed.
+- No API key is ever committed: `tests/test_repo_hygiene.py` checks every tracked file
+  (the history was checked by hand on 2026-11-04 and is clean).
 - Don't file the CBC preprocessing bug upstream (owner's call, 2026-10-16).
