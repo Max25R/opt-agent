@@ -427,6 +427,12 @@ def read_judge_labels(path: Path) -> dict[str, str]:
     return labels
 
 
+def combined_labels(judge: dict[str, str], second: dict[str, str]) -> dict[str, str]:
+    """The label that scores (Amendment 2): the judges' label where they agree, else
+    `either`, so that neither judge alone decides an answer."""
+    return {pid: label if second.get(pid) == label else "either" for pid, label in judge.items()}
+
+
 def write_judge_packet(records: list[Record]) -> int:
     problems = judged_problems(records)
     JUDGE_DIR.mkdir(parents=True, exist_ok=True)

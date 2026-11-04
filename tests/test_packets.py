@@ -218,3 +218,10 @@ def test_a_judges_reply_with_a_wrong_problem_id_or_label_is_refused(tmp_path):
     packets.merge_reply(sheet, reply, ["label", "note"], "judge")
     with pytest.raises(ValueError, match="'mixed' is none of"):
         packets.read_judge_labels(sheet)
+
+
+def test_the_judges_combined_label_is_theirs_where_they_agree_else_either():
+    judge = {"a": "integer", "b": "continuous", "c": "either", "d": "integer"}
+    second = {"a": "integer", "b": "integer", "c": "either", "d": "either"}
+    assert packets.combined_labels(judge, second) == {
+        "a": "integer", "b": "either", "c": "either", "d": "either"}  # fmt: skip

@@ -31,7 +31,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from opt_agent import baseline, explain, formulate, packets, perturb
+from opt_agent import baseline, explain, external_check, formulate, packets, perturb
 from opt_agent.api import canonical_json
 from opt_agent.ground_truth import (
     EXCLUSIONS_PATH,
@@ -169,34 +169,65 @@ def check() -> str:
 
 def unfinished() -> list[str]:
     """What's left before the owner may approve: the pre-registration's own approval, its
-    "Before freezing" list (section 6), and a ground truth built from the current hand
-    inputs. Checked from the files; empty when nothing is left."""
+    "Before freezing" list (section 6, as Amendment 2 changes it), and a ground truth built
+    from the current hand inputs. Checked from the files; empty when nothing is left."""
     todo = []
     if "**Status: DRAFT" in PREREGISTRATION_PATH.read_text():
         todo.append("docs/PREREGISTRATION.md is still a draft: the owner approves it first")
-    reviews = [r for (split, _), r in load_reviews(REVIEWS_PATH).items() if split == "test"]
-    unconfirmed = sum(not r.confirmed_by_owner for r in reviews)
-    if unconfirmed:
-        todo.append(
-            f"{unconfirmed} of the {len(reviews)} test reviews aren't confirmed by the owner "
-            "yet (review/test_reviews/marks.csv, applied to reviews.json)"
-        )
-    try:
-        packets.read_labels(packets.BLIND_DIR / "labels.csv")
-    except ValueError:
-        todo.append(
-            "the blind integrality labels aren't all filled in "
-            "(review/integrality_blind/labels.csv)"
-        )
+    return todo + judged_labels() + cross_check() + stale_ground_truth()
+
+
+def judged_labels() -> list[str]:
+    """Amendment 2, part 3: both judges' sheets filled in, and the label the two give
+    together (packets.combined_labels) applied to integrality.json with source `judge`."""
+    sheets, todo = [], []
+    for name in packets.JUDGE_SHEETS.values():
+        try:
+            sheets.append(packets.read_judge_labels(packets.JUDGE_DIR / name))
+        except ValueError as unfilled:
+            todo.append(f"review/integrality_judge/{name} isn't all filled in ({unfilled})")
+    if todo:
+        return todo
+    combined = packets.combined_labels(*sheets)
     labels = load_integrality(INTEGRALITY_PATH)
-    says_lp = [labels.get(("test", pid)) for pid in packets.SAYS_LP]
-    not_owner = sum(label is None or label.source != "owner" for label in says_lp)
-    if not_owner:
-        todo.append(
-            f"{not_owner} of the {len(says_lp)} \"says LP\" labels aren't the owner's yet "
-            "(review/says_lp.md, applied to integrality.json)"
-        )
-    return todo + stale_ground_truth()
+    unapplied = sum(
+        (label := labels.get(("test", pid))) is None
+        or (label.source, label.kind) != ("judge", kind)
+        for pid, kind in combined.items()
+    )
+    if unapplied:
+        return [f"{unapplied} of the {len(combined)} judged labels aren't in integrality.json "
+                "yet (source judge)"]  # fmt: skip
+    return []
+
+
+def cross_check() -> list[str]:
+    """Amendment 2, part 2: a decision on every problem the external cross-check lists
+    (review/external_check.csv), and the owner's confirmation of every review it can't
+    cover. Read from the committed sheet, since the benchmark itself isn't committed."""
+    path = external_check.DECISIONS_PATH
+    if not path.exists():
+        return ["the external cross-check hasn't been run (python -m opt_agent.external_check)"]
+    try:
+        rows = external_check.read_decisions(path)
+    except ValueError as wrong:
+        return [f"review/external_check.csv has a decision it doesn't allow ({wrong})"]
+    todo = []
+    undecided = sum(not row["decision"] for row in rows)
+    if undecided:
+        todo.append(f"{undecided} of the {len(rows)} problems in review/external_check.csv "
+                    "have no decision yet")  # fmt: skip
+    disputed = sum(row["decision"] == "disputed" for row in rows)
+    if disputed:
+        todo.append(f"{disputed} disputed reviews in review/external_check.csv aren't "
+                    "resolved yet")  # fmt: skip
+    reviews = load_reviews(REVIEWS_PATH)
+    uncovered = [row["problem_id"] for row in rows if row["why"] == external_check.UNCOVERED]
+    unconfirmed = sum(not reviews[("test", pid)].confirmed_by_owner for pid in uncovered)
+    if unconfirmed:
+        todo.append(f"{unconfirmed} of the {len(uncovered)} reviews the cross-check can't "
+                    "cover aren't confirmed_by_owner in reviews.json yet")  # fmt: skip
+    return todo
 
 
 def stale_ground_truth() -> list[str]:

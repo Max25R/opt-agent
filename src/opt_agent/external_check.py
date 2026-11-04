@@ -26,10 +26,17 @@ Agreement isn't independent proof. The benchmark descends from the same problems
 possibly through ORLM's answers from the same annotations, so an error both inherit gets
 through. A disagreement is the informative signal, and the owner sees every one.
 
+The owner decides every problem the list names (Amendment 2), in external_check.csv: for
+a disagreement, a label question or an edited text, `keep` (our answer stands) or `change`
+(made in reviews.json or integrality.json); for a reviewed problem the benchmark doesn't
+have, `confirmed` or `disputed`, as for the owner's review packet. The sheet is committed,
+so the freeze can check it without the benchmark, which isn't committed.
+
 Run:  python -m opt_agent.data         # fetches the pinned benchmark (git-ignored)
-      python -m opt_agent.external_check   # writes review/external_check.md
+      python -m opt_agent.external_check   # writes review/external_check.md and .csv
 """
 
+import csv
 import difflib
 import math
 from typing import Literal
@@ -46,10 +53,19 @@ from opt_agent.ground_truth import (
     readings,
     scorable,
 )
-from opt_agent.packets import REVIEW_DIR
+from opt_agent.packets import REVIEW_DIR, kept_marks
 from opt_agent.solver import Status
 
 EXTERNAL_CHECK_PATH = REVIEW_DIR / "external_check.md"
+DECISIONS_PATH = REVIEW_DIR / "external_check.csv"
+UNCOVERED = "not cross-checked"  # a reviewed problem the benchmark doesn't have
+# Why the owner decides a problem -> the decisions that settle it.
+DECISIONS = {
+    "disagrees": ("keep", "change"),
+    "other integrality": ("keep", "change"),
+    "edited text": ("keep", "change"),
+    UNCOVERED: ("confirmed", "disputed"),
+}
 EDITED_RATIO = 0.9  # word-level SequenceMatcher ratio; a one-word edit scores about 0.99
 
 Verdict = Literal["agrees", "agrees with another reading", "other integrality", "disagrees"]
@@ -122,15 +138,29 @@ def _same(solve: CheckedSolve, value: float | None) -> bool:
 # ---- the owner's list -----------------------------------------------------------------
 
 
+def to_decide(records: list[Record], matches: list[Match]) -> dict[str, list[str]]:
+    """Why -> the problems the owner decides for that reason (Amendment 2), in file order.
+    An edited text is listed as such, whatever its verdict."""
+    matched = {m.problem_id: m for m in matches}
+    found = {why: [] for why in DECISIONS}
+    for r in records:
+        m = matched.get(r.id)
+        if m is None:
+            if r.review is not None:
+                found[UNCOVERED].append(r.id)
+        elif m.edits:
+            found["edited text"].append(r.id)
+        elif scorable(r) and (v := verdict(r, m.answer)) in ("disagrees", "other integrality"):
+            found[v].append(r.id)
+    return found
+
+
 def render(records: list[Record], matches: list[Match], unmatched: list[str]) -> str:
     by_id = {r.id: r for r in records}
     matched = {m.problem_id: m for m in matches}
     scored = [r for r in records if scorable(r)]
     verdicts = {r.id: verdict(r, matched[r.id].answer) for r in scored if r.id in matched}
-
-    def listed(kind: Verdict) -> list[str]:
-        return [i for i, v in verdicts.items() if v == kind and not matched[i].edits]
-
+    decide = to_decide(records, matches)
     missing = [r for r in scored if r.id not in matched]
     lines = [
         "# External cross-check of the test answers",
@@ -163,18 +193,18 @@ def render(records: list[Record], matches: list[Match], unmatched: list[str]) ->
         "",
     ]
     lines += _section("Disagrees: neither our answer nor another accepted one",
-                      listed("disagrees"), by_id, matched)  # fmt: skip
+                      decide["disagrees"], by_id, matched)  # fmt: skip
     lines += _section("Other integrality: the benchmark has our optimum with the other "
                       "integrality, so the label is in question",
-                      listed("other integrality"), by_id, matched)  # fmt: skip
-    edited = [m.problem_id for m in matches if m.edits]
+                      decide["other integrality"], by_id, matched)  # fmt: skip
     lines += _section("The benchmark edited the text: its authors found ours wrong",
-                      edited, by_id, matched, show_edits=True)  # fmt: skip
-    other = listed("agrees with another reading")
+                      decide["edited text"], by_id, matched, show_edits=True)  # fmt: skip
+    other = [i for i, v in verdicts.items()
+             if v == "agrees with another reading" and not matched[i].edits]  # fmt: skip
     lines += ["## Agrees with another accepted reading (no action)", ""]
     lines += [", ".join(f"`{i}`" for i in other) or "None.", ""]
     lines += _not_scorable(records, matched)
-    lines += _uncovered(records, matched)
+    lines += _uncovered(decide[UNCOVERED], by_id)
     return "\n".join(lines)
 
 
@@ -190,7 +220,7 @@ def _not_scorable(records: list[Record], matched: dict[str, Match]) -> list[str]
         same = any(s is not None and _same(s, _value(answer)) for s in (r.lp, r.ip))
         review = r.review.verdict + (" (excluded)" if r.excluded else "")
         lines.append(f"| `{r.id}` | {review} | {_show(r.lp)} / {_show(r.ip)} | "
-                     f"{answer} | {'**the same**' if same else 'differs'} |")  # fmt: skip
+                     f"{answer} | {_sameness(r, same)} |")  # fmt: skip
     return [*lines, ""]
 
 
@@ -218,13 +248,50 @@ def _section(
     return [*lines, ""]
 
 
-def _uncovered(records: list[Record], matched: dict[str, Match]) -> list[str]:
+def _sameness(r: Record, same: bool) -> str:
+    """The benchmark having an annotated answer questions only an annotation-error review."""
+    if not same:
+        return "differs"
+    return (
+        "**the same** (questions the review)"
+        if r.review.verdict == "annotation-error"
+        else ("the same")
+    )
+
+
+def _uncovered(ids: list[str], by_id: dict[str, Record]) -> list[str]:
     """Reviewed problems the cross-check says nothing about: the owner still has to."""
-    ids = [r for r in records if r.review is not None and r.id not in matched]
     lines = [f"## Reviewed, but not in the benchmark ({len(ids)}): not cross-checked", ""]
     lines += ["| id | review | scorable |", "|---|---|---|"]
-    lines += [f"| `{r.id}` | {r.review.verdict} | {'yes' if scorable(r) else 'no'} |" for r in ids]
+    for i in ids:
+        r = by_id[i]
+        lines.append(f"| `{i}` | {r.review.verdict} | {'yes' if scorable(r) else 'no'} |")
     return [*lines, ""]
+
+
+def decision_sheet(decide: dict[str, list[str]], path) -> None:
+    """One row per problem to decide; a regenerated sheet keeps the owner's decisions."""
+    kept = kept_marks(path, "problem_id", ["decision", "note"])
+    with path.open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["problem_id", "why", "decision", "note"])
+        for why, ids in decide.items():
+            for i in ids:
+                mark = kept.get(i, {"decision": "", "note": ""})
+                writer.writerow([i, why, mark["decision"], mark["note"]])
+
+
+def read_decisions(path) -> list[dict[str, str]]:
+    """The sheet's rows; a decision must be one its reason allows, or blank (undecided)."""
+    with path.open(newline="") as f:
+        rows = list(csv.DictReader(f))
+    for row in rows:
+        decision = row["decision"].strip().lower()
+        if decision and decision not in DECISIONS[row["why"]]:
+            raise ValueError(f"{row['problem_id']} ({row['why']}): {decision!r} is none of "
+                             f"{', '.join(DECISIONS[row['why']])}")  # fmt: skip
+        row["decision"] = decision
+    return rows
 
 
 def _accepted(r: Record) -> str:
@@ -242,7 +309,9 @@ def main() -> None:
     answers = orlm.load_answers(DATA_DIR / ORLM_BENCHMARK.path)
     matches, unmatched = match(records, answers)
     EXTERNAL_CHECK_PATH.write_text(render(records, matches, unmatched))
-    print(f"wrote {EXTERNAL_CHECK_PATH} ({len(matches)} matched, {len(unmatched)} unmatched)")
+    decision_sheet(to_decide(records, matches), DECISIONS_PATH)
+    print(f"wrote {EXTERNAL_CHECK_PATH} and {DECISIONS_PATH.name} ({len(matches)} matched, "
+          f"{len(unmatched)} unmatched)")  # fmt: skip
 
 
 if __name__ == "__main__":

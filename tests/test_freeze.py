@@ -3,7 +3,7 @@ approval here goes to a temporary FREEZE.json; never calls the API."""
 
 import pytest
 
-from opt_agent import evaluate, formulate, freeze
+from opt_agent import evaluate, external_check, formulate, freeze, packets
 from opt_agent.evaluate import CONDITIONS, require_whole_experiment, scorable_records
 from opt_agent.freeze import Approval, FreezeError, differences, fingerprint
 from opt_agent.ground_truth import GROUND_TRUTH_DIR, load_records
@@ -141,3 +141,70 @@ def test_status_says_what_is_left_and_that_nothing_is_approved(freeze_file, caps
     freeze.main([])
     printed = capsys.readouterr().out
     assert "still a draft" in printed and "Not approved yet" in printed
+
+
+# ---- what's left, as Amendment 2 has it --------------------------------------------------
+
+
+def test_the_list_follows_amendment_2():
+    todo = " ".join(freeze.unfinished())
+    assert "still a draft" in todo and "integrality_judge/judge.csv" in todo
+    assert "integrality_judge/second_judge.csv" in todo and "external_check.csv" in todo
+    # No longer the owner's: the blind labels, the "says LP" labels, all 62 reviews.
+    assert "labels.csv" not in todo and "says_lp" not in todo and "test reviews" not in todo
+
+
+def judge_sheets(tmp_path, monkeypatch, first: str, second: str):
+    """Both judges' sheets in tmp_path, every problem labeled `first` and `second`."""
+    monkeypatch.setattr(packets, "JUDGE_DIR", tmp_path)
+    problems = packets.judged_problems(load_records(GROUND_TRUTH_DIR / "test.json"))
+    for name, label in zip(packets.JUDGE_SHEETS.values(), (first, second), strict=True):
+        packets.judge_sheet(problems, tmp_path / name)
+        reply = tmp_path / f"{name}.reply"
+        reply.write_text("number,problem_id,label,note\n" + "".join(
+            f"{n},{r.id},{label},\n" for n, (_, r) in enumerate(problems, 1)))  # fmt: skip
+        packets.merge_reply(tmp_path / name, reply, ["label", "note"], "judge")
+    return [r.id for _, r in problems]
+
+
+def test_judged_labels_must_be_applied_and_a_difference_is_either(tmp_path, monkeypatch):
+    ids = judge_sheets(tmp_path, monkeypatch, "integer", "continuous")
+    assert "44 of the 44 judged labels" in " ".join(freeze.judged_labels())
+    labels = freeze.load_integrality(freeze.INTEGRALITY_PATH)
+    judged = {("test", i): labels[("test", i)].model_copy(update={"source": "judge"}) for i in ids}
+    monkeypatch.setattr(freeze, "load_integrality", lambda path: {**labels, **judged})
+    # The judges differ everywhere, so every label must be "either": none of these fits.
+    assert "44 of the 44" in " ".join(freeze.judged_labels())
+
+
+def test_judged_labels_that_agree_and_are_applied_leave_nothing(tmp_path, monkeypatch):
+    ids = judge_sheets(tmp_path, monkeypatch, "integer", "integer")
+    labels = freeze.load_integrality(freeze.INTEGRALITY_PATH)
+    judged = {("test", i): labels[("test", i)].model_copy(update={"kind": "integer",
+                                                                  "source": "judge"})
+              for i in ids}  # fmt: skip
+    monkeypatch.setattr(freeze, "load_integrality", lambda path: {**labels, **judged})
+    assert freeze.judged_labels() == []
+
+
+def test_every_listed_problem_needs_a_decision_and_uncovered_reviews_a_confirmation(
+    tmp_path, monkeypatch
+):
+    sheet = tmp_path / "external_check.csv"
+    monkeypatch.setattr(external_check, "DECISIONS_PATH", sheet)
+    assert "hasn't been run" in " ".join(freeze.cross_check())
+    reviews = freeze.load_reviews(freeze.REVIEWS_PATH)
+    uncovered = next(pid for (split, pid) in reviews if split == "test")
+    sheet.write_text(f"problem_id,why,decision,note\n1040407495,other integrality,,\n"
+                     f"{uncovered},not cross-checked,disputed,\n")  # fmt: skip
+    todo = " ".join(freeze.cross_check())
+    assert "1 of the 2 problems" in todo and "1 disputed" in todo
+    assert "1 of the 1 reviews the cross-check can't cover" in todo
+    sheet.write_text(f"problem_id,why,decision,note\n1040407495,other integrality,keep,\n"
+                     f"{uncovered},not cross-checked,confirmed,\n")  # fmt: skip
+    confirmed = {**reviews, ("test", uncovered): reviews[("test", uncovered)].model_copy(
+        update={"confirmed_by_owner": True})}  # fmt: skip
+    monkeypatch.setattr(freeze, "load_reviews", lambda path: confirmed)
+    assert freeze.cross_check() == []
+    sheet.write_text("problem_id,why,decision,note\n1040407495,other integrality,confirmed,\n")
+    assert "doesn't allow" in " ".join(freeze.cross_check())

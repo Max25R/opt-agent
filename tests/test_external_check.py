@@ -67,3 +67,40 @@ def test_the_list_shows_disagreements_and_what_it_cannot_check():
     assert "| other integrality | 1 | 0 |" in text and "| not in the benchmark | 1 | 1 |" in text
     uncovered = text.split("## Reviewed, but not in the benchmark (1)")[1]
     assert f"| `{LOTION.id}` | text-has-no-optimum | yes |" in uncovered
+
+
+def test_the_owner_decides_label_questions_edits_and_uncovered_reviews(tmp_path):
+    edited = Match(problem_id=GAS.id, answer="251.0", edits=["'twice' -> 'three times'"])
+    decide = external_check.to_decide([GAS, LOTION], [edited])
+    assert decide == {"disagrees": [], "other integrality": [], "edited text": [GAS.id],
+                      "not cross-checked": [LOTION.id]}  # fmt: skip
+    assert external_check.to_decide([GAS], [Match(problem_id=GAS.id, answer="250")])[
+        "other integrality"] == [GAS.id]  # fmt: skip
+    sheet = tmp_path / "decisions.csv"
+    external_check.decision_sheet(decide, sheet)
+    rows = sheet.read_text().replace(f"{LOTION.id},not cross-checked,,",
+                                     f"{LOTION.id},not cross-checked,confirmed,")  # fmt: skip
+    sheet.write_text(rows)
+    external_check.decision_sheet(decide, sheet)  # regenerating keeps the decision
+    decisions = {r["problem_id"]: r["decision"] for r in external_check.read_decisions(sheet)}
+    assert decisions == {GAS.id: "", LOTION.id: "confirmed"}
+    sheet.write_text(
+        sheet.read_text().replace(f"{GAS.id},edited text,,", f"{GAS.id},edited text,confirmed,")
+    )
+    with pytest.raises(ValueError, match="none of keep, change"):
+        external_check.read_decisions(sheet)
+
+
+BENCHMARK = external_check.DATA_DIR / external_check.ORLM_BENCHMARK.path
+
+
+@pytest.mark.skipif(not BENCHMARK.exists(), reason="the benchmark isn't downloaded (CI)")
+def test_the_committed_list_and_sheet_are_up_to_date():
+    records = load_records(GROUND_TRUTH_DIR / "test.json")
+    matches, unmatched = match(records, orlm.load_answers(BENCHMARK))
+    committed = external_check.EXTERNAL_CHECK_PATH.read_text()
+    assert committed == external_check.render(records, matches, unmatched)
+    rows = [(r["problem_id"], r["why"]) for r in
+            external_check.read_decisions(external_check.DECISIONS_PATH)]  # fmt: skip
+    decide = external_check.to_decide(records, matches)
+    assert rows == [(i, why) for why, ids in decide.items() for i in ids]

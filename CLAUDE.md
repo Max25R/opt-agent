@@ -62,11 +62,13 @@ point is a trustworthy evaluation, not a demo.
      fixtures and two excluded test problems; the strict reading (`strict.py`);
      `Result.confirmed`; the owner's packets (`review/`, `packets.py`); a draft
      pre-registration (`docs/PREREGISTRATION.md`); `requirements.lock`.
-   - **Still open before milestone 6:** the owner marks `review/integrality_blind/`
-     (first: the review packet shows labels), `review/test_reviews/`, and
-     `review/says_lp.md`, and approves the pre-registration (its 4 decisions were made on
-     2026-10-19; it's still a draft). Apply their marks: `confirmed_by_owner` for
-     confirmed reviews, source `owner` for labels. Also the owner's, on dev: label
+   - **Still open before milestone 6** (as Amendment 2 has it): both judges label
+     `review/integrality_judge/` (then Claude applies their combined labels, source
+     `judge`); the owner decides every row of `review/external_check.csv` and confirms
+     the 24 reviews the cross-check can't cover (apply as `confirmed_by_owner`); the owner
+     approves the pre-registration as a whole (still a draft). The owner's own packets
+     (`review/integrality_blind/`, `review/says_lp.md`, `review/test_reviews/`) are no
+     longer required. Also the owner's, on dev: label
      `review/taxonomy/dev-1/` (after the optional blind pilot, `review/blind_grading/dev-1/`),
      which settles the pre-registered categories. (The "=" reading, the 1e-4 count,
      Amendment 1, the perturbation rule, the freeze checks, the baseline's prompt and the
@@ -140,9 +142,10 @@ point is a trustworthy evaluation, not a demo.
      but `feedback.py` writes what self-correction sends Claude, and solvers, checks and
      scoring are code too) and `requirements.lock`; installed packages must match the lock.
      **`python -m opt_agent.freeze approve` is the owner's step, never Claude's**: it
-     refuses until `freeze.unfinished()` is empty (the pre-registration approved, every
-     test review `confirmed_by_owner`, `labels.csv` filled, the 4 "says LP" labels
-     `owner`, and a ground truth rebuilt from the final hand inputs) and the tree is
+     refuses until `freeze.unfinished()` is empty (since Amendment 2: the pre-registration
+     approved, both judges' sheets filled and their combined labels applied, a decision
+     on every row of `review/external_check.csv`, the reviews it can't cover
+     `confirmed_by_owner`, and a ground truth rebuilt from the final hand inputs) and the tree is
      committed, then writes `docs/FREEZE.json`. `evaluate()` refuses a test split
      (`FreezeError`, before writing anything) unless `freeze.check()` passes, and refuses a
      subset: a test run is `--all` in all three conditions. `--plan` needs no freeze, so
@@ -210,8 +213,15 @@ point is a trustworthy evaluation, not a demo.
      40 blind and 4 "says LP" problems per problem as integer, continuous or either
      (`packets judge` writes `review/integrality_judge/`; the owner's packets are untouched);
      a label they differ on becomes `either`. The report is to show lenient accuracy next
-     to every strict one (McNemar on lenient scores as exploratory). The `either` kind,
-     the agreement counts, the lenient rows and `freeze.unfinished()` wait for approval.
+     to every strict one (McNemar on lenient scores as exploratory).
+   - **Amendment 2 in `freeze.unfinished()` (2026-11-04):** `judged_labels()` (both sheets
+     filled; `packets.combined_labels` applied to `integrality.json` with source `judge`,
+     a new source) and `cross_check()` (reads the committed `review/external_check.csv`,
+     which `external_check.py` now writes: 35 rows, `keep`/`change` for 11 listed
+     problems, `confirmed`/`disputed` for the 24 uncovered reviews). **Not done yet:** the
+     `either` label kind (`Integrality.kind` is still integer/continuous, so an `either`
+     label can't be applied and the freeze stays blocked), the judges' agreement counts in
+     the report (it still reads the owner's `labels.csv`), and the lenient rows.
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.

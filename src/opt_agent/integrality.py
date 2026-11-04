@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 class Integrality(BaseModel):
     kind: Literal["integer", "continuous"]
-    source: Literal["owner", "claude", "rule"]  # who decided
+    source: Literal["owner", "claude", "rule", "judge"]  # who decided; judge: Amendment 2
     note: str | None = None
 
 

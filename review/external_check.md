@@ -39,10 +39,10 @@ Problems with an edited text are counted above but listed in their own section.
 | id | review | accepted answers | as annotated (LP / IP) | benchmark | verdict | edits |
 |---|---|---|---|---|---|---|
 | `1283305022` |  | 1400 (annotated) | 1400 / 1400 | 700.0 | disagrees | 'units' -> 'minutes'; 'least' -> 'most' |
-| `-756853497` |  | 35 (annotated) | 35 / 35 | 35.0 | agrees | '' -> 'at least' |
-| `-2138755435` |  | 95 (annotated) | 95 / 95 | 95.0 | agrees | '4000' -> '400' |
 | `102495722` |  | 105 (annotated) | 101.8181834 / 105 | 101.81818181818183 | other integrality | 'patent' -> 'patient' |
 | `-1062928915` | annotation-error | 0.72 (annotated) | 0.72 / 0.5 | 65000.0 | not scorable | 'two' -> 'three' |
+| `-2138755435` |  | 95 (annotated) | 95 / 95 | 95.0 | agrees | '4000' -> '400' |
+| `-756853497` |  | 35 (annotated) | 35 / 35 | 35.0 | agrees | '' -> 'at least' |
 
 ## Agrees with another accepted reading (no action)
 
@@ -52,7 +52,7 @@ Problems with an edited text are counted above but listed in their own section.
 
 | id | review | as annotated (LP / IP) | benchmark | the annotated answer |
 |---|---|---|---|---|
-| `-725478241` | text-has-no-optimum (excluded) | infeasible / infeasible | No Best Solution | **the same** |
+| `-725478241` | text-has-no-optimum (excluded) | infeasible / infeasible | No Best Solution | the same |
 | `-272035411` | annotation-error | 3 / 3 | 2.3 | differs |
 | `1694815390` | annotation-error | 87.5 / 87.5 | No Best Solution | differs |
 | `-1921036549` | annotation-error | 1000 / 1000 | No Best Solution | differs |
