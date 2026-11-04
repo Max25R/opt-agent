@@ -126,7 +126,7 @@ def build_record(problem_id: str, annotation: dict, label: Integrality | None) -
     model, notes = conversion.model, conversion.notes
     names = strict_constraints(notes)
     strict = None
-    if names and integrality.kind == "integer":
+    if names and integrality.kind != "continuous":  # strictness needs integers
         tight, changed = strict_model(as_integer(model), names)
         strict = StrictReading(changed=changed, ip=solve_checked(tight))
     record = Record(
@@ -188,8 +188,17 @@ def as_integer(model: LPModel) -> LPModel:
 
 def reference_model(record: Record) -> LPModel:
     """The annotated model as its answer reads it: every variable integer if the label
-    says so. The stored model is all-continuous, since both optima are solved from it."""
-    return as_integer(record.model) if record.integrality.kind == "integer" else record.model
+    says so (or says `either`, whose answer is the integer one). The stored model is
+    all-continuous, since both optima are solved from it."""
+    return as_integer(record.model) if label_kinds(record)[0] == "ip" else record.model
+
+
+def label_kinds(record: Record) -> list[str]:
+    """The optima the label accepts, the answer's first: "ip" for whole things, "lp" for
+    divisible quantities, and both for `either` (Amendment 2)."""
+    return {"integer": ["ip"], "continuous": ["lp"], "either": ["ip", "lp"]}[
+        record.integrality.kind
+    ]
 
 
 def solve_checked(model: LPModel) -> CheckedSolve:
@@ -204,13 +213,17 @@ def solve_checked(model: LPModel) -> CheckedSolve:
 
 
 def answer(record: Record) -> CheckedSolve | None:
-    """The ground-truth answer: the integer solve for whole things, else the LP.
+    """The ground-truth answer: the integer solve for whole things, else the LP. For an
+    `either` label it's the integer solve, and scoring accepts the LP too (readings).
 
     None if there's no answer to trust: the annotation wasn't converted, HiGHS disagrees
-    with CBC, or plain arithmetic finds a problem with CBC's solution.
+    with CBC, or plain arithmetic finds a problem with CBC's solution. For `either`, both
+    solves must be trusted, since both are accepted.
     """
-    solve = record.ip if record.integrality.kind == "integer" else record.lp
-    return solve if solve is not None and trusted(solve) else None
+    solves = [getattr(record, kind) for kind in label_kinds(record)]
+    if any(s is None or not trusted(s) for s in solves):
+        return None
+    return solves[0]
 
 
 def trusted(solve: CheckedSolve) -> bool:
@@ -228,7 +241,7 @@ def readings(record: Record, lenient: bool = False) -> list[tuple[Reading, Check
     a review names). Each comes from the integrality the label picks, or with `lenient`,
     from both: the pre-registration's lenient accuracy (section 3f), which doesn't grade
     integrality. Untrusted solves are left out."""
-    kinds = ["lp", "ip"] if lenient else ["ip" if record.integrality.kind == "integer" else "lp"]
+    kinds = ["lp", "ip"] if lenient else label_kinds(record)
     found: list[tuple[Reading, CheckedSolve]] = []
     if answer(record) is not None:  # no trusted annotated answer, nothing to score against
         found += [("annotated", getattr(record, kind)) for kind in kinds]
@@ -521,12 +534,16 @@ def _review_section(by_split: dict[str, list[Record]], verdicts: dict[str, dict]
 
 
 def _integrality_section(by_split: dict[str, list[Record]], test_verdicts: dict) -> list[str]:
-    kinds = [(k, s) for k in ("integer", "continuous") for s in ("owner", "claude", "rule")]
+    always = [(k, s) for k in ("integer", "continuous") for s in ("owner", "claude", "rule")]
+    every = [(k, s) for k in ("integer", "continuous", "either")
+             for s in ("owner", "claude", "rule", "judge")]  # fmt: skip
     counts = [
         [kind, source, *(sum(r.integrality.kind == kind and r.integrality.source == source
                              for r in rs) for rs in by_split.values())]
-        for kind, source in kinds
+        for kind, source in every
     ]  # fmt: skip
+    # Amendment 2's labels (either, judge) get rows once they're used.
+    counts = [row for row, key in zip(counts, every, strict=True) if key in always or any(row[2:])]
     unlabeled = [
         f"`{r.id}` ({split})"
         for split, rs in by_split.items()
@@ -545,8 +562,8 @@ def _integrality_section(by_split: dict[str, list[Record]], test_verdicts: dict)
     return [
         "## Integrality labels",
         "",
-        "Each problem's label picks its answer (IP for integer, LP for continuous). Where",
-        "integrality changes the answer, the label is a hand label",
+        "Each problem's label picks its answer (IP for integer, LP for continuous, both for",
+        "either). Where integrality changes the answer, the label is a hand label",
         "(`data/nl4opt/integrality.json`); elsewhere a rule (`integrality.py`) sets it.",
         "",
         *_table(["label", "source", *by_split], counts),
@@ -605,7 +622,7 @@ def _equality_section(by_split: dict[str, list[Record]]) -> list[str]:
     with_equality = [(split, r) for split, rs in by_split.items() for r in rs if r.equality]
     rows = []
     for split, r in with_equality:
-        kind = "ip" if r.integrality.kind == "integer" else "lp"
+        kind = label_kinds(r)[0]
         annotated, equal = getattr(r, kind), getattr(r.equality, kind)
         sources = [("wording", r.ratio_wording), ("review", r.review and r.review.equality)]
         found_by = [name for name, names in sources if names]

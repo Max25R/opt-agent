@@ -119,6 +119,7 @@ def packet(run: ScoredRun, sample: list[Formulation]) -> str:
             *format_model(reference_model(record)),
             "```",
             "",
+            *_either(record),
             "To grade:",
             "```",
             *format_model(f.model),
@@ -126,6 +127,13 @@ def packet(run: ScoredRun, sample: list[Formulation]) -> str:
             "",
         ]
     return "\n".join(lines)
+
+
+def _either(record) -> list[str]:
+    if record.integrality.kind != "either":
+        return []
+    return ["(Its label is `either`: the text supports whole-number and fractional "
+            "decisions alike.)", ""]  # fmt: skip
 
 
 def sheet_path(run_name: str) -> Path:

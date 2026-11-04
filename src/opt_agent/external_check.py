@@ -114,8 +114,8 @@ def verdict(record: Record, answer: str) -> Verdict:
     for reading, solve in readings(record):
         if _same(solve, value):
             return "agrees" if reading == "annotated" else "agrees with another reading"
-    other = record.lp if record.integrality.kind == "integer" else record.ip
-    if other is not None and _same(other, value):
+    other = {"integer": record.lp, "continuous": record.ip}.get(record.integrality.kind)
+    if other is not None and _same(other, value):  # an `either` label has no other
         return "other integrality"
     return "disagrees"
 

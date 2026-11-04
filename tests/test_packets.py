@@ -1,4 +1,5 @@
 import csv
+import json
 import re
 
 import pytest
@@ -225,3 +226,52 @@ def test_the_judges_combined_label_is_theirs_where_they_agree_else_either():
     second = {"a": "integer", "b": "integer", "c": "either", "d": "either"}
     assert packets.combined_labels(judge, second) == {
         "a": "integer", "b": "either", "c": "either", "d": "either"}  # fmt: skip
+
+
+def fill_judges(tmp_path, monkeypatch, first, second):
+    """Both judges' sheets in tmp_path; `first`/`second` give each problem's labels."""
+    monkeypatch.setattr(packets, "JUDGE_DIR", tmp_path)
+    packets.write_judge_packet(TEST)
+    problems = packets.judged_problems(TEST)
+    for name, labels in zip(packets.JUDGE_SHEETS.values(), (first, second), strict=True):
+        reply = tmp_path / f"{name}.reply"
+        reply.write_text("number,problem_id,label,note\n" + "".join(
+            f"{n},{r.id},{labels(r)},\n" for n, (_, r) in enumerate(problems, 1)))  # fmt: skip
+        packets.merge_reply(tmp_path / name, reply, ["label", "note"], f"{name} model")
+
+
+def test_applying_the_judges_labels_keeps_what_they_replaced(tmp_path, monkeypatch):
+    """The judges agree on "continuous" everywhere but the first problem, where one says
+    either. Every one of the 44 is a Claude hand label now."""
+    first_id = packets.judged_problems(TEST)[0][1].id
+    fill_judges(tmp_path, monkeypatch, lambda r: "continuous",
+                lambda r: "either" if r.id == first_id else "continuous")  # fmt: skip
+    labels = tmp_path / "integrality.json"
+    labels.write_text(packets.INTEGRALITY_PATH.read_text())
+    before = {row["id"]: row for row in json.loads(labels.read_text())["labels"]
+              if row["split"] == "test"}  # fmt: skip
+    assert packets.apply_judged_labels(labels) == 44
+    after = {row["id"]: row for row in json.loads(labels.read_text())["labels"]
+             if row["split"] == "test"}  # fmt: skip
+    assert after[first_id]["kind"] == "either" and "differ" in after[first_id]["note"]
+    for _, r in packets.judged_problems(TEST):
+        assert after[r.id]["source"] == "judge"
+        assert after[r.id]["replaced"] == before[r.id]["kind"]
+    assert packets.apply_judged_labels(labels) == 0  # applying again changes nothing
+
+
+def test_the_judges_agreement_with_claude_and_each_other(tmp_path, monkeypatch):
+    """The judge copies Claude's labels; the second says either on every integer one."""
+
+    def second(r):
+        return "either" if r.integrality.kind == "integer" else r.integrality.kind
+
+    fill_judges(tmp_path, monkeypatch, lambda r: r.integrality.kind, second)
+    integer = sum(r.integrality.kind == "integer" for r in SAMPLE)
+    a = packets.judges_agreement(TEST)
+    assert a["judge vs Claude"] == {"same": 40, "different": 0, "either": 0, "n": 40,
+                                    "accepts": 40, "wilson95": list(wilson(40, 40))}  # fmt: skip
+    second = a["second vs Claude"]
+    assert (second["either"], second["same"], second["accepts"]) == (integer, 40 - integer, 40)
+    assert a["judge vs second"]["same"] == 40 - integer
+    assert a["graders"] == {"judge": ["judge.csv model"], "second": ["second_judge.csv model"]}

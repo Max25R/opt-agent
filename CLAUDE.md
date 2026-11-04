@@ -218,10 +218,17 @@ point is a trustworthy evaluation, not a demo.
      filled; `packets.combined_labels` applied to `integrality.json` with source `judge`,
      a new source) and `cross_check()` (reads the committed `review/external_check.csv`,
      which `external_check.py` now writes: 35 rows, `keep`/`change` for 11 listed
-     problems, `confirmed`/`disputed` for the 24 uncovered reviews). **Not done yet:** the
-     `either` label kind (`Integrality.kind` is still integer/continuous, so an `either`
-     label can't be applied and the freeze stays blocked), the judges' agreement counts in
-     the report (it still reads the owner's `labels.csv`), and the lenient rows.
+     problems, `confirmed`/`disputed` for the 24 uncovered reviews).
+   - **The rest of Amendment 2 (2026-11-04):** `Integrality.kind` can be `either`, and
+     `ground_truth.label_kinds` is the one place that says what a label accepts (`either`:
+     both optima, the integer one standing for `answer()`, both solves trusted; the strict
+     reading applies to it). `packets judge --apply` writes the judges' combined labels into
+     `integrality.json` (source `judge`, keeping the kind it `replaced`); then rebuild the
+     ground truth and the perturbed splits. `report.py`: `lenient accuracy` for every
+     subset (replacing the sensitive-only entry), the six McNemar tests on lenient scores
+     as `comparisons, lenient (exploratory)` (no Holm), and `integrality_agreement` from
+     `packets.judges_agreement` (each judge against Claude's labels, and each other; an
+     `either` "accepts" Claude's label). REPORT.md's wording changed; no ground-truth data did.
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -310,6 +317,7 @@ python -m opt_agent.taxonomy runs/NAME --merge REPLY.csv --grader "MODEL, LLM ju
 python -m opt_agent.external_check   # review/external_check.md: test answers vs ORLMBenchmark
 python -m opt_agent.packets judge   # review/integrality_judge/: one prompt, a sheet per judge
 python -m opt_agent.packets judge --merge judge|second --reply REPLY.csv --grader "MODEL"
+python -m opt_agent.packets judge --apply   # both sheets filled: combined labels into integrality.json
 ```
 
 ## Ground truth (milestone 3 decisions)

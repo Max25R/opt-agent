@@ -136,8 +136,8 @@ Reviewed but no longer flagged: none.
 
 ## Integrality labels
 
-Each problem's label picks its answer (IP for integer, LP for continuous). Where
-integrality changes the answer, the label is a hand label
+Each problem's label picks its answer (IP for integer, LP for continuous, both for
+either). Where integrality changes the answer, the label is a hand label
 (`data/nl4opt/integrality.json`); elsewhere a rule (`integrality.py`) sets it.
 
 | label | source | dev | test |

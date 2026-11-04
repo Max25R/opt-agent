@@ -72,7 +72,35 @@ def test_a_hand_checked_run(mixed_run):
 def test_lenient_accuracy_accepts_the_lp_optimum_on_sensitive_problems(mixed_run):
     single = report.build(mixed_run)["conditions"]["single-shot"]
     assert single["accuracy"]["integrality-sensitive"]["right"] == 0  # gas: 250, not 251
-    assert single["lenient accuracy, integrality-sensitive"]["right"] == 1
+    assert single["lenient accuracy"]["integrality-sensitive"]["right"] == 1
+
+
+def test_every_accuracy_has_its_lenient_one_next_to_it(mixed_run):
+    """Amendment 2: no headline number rests only on labels. Lenient and strict differ only
+    where integrality matters: here gas, where single-shot's 250 is the LP optimum."""
+    r = report.build(mixed_run)
+    for c in CONDITIONS:
+        strict, lenient = (r["conditions"][c][k] for k in ("accuracy", "lenient accuracy"))
+        assert set(lenient) == set(strict)
+        assert lenient["integrality-insensitive"] == strict["integrality-insensitive"]
+    single = r["conditions"]["single-shot"]
+    assert (single["accuracy"]["all"]["right"], single["lenient accuracy"]["all"]["right"]) == (
+        1,
+        2,
+    )
+    assert "; lenient 2/2 (100%)" in report.render(r)
+
+
+def test_the_lenient_mcnemar_tests_are_exploratory(mixed_run):
+    """The same six tests on lenient scores, with no Holm p and no verdict. Gas: with
+    integrality not graded, single-shot's 250 is right, so the baseline's lead is gone."""
+    r = report.build(mixed_run)
+    lenient = {(c["a"], c["b"], c["subset"]): c for c in r["comparisons, lenient (exploratory)"]}
+    assert len(lenient) == 6 and all("p_holm" not in c and "significant" not in c
+                                     for c in lenient.values())  # fmt: skip
+    gas = lenient[("baseline", "single-shot", "has an optimum")]
+    assert (gas["only a right"], gas["only b right"], gas["both right"]) == (0, 0, 1)
+    assert "Lenient scores (exploratory, outside the Holm family)" in report.render(r)
 
 
 def test_comparisons_use_discordant_pairs_and_holm(mixed_run):
@@ -156,10 +184,11 @@ def test_the_subsets_are_the_pre_registered_ones():
                      "says LP, labeled integer": 4}  # fmt: skip
 
 
-def test_the_integrality_agreement_waits_for_the_owners_labels(tmp_path, monkeypatch):
-    (tmp_path / "labels.csv").write_text("number,problem_id,variable,label\n1,x,trains,\n")
-    monkeypatch.setattr(packets, "BLIND_DIR", tmp_path)
-    assert "pending" in report.integrality_agreement([])
+def test_the_integrality_agreement_waits_for_the_judges_labels(tmp_path, monkeypatch):
+    test = load_records(GROUND_TRUTH_DIR / "test.json")
+    monkeypatch.setattr(packets, "JUDGE_DIR", tmp_path)
+    packets.write_judge_packet(test)
+    assert "the judges' sheets aren't filled in" in report.integrality_agreement(test)["pending"]
 
 
 def test_the_command_line_writes_json_and_prints_a_summary(mixed_run, capsys):

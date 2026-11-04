@@ -293,3 +293,11 @@ def test_the_llm_prompt_names_neither_the_system_nor_the_labels_author(mixed_run
     assert "`number,key,category,note`" in prompt and "The system's model:" in prompt
     for f in taxonomy.failures(run_results.load(mixed_run)):
         assert f"(key `{f.key}`)" in prompt
+
+
+def test_the_blind_packet_says_when_a_label_is_either():
+    label = GAS.integrality.model_copy(update={"kind": "either", "source": "judge"})
+    assert "`either`" in " ".join(
+        blind_grading._either(GAS.model_copy(update={"integrality": label}))
+    )
+    assert blind_grading._either(GAS) == []

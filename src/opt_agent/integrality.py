@@ -12,9 +12,12 @@ from pydantic import BaseModel
 
 
 class Integrality(BaseModel):
-    kind: Literal["integer", "continuous"]
+    # `either` (Amendment 2): the text supports both readings, so both optima are accepted.
+    kind: Literal["integer", "continuous", "either"]
     source: Literal["owner", "claude", "rule", "judge"]  # who decided; judge: Amendment 2
     note: str | None = None
+    # The label a judges' label replaced, kept for the agreement statistic (Amendment 2).
+    replaced: Literal["integer", "continuous"] | None = None
 
 
 # Divisible quantities: "kilograms of rice", "how many acres". Servings and cups are counted

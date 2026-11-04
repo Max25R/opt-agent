@@ -22,6 +22,7 @@ Run:  python -m opt_agent.packets integrality    # writes review/integrality_bli
       python -m opt_agent.packets agreement      # after labels.csv is filled in
       python -m opt_agent.packets judge          # writes review/integrality_judge/
       python -m opt_agent.packets judge --merge judge --reply REPLY.csv --grader "MODEL"
+      python -m opt_agent.packets judge --apply  # both sheets filled: into integrality.json
 """
 
 import argparse
@@ -29,6 +30,7 @@ import csv
 import json
 import random
 import re
+from collections import Counter
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -36,6 +38,7 @@ from pydantic import BaseModel
 from opt_agent.agent import format_model
 from opt_agent.ground_truth import (
     GROUND_TRUTH_DIR,
+    INTEGRALITY_PATH,
     CheckedSolve,
     Record,
     integrality_matters,
@@ -433,6 +436,65 @@ def combined_labels(judge: dict[str, str], second: dict[str, str]) -> dict[str, 
     return {pid: label if second.get(pid) == label else "either" for pid, label in judge.items()}
 
 
+def apply_judged_labels(path: Path = INTEGRALITY_PATH) -> int:
+    """Write the judges' combined labels into integrality.json with source `judge`, keeping
+    the kind of each label they replace for the agreement statistic. Then the ground truth
+    and the perturbed splits must be rebuilt. Returns how many labels changed."""
+    judge, second = (read_judge_labels(JUDGE_DIR / name) for name in JUDGE_SHEETS.values())
+    combined = combined_labels(judge, second)
+    data = json.loads(path.read_text())
+    rows = {row["id"]: row for row in data["labels"] if row["split"] == "test"}
+    missing = sorted(set(combined) - set(rows))
+    if missing:
+        raise ValueError(f"no hand label to replace for {missing}")
+    changed = 0
+    for pid, kind in combined.items():
+        row = rows[pid]
+        why = (f"both judges: {kind}" if judge[pid] == second[pid]
+               else f"the judges differ ({judge[pid]}, {second[pid]}), so either")  # fmt: skip
+        new = {**row, "kind": kind, "source": "judge", "note": why,
+               "replaced": row.get("replaced") or row["kind"]}  # fmt: skip
+        if row.get("source") == "judge":  # applied before: keep what it first replaced
+            new["replaced"] = row["replaced"]
+        changed += new != row
+        row.update(new)
+    path.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
+    return changed
+
+
+def claude_label(r: Record) -> str:
+    """Claude's own label, also once a judges' label has replaced it."""
+    label = r.integrality
+    return label.replaced if label.source == "judge" else label.kind
+
+
+def judges_agreement(records: list[Record]) -> dict:
+    """Section 3f under Amendment 2, on the blind sample (the 4 "says LP" problems stay
+    out): each judge against Claude's labels, and the two judges against each other. A
+    judge's `either` accepts Claude's label, so "accepts" counts it with the same label.
+    Raises ValueError until both sheets are filled in."""
+    judge, second = (read_judge_labels(JUDGE_DIR / name) for name in JUDGE_SHEETS.values())
+    sample = blind_sample(records)
+    n = len(sample)
+    summary = {"graders": {name: graders(JUDGE_DIR / f) for name, f in JUDGE_SHEETS.items()}}
+    for name, labels in (("judge", judge), ("second", second)):
+        verdicts = Counter(_verdict(labels[r.id], claude_label(r)) for r in sample)
+        accepts = verdicts["same"] + verdicts["either"]
+        counts = {k: verdicts[k] for k in ("same", "different", "either")}
+        summary[f"{name} vs Claude"] = {**counts, "n": n, "accepts": accepts,
+                                        "wilson95": list(wilson(accepts, n))}  # fmt: skip
+    same = sum(judge[r.id] == second[r.id] for r in sample)
+    summary["judge vs second"] = {"same": same, "different": n - same, "n": n,
+                                  "wilson95": list(wilson(same, n))}  # fmt: skip
+    return summary
+
+
+def _verdict(theirs: str, claudes: str) -> str:
+    if theirs == "either":
+        return "either"
+    return "same" if theirs == claudes else "different"
+
+
 def write_judge_packet(records: list[Record]) -> int:
     problems = judged_problems(records)
     JUDGE_DIR.mkdir(parents=True, exist_ok=True)
@@ -455,9 +517,20 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument("--reply", type=Path, help="with --merge: the reply, as a CSV file")
     parser.add_argument("--grader", help="with --merge: the judge's model and version")
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="judge: write the judges' combined labels into integrality.json",
+    )
     args = parser.parse_args(argv)
     test = load_records(GROUND_TRUTH_DIR / "test.json")
-    if args.packet == "judge" and args.merge:
+    if args.packet == "judge" and args.apply:
+        n = apply_judged_labels()
+        print(
+            f"changed {n} labels in {INTEGRALITY_PATH}; now rebuild the ground truth "
+            "(python -m opt_agent.ground_truth) and the perturbed splits (perturb)"
+        )
+    elif args.packet == "judge" and args.merge:
         if not (args.reply and args.grader):
             parser.error("--merge needs --reply and --grader")
         sheet = JUDGE_DIR / JUDGE_SHEETS[args.merge]

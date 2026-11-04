@@ -14,13 +14,15 @@ Each (problem, condition) pair in the manifest is scored or open, following Amen
 its numbers are provisional, and the test run isn't over.
 
 What's reported, by section of docs/PREREGISTRATION.md: accuracy with 95% Wilson intervals
-per condition and subset (4, 5), lenient accuracy on the integrality-sensitive subset (3f),
-which reading each correct answer needed (3c, 3e), answers that would flip at a 1e-4
-tolerance (1), LP optima on "says LP" problems (3d), optima claimed for problems that have
-none, with revision flags (3a), silent and loud failures (3g), McNemar's exact test with
-Holm's correction (4), latency, retry and wall time, tokens, and cost (4), re-runs
-(Amendment 1), and the owner's hand checks of the run once they're done: blind grades
-against scores, and failures by category (5a).
+per condition and subset (4, 5), with lenient accuracy (integrality not graded) next to
+every one, so no headline number rests only on labels (3f, Amendment 2); which reading
+each correct answer needed (3c, 3e); answers that would flip at a 1e-4 tolerance (1); LP
+optima on "says LP" problems (3d); optima claimed for problems that have none, with
+revision flags (3a); silent and loud failures (3g); McNemar's exact test with Holm's
+correction (4), and the same tests on the lenient scores as exploratory (Amendment 2);
+latency, retry and wall time, tokens, and cost (4); re-runs (Amendment 1); the judges'
+integrality labels against Claude's (3f, Amendment 2); and the hand checks of the run once
+they're done: blind grades against scores, and failures by category (5a).
 
 A run on a perturbed split (perturb.py; section 2, condition 4) is outside the McNemar
 family, so its report has no tests. It says instead which answers are the original
@@ -84,6 +86,9 @@ def build(run_dir: Path, original_run: Path | None = None) -> dict:
         },
         # The perturbed set is outside the McNemar family (section 4): no tests on it.
         "comparisons": [] if perturbed else comparisons(pairs, groups, manifest.conditions),
+        "comparisons, lenient (exploratory)": []
+        if perturbed
+        else comparisons(pairs, groups, manifest.conditions, by_id, lenient=True),
         "paid_usd": _ledger_usd(run_dir / "spend.jsonl"),
         # Section 5a; each says "pending" until its packet's sheet is filled in.
         "hand_checks": {
@@ -148,9 +153,7 @@ def condition_summary(
     latency = [p.item.latency_s for p in done]
     return {
         "accuracy": {name: accuracy(ids) for name, ids in groups.items()},
-        "lenient accuracy, integrality-sensitive": accuracy(
-            groups["integrality-sensitive"], lenient=True
-        ),
+        "lenient accuracy": {name: accuracy(ids, lenient=True) for name, ids in groups.items()},
         "correct by reading": dict(
             Counter(p.score.reading for p in scored.values() if p.score.correct)
         ),  # fmt: skip
@@ -210,11 +213,18 @@ def percentiles(values: list[float]) -> dict:
 
 
 def comparisons(
-    pairs: list[Pair], groups: dict[str, list[str]], conditions: list[str]
+    pairs: list[Pair],
+    groups: dict[str, list[str]],
+    conditions: list[str],
+    by_id: dict[str, Record] | None = None,
+    lenient: bool = False,
 ) -> list[dict]:
     """McNemar's exact test for each pre-registered pair of conditions, on each kind of
-    answer, using only the problems both have scored. Holm's correction over all of them."""
-    right = {(p.problem_id, p.condition): p.score.correct for p in pairs if p.state == "scored"}
+    answer, using only the problems both have scored. Holm's correction over all of them.
+    With `lenient` (and `by_id`), the same tests on the lenient scores: exploratory and
+    outside the Holm family (Amendment 2), so they carry no Holm p and no verdict."""
+    right = {(p.problem_id, p.condition): _rescore(p, by_id, lenient=True).correct if lenient
+             else p.score.correct for p in pairs if p.state == "scored"}  # fmt: skip
     rows = []
     for a, b in COMPARISONS:
         if a not in conditions or b not in conditions:
@@ -228,6 +238,8 @@ def comparisons(
                          "both wrong": outcomes[(False, False)],
                          "only a right": only_a, "only b right": only_b,
                          "p": mcnemar_exact(only_a, only_b)})  # fmt: skip
+    if lenient:
+        return rows
     adjusted = holm({_key(r): r["p"] for r in rows})
     for r in rows:
         r["p_holm"] = adjusted[_key(r)]
@@ -300,12 +312,12 @@ def against_original(
 
 
 def integrality_agreement(records: list[Record]) -> dict:
-    """The owner's blind labels against Claude's (section 3f), once labels.csv is filled."""
+    """The judges' blind labels against Claude's and each other's (section 3f, Amendment 2),
+    once both judges' sheets are filled in."""
     try:
-        owner = packets.read_labels(packets.BLIND_DIR / "labels.csv")
+        return packets.judges_agreement(records)
     except ValueError as unfilled:
-        return {"pending": f"labels.csv isn't filled in yet ({unfilled})"}
-    return packets.agreement(owner, records).model_dump(mode="json")
+        return {"pending": f"the judges' sheets aren't filled in yet ({unfilled})"}
 
 
 def provenance(run_dir: Path, manifest: Manifest) -> dict:
@@ -331,7 +343,7 @@ def provenance(run_dir: Path, manifest: Manifest) -> dict:
         },
         "hand_check_sheets_sha256": {
             "/".join(path.parts[-3:]): hashlib.sha256(path.read_bytes()).hexdigest()
-            for path in _sheets(run_dir.name)
+            for path in _sheets(run_dir.name, manifest.split)
         },
         "tolerance": TOLERANCE,
         "sensitivity_tolerance": SENSITIVITY_TOLERANCE,
@@ -352,9 +364,12 @@ def _inputs(split: str) -> list[Path]:
     return [GROUND_TRUTH_DIR / f"{s}.json" for s in splits] + [REVIEWS_PATH]
 
 
-def _sheets(run_name: str) -> list[Path]:
-    """The owner's hand-check sheets for this run that exist so far (section 5a)."""
+def _sheets(run_name: str, split: str) -> list[Path]:
+    """The hand-check sheets this run's report reads, where they exist so far (5a), and on
+    the test split the judges' integrality labels (3f, Amendment 2)."""
     paths = [blind_grading.sheet_path(run_name), taxonomy.sheet_path(run_name)]
+    if split == "test":
+        paths += [packets.JUDGE_DIR / name for name in packets.JUDGE_SHEETS.values()]
     return [path for path in paths if path.exists()]
 
 
@@ -372,14 +387,14 @@ def render(report: dict) -> str:
         f"INCOMPLETE: {report['open']['errored']} errored and {report['open']['pending']} "
         "pending pairs; every number below is provisional"
     )  # fmt: skip
-    lines = [f"Run report ({state})", "", "| subset | n | " + " | ".join(conditions) + " |",
+    lines = [f"Run report ({state}); each cell is strict accuracy, then lenient", "",
+             "| subset | n | " + " | ".join(conditions) + " |",
              "|---|---|" + "---|" * len(conditions)]  # fmt: skip
     for subset, n in report["subsets"].items():
-        cells = [_show_rate(report["conditions"][c]["accuracy"][subset]) for c in conditions]
+        cells = [f"{_show_rate(report['conditions'][c]['accuracy'][subset])}; lenient "
+                 f"{_show_right(report['conditions'][c]['lenient accuracy'][subset])}"
+                 for c in conditions]  # fmt: skip
         lines.append(f"| {subset} | {n} | " + " | ".join(cells) + " |")
-    lenient = [_show_rate(report["conditions"][c]["lenient accuracy, integrality-sensitive"])
-               for c in conditions]  # fmt: skip
-    lines.append("| sensitive, lenient | | " + " | ".join(lenient) + " |")
     lines.append("")
     for c in conditions:
         s = report["conditions"][c]
@@ -399,6 +414,12 @@ def render(report: dict) -> str:
         for r in report["comparisons"]:
             lines.append(f"| {_key(r)} | {r['n']} | {r['only a right']} | "
                          f"{r['only b right']} | {r['p']:.3g} | {r['p_holm']:.3g} |")  # fmt: skip
+    if report["comparisons, lenient (exploratory)"]:
+        lines += ["", "Lenient scores (exploratory, outside the Holm family):", "",
+                  "| comparison | n | only a | only b | p |", "|---|---|---|---|---|"]  # fmt: skip
+        for r in report["comparisons, lenient (exploratory)"]:
+            lines.append(f"| {_key(r)} | {r['n']} | {r['only a right']} | "
+                         f"{r['only b right']} | {r['p']:.3g} |")  # fmt: skip
     if "perturbed" in report:
         lines += _render_perturbed(report["perturbed"])
     lines += ["", f"Paid in this run directory: ${report['paid_usd']:.4f}"]
@@ -428,6 +449,10 @@ def _show_rate(r: dict) -> str:
         return "-"
     low, high = r["wilson95"]
     return f"{r['right']}/{r['n']} ({r['accuracy']:.0%}; {low:.0%}-{high:.0%})"
+
+
+def _show_right(r: dict) -> str:
+    return "-" if not r["n"] else f"{r['right']}/{r['n']} ({r['accuracy']:.0%})"
 
 
 def _seconds(x: float | None) -> str:

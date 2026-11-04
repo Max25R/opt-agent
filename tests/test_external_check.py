@@ -104,3 +104,10 @@ def test_the_committed_list_and_sheet_are_up_to_date():
             external_check.read_decisions(external_check.DECISIONS_PATH)]  # fmt: skip
     decide = external_check.to_decide(records, matches)
     assert rows == [(i, why) for why, ids in decide.items() for i in ids]
+
+
+def test_an_either_label_has_no_other_integrality():
+    either = GAS.model_copy(update={"integrality": GAS.integrality.model_copy(
+        update={"kind": "either", "source": "judge"})})  # fmt: skip
+    assert verdict(either, "250") == "agrees" and verdict(either, "251") == "agrees"
+    assert verdict(either, "260") == "disagrees"

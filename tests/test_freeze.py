@@ -175,6 +175,9 @@ def test_judged_labels_must_be_applied_and_a_difference_is_either(tmp_path, monk
     monkeypatch.setattr(freeze, "load_integrality", lambda path: {**labels, **judged})
     # The judges differ everywhere, so every label must be "either": none of these fits.
     assert "44 of the 44" in " ".join(freeze.judged_labels())
+    either = {k: v.model_copy(update={"kind": "either"}) for k, v in judged.items()}
+    monkeypatch.setattr(freeze, "load_integrality", lambda path: {**labels, **either})
+    assert freeze.judged_labels() == []
 
 
 def test_judged_labels_that_agree_and_are_applied_leave_nothing(tmp_path, monkeypatch):

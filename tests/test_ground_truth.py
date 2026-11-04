@@ -20,6 +20,7 @@ from opt_agent.ground_truth import (
     does_nothing,
     equality_model,
     equality_names,
+    label_kinds,
     lacks_optimum,
     load_exclusions,
     load_integrality,
@@ -28,6 +29,7 @@ from opt_agent.ground_truth import (
     matching_reading,
     needs_hand_label,
     readings,
+    reference_model,
     render_report,
     scorable,
 )
@@ -238,3 +240,31 @@ def test_the_tolerance_is_relative_and_absolute_near_zero():
     assert matching_reading(r, r.ip.status, 251 * (1 + 5e-7)) == "annotated"
     assert matching_reading(r, r.ip.status, 251 * (1 + 5e-5)) is None
     assert matching_reading(r, r.ip.status, 251 * (1 + 5e-5), tolerance=1e-4) == "annotated"
+
+
+# ---- the `either` label (Amendment 2) ---------------------------------------------------
+
+
+def either(record):
+    label = record.integrality.model_copy(update={"kind": "either", "source": "judge"})
+    return record.model_copy(update={"integrality": label})
+
+
+def test_an_either_label_accepts_both_optima_and_stands_for_the_integer_one():
+    """Dev gas (439170086): LP 250, IP 251."""
+    gas = either(next(r for r in load_records(GROUND_TRUTH_DIR / "dev.json")
+                      if r.id == "439170086"))  # fmt: skip
+    assert label_kinds(gas) == ["ip", "lp"] and answer(gas) is gas.ip
+    assert [(reading, s.objective) for reading, s in readings(gas)] == [
+        ("annotated", approx(251)), ("annotated", approx(250))]  # fmt: skip
+    for value in (251, 250):
+        assert matching_reading(gas, Status.OPTIMAL, value) == "annotated"
+    assert matching_reading(gas, Status.OPTIMAL, 252) is None
+    assert all(v.integer for v in reference_model(gas).variables)
+
+
+def test_an_either_answer_needs_both_solves_trusted():
+    gas = either(next(r for r in load_records(GROUND_TRUTH_DIR / "dev.json")
+                      if r.id == "439170086"))  # fmt: skip
+    untrusted = gas.model_copy(update={"lp": gas.lp.model_copy(update={"highs_agrees": False})})
+    assert answer(untrusted) is None and not scorable(untrusted)
