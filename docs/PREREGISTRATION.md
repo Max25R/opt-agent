@@ -1,14 +1,16 @@
 # Pre-registration: the milestone 6 evaluation
 
-**Status: DRAFT (Claude, 2026-10-19). Not approved.** No test-split run happens until the
-owner approves this file. After approval, any change goes in "Amendments" at the bottom,
-with its date and reason, and the test split is run **once**, with everything frozen.
+**Status: APPROVED (owner, 2026-11-04).** Drafted by Claude from 2026-10-19, and approved
+as a whole, with Amendments 1 and 2, before any test-split run. From here, any change goes
+in "Amendments" at the bottom, with its date and reason, and the test split is run
+**once**, with everything frozen (`docs/FREEZE.json`, section 6).
 
 The owner settled the four open decisions on 2026-10-19; each is recorded where it
-applies, under "Decided". The draft as a whole is still unapproved.
+applies, under "Decided".
 
 Counts below come from the committed ground truth (`data/nl4opt/ground_truth/`,
-`REPORT.md`). They'll be regenerated, not retyped, when this file is finalized.
+`REPORT.md`). They're regenerated from it, not retyped, and
+`tests/test_preregistration.py` checks each one.
 
 ## 1. What is measured
 

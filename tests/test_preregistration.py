@@ -162,9 +162,10 @@ def test_the_freeze_list_names_everything_a_run_depends_on():
         assert item in freeze, item
 
 
-def test_it_is_still_a_draft():
-    assert says("**Status: DRAFT") and says("Not approved.")
-    assert "approved by the owner" not in DOC.lower()
+def test_it_is_approved():
+    """By the owner, on 2026-11-04, as a whole (with Amendments 1 and 2)."""
+    assert says("**Status: APPROVED (owner, 2026-11-04).**")
+    assert "Status: DRAFT" not in DOC and "Not approved." not in DOC
 
 
 def test_the_judges_integrality_replies_are_as_the_amendment_says():

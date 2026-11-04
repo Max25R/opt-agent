@@ -99,8 +99,10 @@ def test_a_test_run_is_the_whole_experiment(monkeypatch, tmp_path):
 # ---- before the freeze, and approving ---------------------------------------------------
 
 
-def test_the_owner_cannot_approve_yet(freeze_file):
-    """While the pre-registration is a draft (test_preregistration checks it still is)."""
+def test_a_draft_pre_registration_blocks_approval(freeze_file, monkeypatch, tmp_path):
+    draft = tmp_path / "PREREGISTRATION.md"
+    draft.write_text("**Status: DRAFT (Claude, 2026-10-19). Not approved.**\n")
+    monkeypatch.setattr(freeze, "PREREGISTRATION_PATH", draft)
     with pytest.raises(FreezeError, match="still a draft"):
         freeze.approve()
     assert not freeze_file.exists()
@@ -137,20 +139,19 @@ def test_a_review_applied_without_a_rebuild_is_caught(monkeypatch):
     assert "older than the hand inputs for 1 problems" in stale  # in test.json, not perturbed
 
 
-def test_status_says_what_is_left_and_that_nothing_is_approved(freeze_file, capsys):
+def test_status_says_nothing_is_left_and_nothing_is_approved_yet(freeze_file, capsys):
     freeze.main([])
     printed = capsys.readouterr().out
-    assert "still a draft" in printed and "Not approved yet" in printed
+    assert "Nothing left to do before the freeze." in printed and "Not approved yet" in printed
 
 
 # ---- what's left, as Amendment 2 has it --------------------------------------------------
 
 
-def test_only_the_owners_approval_is_left():
-    """Amendment 2's judges and cross-check are applied, so the draft is all that's left.
-    No longer the owner's: the blind labels, the "says LP" labels, the reviews."""
-    assert freeze.unfinished() == [
-        "docs/PREREGISTRATION.md is still a draft: the owner approves it first"]  # fmt: skip
+def test_nothing_is_left_before_the_owners_freeze():
+    """The pre-registration is approved, and Amendment 2's judges and cross-check are
+    applied. No longer the owner's: the blind labels, the "says LP" labels, the reviews."""
+    assert freeze.unfinished() == []
 
 
 def judge_sheets(tmp_path, monkeypatch, first: str, second: str):

@@ -62,8 +62,8 @@ point is a trustworthy evaluation, not a demo.
      fixtures and two excluded test problems; the strict reading (`strict.py`);
      `Result.confirmed`; the owner's packets (`review/`, `packets.py`); a draft
      pre-registration (`docs/PREREGISTRATION.md`); `requirements.lock`.
-   - **Still open before milestone 6:** only the owner's approval of the pre-registration
-     as a whole (still a draft), then `freeze approve` (the owner's step). Amendment 2's
+   - **Still open before milestone 6:** only `freeze approve` (the owner's step). The
+     pre-registration was approved as a whole on 2026-11-04 (owner), with Amendments 1-2. Amendment 2's
      judges, cross-check and review outcomes are all applied (2026-11-04). The owner's own
      packets (`review/integrality_blind/`, `review/says_lp.md`, `review/test_reviews/`) are
      no longer used, and are kept as sent: the review packet's label lines predate the
