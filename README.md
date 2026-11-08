@@ -12,7 +12,7 @@ solves them with a real solver (PuLP + CBC), verifies the result, and explains i
 - [x] 3. Ground truth built from the NL4Opt annotations (no LLM)
 - [x] 4. LLM formulation with Claude structured output
 - [x] 5. Self-correction loop
-- [ ] 6. Evaluation on the NL4Opt test set
+- [x] 6. Evaluation on the NL4Opt test set
 - [ ] 7. FastAPI endpoint + demo + Docker
 - [ ] 8. Polish
 
@@ -159,15 +159,23 @@ third-party answer key, `ground_truth.py` builds one from the raw annotations:
    changes it, and it wasn't used while building the agent (`exclusions.json`).
 
 **Who decided what.** Claude (the AI model that wrote this code) wrote every hand review and
-most hand labels; the owner decided the rest and confirms Claude's work:
+most hand labels. The owner decided the rest. Claude's work was checked by the owner on dev,
+and by LLM judges on test:
 
 - *Dev split:* the owner set the integrality labels for the problems in the dev
   walkthrough, and confirmed (and corrected) the dev reviews, except one that was written
   after the walkthrough. The other dev hand labels are Claude's.
-- *Test split:* every hand label and every review is Claude's, and none is confirmed yet.
-  The owner is labeling a blind random sample (`review/integrality_blind/`) and checking
-  every test review (`review/test_reviews/`) before any test run, under the rules in
-  [`docs/PREREGISTRATION.md`](docs/PREREGISTRATION.md) (a draft, not yet approved).
+- *Test split:* every hand label and every review is Claude's. Two LLM judges from
+  different vendors checked them instead of the owner (pre-registration, Amendment 2):
+  - **Integrality labels:** they labeled a blind sample and the "says LP" problems. Where
+    they disagree, either answer is accepted.
+  - **Reviews:** they judged the reviews that an external cross-check against
+    ORLMBenchmark couldn't cover. Accuracy is also reported without the reviews they
+    disputed, and the hard cases they didn't confirm are excluded.
+
+  All of this was settled under the rules in
+  [`docs/PREREGISTRATION.md`](docs/PREREGISTRATION.md), which was approved and frozen
+  (`docs/FREEZE.json`) before any test run.
 
 Every count, including who labeled and confirmed what, lives in the generated
 [`data/nl4opt/ground_truth/REPORT.md`](data/nl4opt/ground_truth/REPORT.md).
@@ -200,9 +208,15 @@ src/opt_agent/
   stats.py         # Wilson intervals, exact McNemar, Holm correction
   packets.py       # hand-check packets for the owner, and their agreement statistics
 data/nl4opt/       # committed ground truth, hand reviews, labels, exclusions, NL4Opt's license
-docs/              # PREREGISTRATION.md: the evaluation's rules, fixed before the test run
-review/            # packets for the owner's blind labels and review checks
-scripts/           # dev_walkthrough.py: a review sheet of 30 dev problems
+docs/              # PREREGISTRATION.md: the evaluation's rules, frozen before the test run
+  amendments/      # Amendment 3 and the deviations note
+review/            # hand-check packets, the judges' replies, and the filled-in sheets
+scripts/
+  dev_walkthrough.py  # a review sheet of 30 dev problems
+  blind_taxonomy.py   # the blinded taxonomy prompt for both judges, and merging their replies
+  amendment3.py       # Amendment 3's exploratory row, added to runs/test/report.json
+  eval_json.py        # results/eval.json, the source of every number in the Evaluation section
+results/           # eval.json
 tests/
   problems.py      # hand-written problems with known answers
   strategies.py    # Hypothesis generators of random valid models
@@ -218,7 +232,79 @@ _TODO (milestone 7)._
 
 ## Evaluation
 
-_TODO (milestone 6). Every number here will come from `results/eval.json`._
+The NL4Opt test split has 274 scorable problems, and every condition used Claude Haiku 5.5.
+The inputs (prompts, code, data and ground truth) were frozen before the run, and the
+analysis was pre-registered ([`docs/PREREGISTRATION.md`](docs/PREREGISTRATION.md)). An
+answer is correct if its status and objective match the answer key (relative tolerance
+1e-6). Every number in this section comes from [`results/eval.json`](results/eval.json),
+and a test checks it.
+
+| condition | accuracy (95% Wilson) | silent / loud failures | perturbed set (n = 240) | cost | latency p50 / p95 |
+|---|---|---|---|---|---|
+| no-solver baseline | 96.4% (93.4–98.0%) | 10 / 0 | 97.1% | $0.124 | 3.8 s / 8.1 s |
+| single-shot | 96.4% (93.4–98.0%) | 10 / 0 | 96.7% | $0.150 | 3.6 s / 6.7 s |
+| self-correction | 96.4% (93.4–98.0%) | 10 / 0 | 97.1% | $0.167 | 3.7 s / 9.5 s |
+| *exploratory, post hoc:* answer-key errors counted as correct | 98.5% (96.3–99.4%) in each | | | | |
+
+**No detectable difference on NL4Opt.** All three conditions got 264 of 274 right. None of
+the 6 pre-registered McNemar tests comes close (every p = 1, with at most 3 discordant
+pairs in any comparison). That isn't evidence that the conditions are equivalent. But the
+baseline, which answers directly with no solver, matched the solver conditions. That
+suggests NL4Opt is saturated as a test of what a solver adds.
+
+**Most shared failures are answer-key errors (exploratory, post hoc).** 8 problems were
+wrong in all three conditions. Two LLM judges labeled each failure on its own, and both
+called 6 of the 8 answer-key errors: a key that is wrong, or that rejects a reading the
+text supports. Counting those 6 as correct gives 98.5% in every condition, which leaves 4
+real failures per condition. This row was added after the results were seen, and it is
+not a pre-registered result.
+
+**Same score, different failures.** By the judge of record's labels, the baseline's 4
+remaining failures are 2 missing constraints, 1 arithmetic slip and 1 wrong coefficient.
+The solver conditions' 4 are 2 integrality errors, 1 invented constraint (a stated
+preference, "prefers", made a requirement) and the same wrong coefficient. With 4 failures
+per condition, this is a description, not a finding.
+
+**0 loud failures, and why that's not reassuring.** Every answer from the solver
+conditions was confirmed: CBC and HiGHS agreed, and the arithmetic checks passed. But
+verification checks the solution of Claude's own formulation, not whether that formulation
+matches the text. So every modeling error passed every check, and all 10 failures per
+condition were silent.
+
+**No sign of memorization.** On 240 problems with their numbers changed and their answers
+recomputed, accuracy held (96.7–97.1%). No condition gave the original problem's answer to
+any changed problem.
+
+**Self-correction barely mattered.** It revised 23 answers across both runs and changed 1
+outcome. It cost 7% more than single-shot across both runs (11% on the test run).
+
+**Limitations.**
+- **The judges aren't independent proof.** The judge of record is Claude, the same model
+  family as the agent, and both judges saw the same inputs and row-pairing hints, so their
+  20/20 agreement isn't independent proof.
+- **One answer counted as correct has a bug.** Of the 6 answers that count as correct,
+  `431521997`'s model has an error that doesn't change its answer (an upper limit
+  replaced by a trivial constraint), and blind grading graded it wrong.
+- **The answer key can be wrong without the score showing it.** On `-2001553884` the
+  reference model leaves out a land limit. The limit doesn't bind, so the score can't see
+  the error.
+- **"Prefers" is a systematic weakness.** Reading a stated preference as a requirement
+  cost one problem in both solver conditions. The same mistake turned up in a model
+  that was scored right, because there the constraint doesn't bind.
+- **Blind grading.** Blind grading agreed with the automatic score on 29 of 30 models
+  scored right and 5 of 10 scored wrong. All 5 wrong-side disagreements are the answer-key
+  errors above; the 1 right-side disagreement is a correct answer from a model with a
+  non-binding bug.
+
+**Cost.** Both test runs together (the main one and the perturbed one) cost $0.52 in API
+calls.
+
+**The rules.**
+- Amendments 1 and 2 are at the end of the
+  [pre-registration](docs/PREREGISTRATION.md#amendments).
+- Amendment 3 (the exploratory row and blinded judge prompts) and a
+  [note on deviations](docs/amendments/DEVIATIONS.md) are in
+  [`docs/amendments/`](docs/amendments/).
 
 ## Limitations
 

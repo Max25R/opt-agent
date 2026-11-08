@@ -62,7 +62,8 @@ point is a trustworthy evaluation, not a demo.
      fixtures and two excluded test problems; the strict reading (`strict.py`);
      `Result.confirmed`; the owner's packets (`review/`, `packets.py`); a draft
      pre-registration (`docs/PREREGISTRATION.md`); `requirements.lock`.
-   - **Still open before milestone 6:** only `freeze approve` (the owner's step). The
+   - **Before milestone 6 (all done):** the owner ran `freeze approve` on 2026-11-04
+     (`docs/FREEZE.json`, commit 8f522c0). The
      pre-registration was approved as a whole on 2026-11-04 (owner), with Amendments 1-2. Prices
      re-checked the same day, before the freeze: unchanged (`PRICES_CHECKED`). The owner
      approved the test-run plan: `--cap 1.60` for `runs/test` and `--cap 1.40` for
@@ -93,7 +94,7 @@ point is a trustworthy evaluation, not a demo.
      API errors per pre-registration Amendment 1 (approved the same day); and dev
      793774916, a silent failure self-correction can't catch, goes in
      `docs/FAILURE_LOG.md`. **Don't tune prompts to fix a single dev problem.**
-6. [ ] Evaluation. Iterate on prompts with the dev split only, then run test once with
+6. [x] Evaluation. Iterate on prompts with the dev split only, then run test once with
    everything frozen. Conditions: no-solver baseline, single-shot, self-correction, plus
    a perturbed-numbers set. Report Wilson CIs, McNemar's test, the silent-vs-loud failure
    split, p50/p95 latency, and cost from real token usage. Use a hash-keyed response
@@ -122,7 +123,8 @@ point is a trustworthy evaluation, not a demo.
        prices).
      - The smoke run (`runs/smoke`, given a manifest after the fact) reports exactly the
        step 1 numbers.
-     - Not yet: `results/eval.json` and the README-number test (after the test run).
+     - `results/eval.json` and the README-number test came after the test run (see
+       "The test runs and the results" below).
    - **Step 2, the perturbed-numbers set (2026-10-28; no API calls):** all three
      conditions run on it (owner's decision). `perturb.py` (the rule is its docstring)
      changes every annotated number written in digits except 1, by a log-uniform factor in
@@ -262,6 +264,28 @@ point is a trustworthy evaluation, not a demo.
      strict reading only where the label accepts whole numbers. `report.py`: accuracy
      without disputed reviews, the second judge's labels alone (test), the judges'
      agreement on all 44, and a note on the empty "says LP" subset.
+   - **The test runs and the results (2026-11-04 to 2026-11-08; no API calls from here):**
+     - **The runs:** the owner ran `runs/test` and `runs/test-perturbed` from their own
+       terminal, on the frozen inputs, with 0 errored pairs ($0.52 paid in all).
+     - **Amendment 3** (`docs/amendments/AMENDMENT_3.md`, tag `amendment-3`, committed
+       before any judge saw a prompt): an exploratory, post hoc row that counts a shared
+       failure as correct only when both judges label it `reference`, and blinded 5a prompts
+       (`scripts/blind_taxonomy.py`).
+     - **The 5a replies:** merged with the graders as they actually ran (claude.ai incognito
+       chats and a ChatGPT Temporary Chat, web search off).
+       `docs/amendments/DEVIATIONS.md` records how that differs from Amendment 2, and that
+       the second judge's sheets record no date.
+     - **Amendment 3's row:** `scripts/amendment3.py runs/test` adds it to
+       `runs/test/report.json`. **A frozen `opt_agent.report` rebuild drops the row**, so
+       run the script again after any rebuild.
+     - **The results file:** `scripts/eval_json.py` writes `results/eval.json` from both
+       reports, the runs, the 5a sheets and `docs/FREEZE.json`. It refuses a report without
+       the row, and its tests check that the same inputs give the same bytes and that the
+       committed file is current.
+     - **The README check:** `tests/test_readme_numbers.py` (section 7) checks every number
+       in the README's Evaluation section against `results/eval.json`, at the precision
+       shown. It matches by value, not by place.
+     - **Paths under `runs/` are git-ignored:** commit them with `git add -f`.
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
@@ -354,6 +378,9 @@ python -m opt_agent.external_check apply   # the decisions into reviews/exclusio
 python -m opt_agent.packets judge   # review/integrality_judge/: one prompt, a sheet per judge
 python -m opt_agent.packets judge --merge judge|second --reply REPLY.csv --grader "MODEL"
 python -m opt_agent.packets judge --apply   # both sheets filled: combined labels into integrality.json
+python scripts/blind_taxonomy.py runs/test [--merge judge|second --reply R.csv --grader G]
+python scripts/amendment3.py runs/test   # after every report rebuild: Amendment 3's row
+python scripts/eval_json.py              # then results/eval.json (README numbers come from it)
 ```
 
 ## Ground truth (milestone 3 decisions)
