@@ -83,6 +83,40 @@ exactly the simulation's:
   its optimum happens to be one tour. The checklist noticed (its "can't express" note asks for
   ordering variables), but a note never flags.
 
+## Measurement: mutation recall after revision 1 (2026-11-09, $0; not a revision)
+
+`scripts/mutation_recall.py` (seed 20261109, up to 3 mutants of each type per model): the 22
+dev models scored right, each broken in small known ways, against the run's cached checklist
+and estimate for that problem, with local solves only. Types: drop one constraint, flip one
+inequality, scale one coefficient by 2 or 0.5, move one non-zero right-hand side by 20%, make
+one integer variable continuous, add one invented `x_i >= x_j`. A mutant counts only if it
+changes the optimum. **Caught** means the check says something about the mutant it didn't
+say about the original (a new checklist flag, or low confidence the original didn't have), so
+the original's false positives don't count. Result: `runs/dev-checklist-rev1/mutation_recall.json`.
+
+| mutation | n | checklist | low confidence | either |
+|---|---|---|---|---|
+| drop | 37 | 35/37 (95%; 82-99%) | 34/37 (92%; 79-97%) | 37/37 (100%; 91-100%) |
+| flip | 49 | 45/49 (92%; 81-97%) | 45/49 (92%; 81-97%) | 48/49 (98%; 89-100%) |
+| scale | 14 | 13/14 (93%; 69-99%) | 13/14 (93%; 69-99%) | 14/14 (100%; 78-100%) |
+| rhs | 45 | 38/45 (84%; 71-92%) | 42/45 (93%; 82-98%) | 45/45 (100%; 92-100%) |
+| continuous | 21 | 14/21 (67%; 45-83%) | 13/21 (62%; 41-79%) | 17/21 (81%; 60-92%) |
+| invent | 12 | 12/12 (100%; 76-100%) | 11/12 (92%; 65-99%) | 12/12 (100%; 76-100%) |
+| **all** | **178** | **157/178 (88%; 83-92%)** | **158/178 (89%; 83-93%)** | **173/178 (97%; 94-99%)** |
+
+95% Wilson intervals. **Discarded** (undetectable by design, or not a model): 356 generated;
+167 didn't change the optimum (scale 52, invent 54, continuous 33, drop 17, rhs 9, flip 2), 11
+the schema rejects (a dropped row was a variable's only one), 0 the solver couldn't solve.
+
+**What this does and doesn't show.** It's an upper bound on recall for real errors. Each
+mutant is judged against a checklist and an estimate made for the *correct* model, so both are
+independent of the mutation. A real error comes from Claude's own reading of the text, and the
+checklist and the estimate are Claude's too, so they can share it: on dev, the estimate shared
+the model's answer on 82 (there the key was wrong), and on M6 test (exploratory) the estimate
+caught 3 of single-shot's 4 real failures. The weakest type is integrality (81% for either),
+since an auxiliary variable's kind isn't checked (rule 2) and a continuous mutant can match
+the estimate's own integrality slip. In-sample on dev; no revision was made from it.
+
 ## Pre-registration decisions (for the follow-up, not dev tuning)
 
 - **The unused-variable rule.** `schema.py` rejects a model with a variable that has no

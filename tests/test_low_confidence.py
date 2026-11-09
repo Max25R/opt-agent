@@ -92,3 +92,18 @@ def test_the_flag_replays_from_the_m6_cache(tmp_path, problem_id, flagged):
     result = run(record.document, NoCalls(), with_explanation=False, max_attempts=1,
                  session=session, estimate=True)  # fmt: skip
     assert result.low_confidence is flagged
+
+
+def test_the_comparison_is_the_same_function_the_agent_uses():
+    """scripts/mutation_recall.py calls compare_estimate directly; it must agree with run()."""
+    from fakes import GAS_MODEL
+
+    from opt_agent.agent import compare_estimate
+    from opt_agent.schema import LPModel
+
+    gas_model = LPModel.model_validate(GAS_MODEL)
+    for objective, flagged in ((249, True), (250, False), (251, False)):
+        via_run = gas(estimate("optimal", objective)).low_confidence
+        direct, _ = compare_estimate("optimal", objective, "optimal", 251.0, gas_model)
+        assert via_run is direct is flagged
+    assert compare_estimate("infeasible", None, "optimal", 251.0, gas_model)[0] is True

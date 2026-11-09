@@ -145,18 +145,30 @@ def confidence(result: Result) -> tuple[bool | None, str]:
         return None, f"no direct estimate to compare ({e.error})"
     if not result.confirmed:
         return None, "no confirmed answer to compare the direct estimate with"
-    if e.status != s.status:
-        estimated, solved = _said(e.status, e.objective), _said(s.status, s.objective)
-        return True, f"the direct estimate says {estimated}, the solver {solved}"
-    if s.status is Status.OPTIMAL and not same_value(e.objective, s.objective, TOLERANCE):
-        relaxed = _lp_relaxation(result.formulation.model)
-        if relaxed is not None and same_value(e.objective, relaxed, TOLERANCE):
+    return compare_estimate(e.status, e.objective, s.status, s.objective, result.formulation.model)
+
+
+def compare_estimate(
+    estimated_status: str,
+    estimated: float | None,
+    status: str,
+    objective: float | None,
+    model: LPModel,
+) -> tuple[bool, str]:
+    """The comparison itself, given a usable estimate and a confirmed answer of `model`
+    (also used by scripts/mutation_recall.py)."""
+    if estimated_status != status:
+        said, solved = _said(Status(estimated_status), estimated), _said(Status(status), objective)
+        return True, f"the direct estimate says {said}, the solver {solved}"
+    if status == Status.OPTIMAL and not same_value(estimated, objective, TOLERANCE):
+        relaxed = _lp_relaxation(model)
+        if relaxed is not None and same_value(estimated, relaxed, TOLERANCE):
             # Revision 1, rule 5: the estimate ignored integrality. That's left to the
             # checklist's integrality check, so it's a note, not low confidence.
-            return False, (f"the direct estimate {e.objective:g} equals the model's LP "
-                           f"relaxation, not its integer optimum {s.objective:g}: an "
+            return False, (f"the direct estimate {estimated:g} equals the model's LP "
+                           f"relaxation, not its integer optimum {objective:g}: an "
                            "integrality-only difference")  # fmt: skip
-        return True, f"the direct estimate is {e.objective:g}, the solver's optimum {s.objective:g}"
+        return True, f"the direct estimate is {estimated:g}, the solver's optimum {objective:g}"
     return False, "the direct estimate agrees with the solver's answer"
 
 
