@@ -8,7 +8,7 @@ import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, milp
 
 from opt_agent.rays import certified_ray, describe
-from opt_agent.schema import LPModel, Term
+from opt_agent.schema import LPModel, Term, no_whole_number
 from opt_agent.solution import Solution, Status
 
 HIGHS_TIME_LIMIT_SECONDS = 30
@@ -34,6 +34,8 @@ def solve_with_highs(model: LPModel) -> Solution:
 
 
 def _solve_once(model: LPModel) -> Solution:
+    if empty := no_whole_number(model.variables):
+        return Solution(solver="highs", status=Status.INFEASIBLE, note=empty)
     sign = -1.0 if model.objective.sense == "max" else 1.0  # milp always minimizes
     costs = sign * _row(model.objective.terms, model)
     result = _run_milp(model, costs)
@@ -65,6 +67,8 @@ def feasible(model: LPModel) -> bool | None:
 
 def _feasibility(model: LPModel) -> tuple[Status, dict[str, float] | None]:
     """HiGHS's answer to "is there any feasible point?" (OPTIMAL means yes), with the point."""
+    if no_whole_number(model.variables):
+        return Status.INFEASIBLE, None
     result = _run_milp(model, np.zeros(len(model.variables)))
     if result.status == _OPTIMAL:
         point = {v.name: float(x) for v, x in zip(model.variables, result.x, strict=True)}
@@ -101,12 +105,13 @@ def _timed_out(doing: str) -> Solution:
 
 
 def _run_milp(model: LPModel, costs: np.ndarray):
+    bounds = [v.solver_bounds() for v in model.variables]  # integer bounds rounded inward
     return milp(
         costs,
         constraints=_linear_constraints(model),
         bounds=Bounds(
-            [-np.inf if v.lower is None else v.lower for v in model.variables],
-            [np.inf if v.upper is None else v.upper for v in model.variables],
+            [-np.inf if lower is None else lower for lower, _ in bounds],
+            [np.inf if upper is None else upper for _, upper in bounds],
         ),
         integrality=[1 if v.integer else 0 for v in model.variables],
         # Prove optimality (don't stop at a near-optimal MIP), but don't hang forever.

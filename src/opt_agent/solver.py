@@ -1,11 +1,9 @@
 """Build a PuLP model from an LPModel and solve it with CBC."""
 
-import math
-
 import pulp
 
 from opt_agent.rays import certified_ray, describe
-from opt_agent.schema import Constraint, LPModel, Term, Variable
+from opt_agent.schema import Constraint, LPModel, Term, Variable, no_whole_number
 from opt_agent.solution import Solution, Status
 
 __all__ = ["Solution", "Status", "build_problem", "solve"]  # Solution/Status re-exported
@@ -39,6 +37,8 @@ def solve(model: LPModel) -> Solution:
 
 
 def _solve_once(model: LPModel) -> Solution:
+    if empty := no_whole_number(model.variables):
+        return Solution(solver="cbc", status=Status.INFEASIBLE, note=empty)
     problem, pulp_vars = build_problem(model)
     stats = _run_cbc(problem)
     status = _STATUS_FROM_PULP.get(stats.status, Status.ERROR)
@@ -105,6 +105,8 @@ def _timed_out(doing: str) -> Solution:
 
 def _feasibility(model: LPModel) -> tuple[Status, dict[str, float] | None]:
     """CBC's answer to "is there any feasible point?", with the point if there is one."""
+    if no_whole_number(model.variables):
+        return Status.INFEASIBLE, None
     problem, pulp_vars = build_problem(model)
     problem.setObjective(pulp.lpSum([]))
     stats = _run_cbc(problem)
@@ -121,10 +123,11 @@ def _value_or_any_in_bounds(value: float | None, v: Variable) -> float:
     no value. It touches no constraint, so any value within its bounds is feasible."""
     if value is not None:
         return value
-    if v.lower is not None and v.lower > 0:
-        return float(math.ceil(v.lower)) if v.integer else v.lower
-    if v.upper is not None and v.upper < 0:
-        return float(math.floor(v.upper)) if v.integer else v.upper
+    lower, upper = v.solver_bounds()  # whole numbers for an integer variable
+    if lower is not None and lower > 0:
+        return lower
+    if upper is not None and upper < 0:
+        return upper
     return 0.0
 
 
@@ -135,7 +138,7 @@ def build_problem(model: LPModel) -> tuple[pulp.LpProblem, dict[str, pulp.LpVari
     # or symbols, which could make two of our names collide. We map back by position.
     pulp_vars = {
         v.name: problem.add_variable(
-            f"x{i}", v.lower, v.upper, pulp.LpInteger if v.integer else pulp.LpContinuous
+            f"x{i}", *v.solver_bounds(), pulp.LpInteger if v.integer else pulp.LpContinuous
         )
         for i, v in enumerate(model.variables)
     }

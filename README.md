@@ -106,6 +106,10 @@ Problems these checks found, each with a regression test:
   unbounded model, but only in one variable order. Found by the reordering test; fixed by
   the improving-ray check, not by changing solver settings (turning off CBC's scaling
   caused new false optima).
+- HiGHS returned a fractional value (2.5) for an integer variable with a fractional bound,
+  which made the cross-check report a false disagreement (found by the audit). Both solvers
+  now get integer bounds rounded inward, and an integer variable with no whole number in its
+  bounds is infeasible by arithmetic.
 
 ## How the agent works
 

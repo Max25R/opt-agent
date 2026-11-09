@@ -489,6 +489,11 @@ python scripts/eval_json.py              # then results/eval.json (README number
   variables. That's expected; the random generator bounds integer variables.
 - **CBC gives no value to a variable that appears only in the objective** when the
   objective is zeroed (the feasibility solve). `solver._value_or_any_in_bounds` fills one in.
+- **HiGHS can return a fractional value for an integer variable with a fractional bound**
+  (scipy 1.18.1, presolve on: maximize x <= 2.5 gave 2.5). Both solvers take
+  `Variable.solver_bounds()`, integer bounds rounded inward, and `schema.no_whole_number`
+  makes an integer variable with no whole number in its bounds infeasible in both (CBC's
+  feasibility solve never sees an objective-only variable).
 - **SciPy's `milp` status 4 means "other"**: HiGHS's "infeasible or unbounded" (common for
   MIPs), but also its solve errors. Status 1 is the time limit. So 2, 3 and 4 are settled
   by a feasibility solve and a certified ray, or else become `error`.

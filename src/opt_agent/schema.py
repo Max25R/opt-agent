@@ -6,10 +6,15 @@ everything downstream only ever sees a validated LPModel. Linear expressions are
 JSON object to have fixed keys.
 """
 
+import math
 from collections import Counter
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+# A bound within this of a whole number is that whole number written with float noise
+# (2.9999999999997 is 3), so rounding an integer variable's bounds inward never loses it.
+ROUND_OFF = 1e-9
 
 
 class StrictModel(BaseModel):
@@ -37,6 +42,31 @@ class Variable(StrictModel):
     lower: float | None = Field(0.0, description="Lower bound, or null for none")
     upper: float | None = Field(None, description="Upper bound, or null for none")
     integer: bool = Field(False, description="True if it counts whole things")
+
+    def solver_bounds(self) -> tuple[float | None, float | None]:
+        """The bounds every solver gets. An integer variable's are rounded inward (lower up,
+        upper down), which changes nothing about its whole-number values, because HiGHS can
+        return a fractional value for an integer variable with a fractional bound (audit,
+        finding 6: maximize x <= 2.5 gave 2.5)."""
+        if not self.integer:
+            return self.lower, self.upper
+        lower = None if self.lower is None else float(math.ceil(self.lower - ROUND_OFF))
+        upper = None if self.upper is None else float(math.floor(self.upper + ROUND_OFF))
+        return lower, upper
+
+
+def no_whole_number(variables: list["Variable"]) -> str | None:
+    """Why a model is infeasible by arithmetic alone, if an integer variable has no whole
+    number within its bounds; None otherwise. Both solvers report this themselves, because
+    CBC never sees a variable that is only in the objective of its feasibility solve."""
+    empty = []
+    for v in variables:
+        lower, upper = v.solver_bounds()
+        if lower is not None and upper is not None and lower > upper:
+            empty.append(f"'{v.name}' in [{v.lower:g}, {v.upper:g}]")
+    if not empty:
+        return None
+    return "no whole number lies within the bounds of integer " + ", ".join(empty)
 
 
 class Objective(StrictModel):
