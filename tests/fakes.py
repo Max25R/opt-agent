@@ -135,3 +135,49 @@ def model(constraints, sense="min", objective=None, integer=False):
 
 
 INFEASIBLE_REPLY = model([("at least 5", ">=", 5), ("at most 3", "<=", 3)])
+
+# What a checklist call (checklist.py) might return for the gas problem: what a correct
+# formulation of it must contain, over the model's variable names.
+GAS_CHECKLIST = {
+    "variables": [
+        {"name": "pipelines", "kind": "integer", "quote": "the number of pipelines"},
+        {"name": "trains", "kind": "integer", "quote": "the number of trains used"},
+    ],
+    "objective": {
+        "sense": "min",
+        "terms": [{"var": "pipelines", "coef": 1}, {"var": "trains", "coef": 1}],
+        "quote": "minimize the total number of pipelines and trains needed",
+    },
+    "requirements": [
+        {
+            "quote": "at least 1000000 units of gas needs to be transported every day",
+            "terms": [{"var": "pipelines", "coef": 8000}, {"var": "trains", "coef": 2000}],
+            "sense": ">=",
+            "rhs": 1000000,
+            "strict": False,
+            "could_be_equal": False,
+            "scope": "combined",
+        },
+        {
+            "quote": "the number of trains used must be at least twice as many as the number "
+            "of pipelines",
+            "terms": [{"var": "trains", "coef": 1}, {"var": "pipelines", "coef": -2}],
+            "sense": ">=",
+            "rhs": 0,
+            "strict": False,
+            "could_be_equal": False,
+            "scope": "combined",
+        },
+    ],
+    "not_requirements": [
+        {
+            "quote": "Due to recent environmental changes",
+            "why": "background: the reason for a rule, not a rule",
+            "terms": [],
+            "sense": ">=",
+            "rhs": 0,
+        }
+    ],
+    "cannot_express": [],
+}
+GAS_CHECKLIST_REPLY = json.dumps(GAS_CHECKLIST)
