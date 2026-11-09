@@ -8,6 +8,10 @@ M6 was a confirmed answer to a wrong model, which verification can't see, and a 
 answer that disagrees is a cheap sign of one. The flag is report-only: it's computed after
 everything else and changes no answer, check or revision.
 
+With `checklist`, a separate call lists what a correct formulation of the text must contain,
+given only the text and the model's variable names (checklist.py), and every difference from
+the model becomes a typed flag in `checklist_flags`. Report-only too, in the same way.
+
 Run:  python -m opt_agent.agent "A gas company can transport gas using a pipeline or by train. ..."
       (or pass - and pipe the problem in). Needs ANTHROPIC_API_KEY exported, or
       OPT_AGENT_LIVE=1 to use the key in .env (see .env.example).
@@ -23,6 +27,9 @@ from pydantic import BaseModel
 
 from opt_agent.api import Cache, CallInfo
 from opt_agent.baseline import DirectAnswer, answer_directly
+from opt_agent.checklist import ChecklistFlag, ChecklistReply
+from opt_agent.checklist import ask as ask_checklist
+from opt_agent.checklist import review as review_checklist
 from opt_agent.config import MissingAPIKeyError, get_api_key
 from opt_agent.explain import Explanation, explain, solver_facts
 from opt_agent.formulate import DEFAULT_MODEL, Formulation
@@ -48,12 +55,15 @@ class Result(BaseModel):
     # True: the estimate disagrees with the confirmed answer. None: nothing to compare.
     low_confidence: bool | None = None
     low_confidence_reason: str | None = None
+    checklist: ChecklistReply | None = None  # the checklist call, if one was asked for
+    checklist_flags: list[ChecklistFlag] | None = None  # None: not asked, or nothing to check
+    checklist_notes: list[str] = []  # what the checklist couldn't check, and why
     wall_s: float = 0.0  # the whole pipeline, as measured; a replayed run is faster
 
     @property
     def calls(self) -> list[CallInfo]:
         formulations = [a.formulation.call for a in self.outcome.attempts]
-        extra = [x.call for x in (self.estimate, self.explanation) if x is not None]
+        extra = [x.call for x in (self.estimate, self.checklist, self.explanation) if x]
         return formulations + extra
 
     @property
@@ -98,8 +108,11 @@ def run(
     session: Run | None = None,
     tags: Tags | None = None,
     estimate: bool = False,
+    checklist: bool = False,
 ) -> Result:
-    """`estimate`: also ask for a direct answer (one more call) and set low_confidence."""
+    """`estimate`: also ask for a direct answer (one more call) and set low_confidence.
+    `checklist`: also ask for a formulation checklist (one more call) and set
+    checklist_flags. Neither changes the answer, the checks or the revisions."""
     start = time.perf_counter()
     session = session or Run()
     outcome = solve_with_revisions(problem, client, model_id, max_attempts, session, tags)
@@ -113,6 +126,8 @@ def run(
         result.estimate = answer_directly(problem, client, model_id, session.cache)
         _log_estimate(session, tags, result.estimate)
         result.low_confidence, result.low_confidence_reason = confidence(result)
+    if checklist:  # likewise after everything that decides the answer
+        _check_formulation(problem, client, model_id, session, tags, result)
     if with_explanation and result.verified:  # never explain an answer that failed a check
         facts = solver_facts(model, solution)
         result.explanation = explain(problem, model, facts, client, model_id, session.cache)
@@ -136,6 +151,27 @@ def confidence(result: Result) -> tuple[bool | None, str]:
     if s.status is Status.OPTIMAL and not same_value(e.objective, s.objective, TOLERANCE):
         return True, f"the direct estimate is {e.objective:g}, the solver's optimum {s.objective:g}"
     return False, "the direct estimate agrees with the solver's answer"
+
+
+def _check_formulation(
+    problem: str, client: anthropic.Anthropic, model_id: str, session: Run, tags: Tags | None,
+    result: Result,
+) -> None:  # fmt: skip
+    model = result.formulation.model
+    if model is None:
+        result.checklist_notes = ["no usable model to check"]
+        return
+    names = [v.name for v in model.variables]
+    result.checklist = ask_checklist(problem, names, client, model_id, session.cache)
+    c = result.checklist
+    session.write("checklist", tags, model_id=c.model_id, request_sha256=c.call.request_sha256,
+                  request=c.request, reply=c.raw_text, stop_reason=c.stop_reason,
+                  usage=c.usage.model_dump(), call=c.call.model_dump(), error=c.error)  # fmt: skip
+    if c.checklist is None:
+        result.checklist_notes = [f"no usable checklist: {c.error}"]
+        return
+    found = review_checklist(model, c.checklist)
+    result.checklist_flags, result.checklist_notes = found.flags, found.notes
 
 
 def _said(status: Status, objective: float | None) -> str:
@@ -166,7 +202,9 @@ def _log_problem(session: Run, tags: Tags | None, result: Result) -> None:
               wall_s=round(result.wall_s, 3), latency_s=round(result.latency_s, 3),
               retry_s=round(result.retry_s, 3),
               cached_calls=sum(c.cached for c in result.calls),
-              low_confidence=result.low_confidence)  # fmt: skip
+              low_confidence=result.low_confidence,
+              checklist_flags=None if result.checklist_flags is None
+              else [f.model_dump() for f in result.checklist_flags])  # fmt: skip
 
 
 # ---- command line ----------------------------------------------------------------------
@@ -183,12 +221,14 @@ def render(result: Result) -> str:
     s = result.solution
     failed = [x for x in (s, result.highs_solution) if x.failed]
     if failed:  # checked first: a time-out is no verdict, so it can't "disagree"
-        return "\n".join(lines + [f"NO ANSWER: {_failure(x)}." for x in failed])
+        lines += [f"NO ANSWER: {_failure(x)}." for x in failed]
+        return "\n".join(lines + _checklist_lines(result))
     if result.highs_agrees is False:
         cbc, highs = _describe(s), _describe(result.highs_solution)
-        return "\n".join(lines + [
+        lines.append(
             f"SOLVERS DISAGREE: CBC says {cbc}, HiGHS says {highs}. No answer is reported."
-        ])  # fmt: skip
+        )
+        return "\n".join(lines + _checklist_lines(result))
     lines.append(f"Status: {s.status}")
     if s.note:
         lines.append(f"  ({s.note})")
@@ -199,6 +239,7 @@ def render(result: Result) -> str:
     lines += [f"  problem: {p}" for p in result.check_problems]
     if result.low_confidence:
         lines.append(f"LOW CONFIDENCE: {result.low_confidence_reason}.")
+    lines += _checklist_lines(result)
     e = result.explanation
     if e:
         lines += ["", e.text] if e.text else [""]
@@ -209,6 +250,18 @@ def render(result: Result) -> str:
                 f"(not backed by the solver's numbers: {', '.join(e.unsupported_numbers)})"
             )
     return "\n".join(lines)
+
+
+def _checklist_lines(result: Result) -> list[str]:
+    """The checklist's flags (report-only), and anything it couldn't check."""
+    lines = []
+    if result.checklist_flags:
+        lines.append(f"CHECKLIST: {len(result.checklist_flags)} difference(s) from the text:")
+        lines += [f"  {flag.kind}: {flag.detail}" for flag in result.checklist_flags]
+    elif result.checklist_flags is not None:
+        lines.append("Checklist: no differences from the text found.")
+    lines += [f"  (checklist: {note})" for note in result.checklist_notes]
+    return lines
 
 
 SOLVER_NAMES = {"cbc": "CBC", "highs": "HiGHS"}
