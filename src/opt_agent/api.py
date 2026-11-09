@@ -99,23 +99,27 @@ KEYED_FIELDS = ("model", "system", "messages", "max_tokens", "thinking", "temper
                 "top_p", "top_k", "stop_sequences")  # fmt: skip
 
 
-def cache_key(request: dict) -> str:
-    """The response cache's key: the KEYED_FIELDS present, and the requested effort."""
+def cache_key(request: dict, sample: int = 0) -> str:
+    """The response cache's key: the KEYED_FIELDS present, and the requested effort. A
+    `sample` after the first (0) is part of the key, so asking the same thing again for a
+    second sample is a new call; sample 0 is the key every existing cache was written with."""
     keyed = {name: request[name] for name in KEYED_FIELDS if name in request}
     effort = (request.get("output_config") or {}).get("effort")
     if effort is not None:
         keyed["effort"] = effort
+    if sample:
+        keyed["sample"] = sample
     return hashlib.sha256(canonical_json(keyed).encode()).hexdigest()
 
 
 def call(
     client: anthropic.Anthropic, request: dict, cache: "Cache | None" = None
 ) -> tuple[Message | None, CallInfo]:
-    if cache is not None and (hit := cache.get(cache_key(request))) is not None:
+    if cache is not None and (hit := cache.get(cache.key(request))) is not None:
         return hit
     response, info = _send(client, request, request_sha256(request))
     if cache is not None and response is not None:
-        cache.put(cache_key(request), request, response, info)
+        cache.put(cache.key(request), request, response, info)
     return response, info
 
 
@@ -214,11 +218,19 @@ class Cache:
     indexes its directory once, keying every file by cache_key of the request it stored,
     and serves the reply from there. Deriving the key from the stored request, not the
     current one, is what keeps those replies after an SDK upgrade: a fallback to the old
-    key would recompute it with the new SDK's schema and miss."""
+    key would recompute it with the new SDK's schema and miss.
 
-    def __init__(self, directory: Path):
+    A cache serves one sample (0 unless given): a run directory of sample n asks again for
+    every reply, and each entry records its sample, so the index never serves one sample's
+    reply to another."""
+
+    def __init__(self, directory: Path, sample: int = 0):
         self.directory = Path(directory)
+        self.sample = sample
         self._index: dict[str, Path] | None = None  # cache_key -> file, built on a miss
+
+    def key(self, request: dict) -> str:
+        return cache_key(request, self.sample)
 
     def get(self, key: str) -> tuple[Message, CallInfo] | None:
         path = self._path(key)
@@ -237,6 +249,8 @@ class Cache:
             "response": response.model_dump(mode="json"),
             "info": info.model_dump(mode="json"),
         }
+        if self.sample:
+            entry["sample"] = self.sample
         temporary = self._path(key).with_suffix(".tmp")
         temporary.write_text(json.dumps(entry, indent=1, ensure_ascii=False) + "\n")
         os.replace(temporary, self._path(key))  # atomic: a crash never leaves half a file
@@ -244,7 +258,8 @@ class Cache:
     def _indexed(self) -> dict[str, Path]:
         if self._index is None:
             files = sorted(self.directory.glob("*.json")) if self.directory.exists() else []
-            self._index = {cache_key(json.loads(f.read_text())["request"]): f for f in files}
+            entries = [(f, json.loads(f.read_text())) for f in files]
+            self._index = {cache_key(e["request"], e.get("sample", 0)): f for f, e in entries}
         return self._index
 
     def _path(self, key: str) -> Path:

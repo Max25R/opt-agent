@@ -337,7 +337,9 @@ point is a trustworthy evaluation, not a demo.
   hashed (`request_sha256`, logged), cached, and logged. The cache's key is `api.cache_key`
   (model, system, messages, sampling settings; not the SDK-built schema, since M7), and
   `Cache` indexes M6's files, named by `request_sha256`, by the request each stored, so
-  every M6 reply is still found. Thinking and effort are
+  every M6 reply is still found. Repeated samples: `Cache(dir, sample=n)` (`evaluate
+  --sample n`, one run directory per sample) salts the key for n > 0; sample 0 is the
+  unchanged key, so every existing cache replays. Thinking and effort are
   pinned (`api.THINKING`, `api.EFFORT`): adaptive thinking with its text omitted, and
   medium effort, Haiku 5.5's current defaults. Haiku 5.5 rejects `thinking: enabled`
   with a budget, and temperature can only be 1, so a run is reproducible only by replaying

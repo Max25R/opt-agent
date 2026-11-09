@@ -91,6 +91,7 @@ class Item(BaseModel):
     condition: Condition
     outcome: Literal["done", "errored"]
     run_id: str | None = None  # the pass that wrote this line (runs.Run)
+    sample: int = 0  # which repeated sample of the pair (a run directory is one sample)
     model_id: str
     settings_sha256: str  # the condition's request template: prompt, schema, settings
     status: str | None = None  # the system's answer; None if there's no confirmed one
@@ -134,10 +135,14 @@ def manifest_for(
     conditions: tuple[Condition, ...],
     model_id: str,
     extras: tuple[str, ...] = (),
+    sample: int = 0,
 ) -> Manifest:
-    """`extras`: "estimate" and/or "checklist", recorded with their request settings."""
+    """`extras`: "estimate" and/or "checklist", recorded with their request settings.
+    `sample`: which repeated sample the run directory holds (only recorded after the 0th)."""
     settings = {c: settings_sha256(c, model_id) for c in conditions}
     settings |= {extra: extra_settings_sha256(extra, model_id) for extra in extras}
+    if sample:
+        settings["sample"] = str(sample)
     return Manifest(split=split, problem_ids=[r.id for r in records],
                     conditions=list(conditions), model_id=model_id, settings=settings)  # fmt: skip
 
@@ -181,6 +186,7 @@ def evaluate(
     split: str = "dev",
     model_id: str = formulate.DEFAULT_MODEL,
     extras: tuple[str, ...] = (),
+    sample: int = 0,
 ) -> list[Item]:
     """Every pending pair, in order; returns the items this call added. Raises RunStopped
     (after writing a "stopped" line) when the run has to stop. On a test split, raises
@@ -191,10 +197,10 @@ def evaluate(
         require_whole_experiment(split, records, conditions)
     else:
         prints = freeze.digest(freeze.fingerprint())
-    fix_manifest(out, manifest_for(split, records, conditions, model_id, extras))
+    fix_manifest(out, manifest_for(split, records, conditions, model_id, extras, sample))
     results = out / "results.jsonl"
     done = done_pairs(results, model_id)
-    session = Run.start(log_path=out / "attempts.jsonl", cache=Cache(out / "cache"),
+    session = Run.start(log_path=out / "attempts.jsonl", cache=Cache(out / "cache", sample),
                         fingerprint=prints)  # fmt: skip
     added: list[Item] = []
     errors_in_a_row = 0
@@ -254,6 +260,7 @@ def run_item(
         "split": tags.split,
         "condition": condition,
         "run_id": session.run_id,
+        "sample": session.cache.sample if session.cache else 0,
         "model_id": model_id,
         "settings_sha256": settings_sha256(condition, model_id),
     }
@@ -513,6 +520,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--estimate", action="store_true",
                         help="solver conditions: also record the low-confidence flag "
                              "(report-only, one more call per pair)")  # fmt: skip
+    parser.add_argument("--sample", type=int, default=0,
+                        help="which repeated sample this run directory holds: 0 replays "
+                             "existing caches; 1, 2, ... ask again")  # fmt: skip
     parser.add_argument("--checklist", action="store_true",
                         help="solver conditions: also record the checklist flags "
                              "(report-only, one more call per pair)")  # fmt: skip
@@ -555,7 +565,8 @@ def main(argv: list[str] | None = None) -> None:
     except MissingAPIKeyError as error:
         sys.exit(str(error))
     try:
-        evaluate(records, conditions, client, args.out, args.split, args.model, extras)
+        evaluate(records, conditions, client, args.out, args.split, args.model, extras,
+                 args.sample)  # fmt: skip
     except RunStopped as stop:
         print(render(latest_items(args.out / "results.jsonl"), by_id, budget))
         sys.exit(f"\nSTOPPED: {stop}\nRe-run the same command to resume; nothing is paid twice.")
