@@ -1,6 +1,8 @@
 """The freeze: what it covers, how a test run is refused, and the owner's approval. Every
 approval here goes to a temporary FREEZE.json; never calls the API."""
 
+import json
+
 import pytest
 
 from opt_agent import evaluate, external_check, formulate, freeze, packets
@@ -215,3 +217,49 @@ def test_an_unapplied_or_hand_changed_decision_is_caught(tmp_path, monkeypatch):
     todo = " ".join(freeze.cross_check())
     assert f"doesn't follow the review judges for ['{disputed['problem_id']}']" in todo
     assert "1 decisions in review/external_check.csv aren't in the hand inputs" in todo
+
+
+# ---- the M6 freeze, checked against its tag, not HEAD -------------------------------------
+
+in_git = pytest.mark.skipif(freeze.git("rev-parse", "HEAD") is None, reason="not a git checkout")
+
+
+@in_git
+def test_the_m6_freeze_tag_holds_the_approved_inputs():
+    """HEAD moves on after M6, so the freeze is checked against the tag both test runs ran
+    on. In CI this needs the tag fetched (the workflow's checkout uses fetch-depth: 0)."""
+    assert freeze.tag_problems() == []
+
+
+@in_git
+def test_both_test_runs_ran_on_the_tagged_commit_and_the_approved_inputs():
+    tagged = freeze.git("rev-parse", f"{freeze.FREEZE_TAG}^{{commit}}")
+    approved = freeze.digest(freeze.approved().fingerprint)
+    for run in ("test", "test-perturbed"):
+        log = freeze.REPO_ROOT / "runs" / run / "attempts.jsonl"
+        passes = [json.loads(line) for line in log.read_text().splitlines()]
+        passes = [p for p in passes if p["kind"] == "run"]
+        assert passes and all(
+            (p["git_sha"], p["fingerprint"]) == (tagged, approved) for p in passes
+        )
+
+
+@in_git
+def test_a_commit_without_the_approval_is_named():
+    problems = freeze.tag_problems(f"{freeze.FREEZE_TAG}^")
+    assert problems == [f"docs/FREEZE.json isn't in {freeze.FREEZE_TAG}^ (3b39a55)"]
+
+
+@in_git
+def test_a_file_that_differs_at_the_tag_is_named(monkeypatch):
+    committed = freeze._committed
+
+    def one_file_changed(commit: str, path: str) -> bytes | None:
+        return b"changed" if path == "src/opt_agent/scoring.py" else committed(commit, path)
+
+    monkeypatch.setattr(freeze, "_committed", one_file_changed)
+    assert freeze.tag_problems() == ["src/opt_agent/scoring.py: differs at m6-freeze"]
+
+
+def test_a_missing_tag_is_named():
+    assert freeze.tag_problems("no-such-tag")[0].startswith("no tag no-such-tag here")

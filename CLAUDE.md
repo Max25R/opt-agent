@@ -291,6 +291,9 @@ point is a trustworthy evaluation, not a demo.
      - **Tag `m6-freeze`** marks `8f522c0`, the commit both test runs ran on. Any change
        under `src/opt_agent/` (the first: `config.py`, the `.env` gate) makes
        `python -m opt_agent.freeze` report a mismatch at HEAD; rebuild M6 from the tag.
+       `freeze.tag_problems()` checks the tag against `docs/FREEZE.json` from git's objects,
+       and `tests/test_freeze.py` runs it, so CI checks the freeze against the tag, not HEAD
+       (the workflow fetches every tag). Push the tag with the commits.
      - **The integrality-rule bug wasn't harmless:** a continuous label also switches off
        the strict reading, which cost 4 answers per condition (`docs/amendments/DEVIATIONS.md`,
        section 3).

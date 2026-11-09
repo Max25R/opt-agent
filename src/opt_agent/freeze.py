@@ -20,10 +20,16 @@ owner's step, never Claude's: it refuses until that list is done and the tree is
 then writes docs/FREEZE.json. Every pass of a test-split run checks the fingerprint against
 it first (evaluate.py) and refuses on any difference, naming each one. Every pass records
 its fingerprint's digest in its log, so the report can show which inputs each pass ran on.
+
+After the M6 runs, HEAD moves on (milestone 7 changes src/), so the working tree no longer
+matches the approval, as it shouldn't. What stays checkable is the tag `m6-freeze`, the
+commit both test runs ran on: tag_problems() reads it from git's objects, and a test runs it
+in CI. check() still compares the working tree, because it gates a new test run.
 """
 
 import argparse
 import hashlib
+import subprocess
 import sys
 from datetime import date
 from importlib.metadata import PackageNotFoundError, version
@@ -46,6 +52,7 @@ from opt_agent.ground_truth import (
 from opt_agent.runs import REPO_ROOT, git
 
 FREEZE_PATH = REPO_ROOT / "docs" / "FREEZE.json"
+FREEZE_TAG = "m6-freeze"  # the commit both M6 test runs ran on; it adds docs/FREEZE.json
 PREREGISTRATION_PATH = REPO_ROOT / "docs" / "PREREGISTRATION.md"
 LOCK_PATH = REPO_ROOT / "requirements.lock"
 SOURCE_DIR = REPO_ROOT / "src" / "opt_agent"
@@ -165,6 +172,52 @@ def check() -> str:
             f"({FREEZE_PATH.name}):\n  " + "\n  ".join(problems)
         )
     return digest(approval.fingerprint)
+
+
+def tag_problems(tag: str = FREEZE_TAG) -> list[str]:
+    """Does `tag` hold exactly the approved inputs? Empty if it does. Read from git's
+    objects, not the working tree, so it holds however far HEAD has moved:
+    - the tag exists, and its docs/FREEZE.json is the one in the working tree;
+    - the tag's parent is the commit the approval names (approve() records HEAD, and the
+      owner then commits FREEZE.json on top);
+    - every file the fingerprint names hashes the same at the tag, and the tag has no source
+      file the fingerprint lacks. The named values (prompts, schemas, seed) are defined in
+      those source files, and the schemas by the locked SDK, so the files cover them."""
+    commit = git("rev-parse", "--verify", "--quiet", f"{tag}^{{commit}}")
+    if commit is None:
+        return [f"no tag {tag} here (git fetch --tags; CI's checkout needs fetch-depth: 0)"]
+    committed = _committed(commit, "docs/FREEZE.json")
+    if committed is None:
+        return [f"docs/FREEZE.json isn't in {tag} ({commit[:7]})"]
+    approval = Approval.model_validate_json(committed)
+    problems = []
+    if not FREEZE_PATH.exists() or FREEZE_PATH.read_bytes() != committed:
+        problems.append(f"docs/FREEZE.json differs from the one in {tag}")
+    if git("rev-parse", f"{commit}^") != approval.commit:
+        problems.append(f"{tag}'s parent isn't the approved commit {approval.commit}")
+    for name, sha in approval.fingerprint.items():
+        if "/" not in name:
+            continue  # a named value, covered by the source file that defines it
+        content = _committed(commit, name)
+        if content is None:
+            problems.append(f"{name}: not in {tag}")
+        elif _sha256(content) != sha:
+            problems.append(f"{name}: differs at {tag}")
+    sources = git("ls-tree", "-r", "--name-only", commit, "--", _relative(SOURCE_DIR)) or ""
+    problems += [f"{path}: in {tag} but not in the approval"
+                 for path in sources.splitlines()
+                 if path.endswith(".py") and path not in approval.fingerprint]  # fmt: skip
+    return problems
+
+
+def _committed(commit: str, path: str) -> bytes | None:
+    """A file's bytes as committed, or None if it isn't there."""
+    try:
+        done = subprocess.run(["git", "show", f"{commit}:{path}"], cwd=REPO_ROOT,
+                              capture_output=True)  # fmt: skip
+    except OSError:  # no git at all
+        return None
+    return done.stdout if done.returncode == 0 else None
 
 
 def unfinished() -> list[str]:
@@ -309,6 +362,12 @@ def status() -> str:
     else:
         lines.append(f"Frozen on {approval.approved_on}, and the inputs match: test runs may "
                      "start.")  # fmt: skip
+    if problems := tag_problems():
+        lines.append(f"TAG {FREEZE_TAG} DOESN'T HOLD THE APPROVED INPUTS:\n  "
+                     + "\n  ".join(problems))  # fmt: skip
+    else:
+        lines.append(f"Tag {FREEZE_TAG} holds exactly the approved inputs: the M6 results "
+                     "rebuild from it.")  # fmt: skip
     return "\n".join(lines)
 
 
