@@ -1,5 +1,7 @@
 """Pre-registration section 7: every number in the README's Evaluation section comes from
-results/eval.json, at the precision the README shows it.
+results/eval.json, at the precision the README shows it. So does every number in Amendment
+4's "The rows" section (docs/amendments/amendment-4.md), whose rows scripts/amendment4.py
+generates into eval.json.
 
 How a number in the README is read:
 - `-123` in backticks is a problem id: some string in eval.json must equal it.
@@ -25,7 +27,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
+AMENDMENT_4 = ROOT / "docs" / "amendments" / "amendment-4.md"
 EVAL = ROOT / "results" / "eval.json"
+# Each checked document, and the section of it that reports results.
+CHECKED = [(README, "Evaluation"), (AMENDMENT_4, "The rows")]
 
 NOT_RESULTS = [
     r"\]\([^)]*\)",  # a link's target
@@ -38,8 +43,8 @@ RATE_RANGE = re.compile(r"(\d+(?:\.\d+)?)–(\d+(?:\.\d+)?)%")
 NUMBER = re.compile(r"\d+(?:\.\d+)?(?:e-?\d+)?%?")
 
 
-def evaluation_section(text: str) -> str:
-    start = text.index("\n## Evaluation\n")
+def section(text: str, heading: str) -> str:
+    start = text.index(f"\n## {heading}\n")
     end = text.find("\n## ", start + 1)
     return text[start : end if end != -1 else len(text)]
 
@@ -88,14 +93,15 @@ def unmatched(section: str, data: dict) -> list[str]:
     return missing
 
 
-@pytest.fixture(scope="module")
-def section_and_data():
+@pytest.fixture(scope="module", params=CHECKED, ids=lambda c: f"{c[0].name}: {c[1]}")
+def section_and_data(request):
     if not EVAL.exists():
         pytest.fail("results/eval.json is missing: python scripts/eval_json.py")
-    return evaluation_section(README.read_text()), json.loads(EVAL.read_text())
+    path, heading = request.param
+    return section(path.read_text(), heading), json.loads(EVAL.read_text())
 
 
-def test_every_number_in_the_evaluation_section_is_in_eval_json(section_and_data):
+def test_every_number_in_a_checked_section_is_in_eval_json(section_and_data):
     section, data = section_and_data
     assert unmatched(section, data) == []
 

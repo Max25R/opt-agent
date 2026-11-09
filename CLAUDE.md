@@ -80,8 +80,9 @@ point is a trustworthy evaluation, not a demo.
      `python -m opt_agent.freeze` lists what's left before the owner can freeze. Known and
      unfixed: the integrality rule matches ingredient names ("units of chicken" meat), so
      it labels countable products continuous in at least 3 reviewed test problems
-     (bubble teas, crepes, curry bowls; harmless for the annotated answers; fix after the
-     owner's labels, and check the unreviewed rule labels too); `DEV_WALKTHROUGH.md` predates the owner's milestone 3
+     (bubble teas, crepes, curry bowls, and the wine/kombucha problem; harmless for the
+     annotated answers, but not for the strict reading: 4 answers per condition, see
+     DEVIATIONS.md section 3; fix after M6, and check the unreviewed rule labels too); `DEV_WALKTHROUGH.md` predates the owner's milestone 3
      corrections (the owner decides whether to regenerate it); no Farkas certificate for
      infeasible LPs; the CLI needs a key even when every call is cached (milestone 8).
    - **Pre-milestone-6 step 1 (2026-10-28):** the key works; the live tests passed (5
@@ -286,6 +287,17 @@ point is a trustworthy evaluation, not a demo.
        in the README's Evaluation section against `results/eval.json`, at the precision
        shown. It matches by value, not by place.
      - **Paths under `runs/` are git-ignored:** commit them with `git add -f`.
+   - **After the audit (2026-11-08; `docs/audit/2026-11-review.md`, no API calls):**
+     - **Tag `m6-freeze`** marks `8f522c0`, the commit both test runs ran on. Any change
+       under `src/opt_agent/` (the first: `config.py`, the `.env` gate) makes
+       `python -m opt_agent.freeze` report a mismatch at HEAD; rebuild M6 from the tag.
+     - **The integrality-rule bug wasn't harmless:** a continuous label also switches off
+       the strict reading, which cost 4 answers per condition (`docs/amendments/DEVIATIONS.md`,
+       section 3).
+     - **Amendment 4 (draft, not tagged):** the omitted pre-registered rows (lenient, without
+       disputed reviews) and an exploratory corrected-labels row (268/274 per condition).
+       `scripts/amendment4.py` computes them; `eval_json.py` writes them as `amendment_4`;
+       264/274 stays the result of record.
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.

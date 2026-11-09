@@ -38,6 +38,14 @@ def test_the_committed_file_is_up_to_date():
     )
 
 
+def test_amendment_4_keeps_the_result_of_record():
+    """Its rows sit next to the primary numbers and never replace them."""
+    data = json.loads(eval_json.OUT.read_text())
+    for condition, rows in data["amendment_4"]["by condition"].items():
+        assert rows["result of record"] == data["primary"]["accuracy"][condition]
+        assert rows["result of record"]["right"] == 264
+
+
 def test_it_names_the_amendment_3_row_as_the_script_does():
     assert eval_json.AMENDMENT_3 == amendment3.KEY
 

@@ -5,6 +5,8 @@ tests/test_readme_numbers.py checks that. It's built from:
 - runs/test/report.json and runs/test-perturbed/report.json (opt_agent.report);
 - the Amendment 3 row in runs/test/report.json (scripts/amendment3.py). The frozen report
   rebuild drops that row, so this script refuses to run without it;
+- Amendment 4's rows (scripts/amendment4.py), computed here from the test run and its
+  report rather than stored in the report, so a rebuild can't drop them;
 - the runs' scored pairs, for self-correction's revisions and changed outcomes;
 - the test run's taxonomy and blind-grading sheets, for the two judges' agreement and each
   blind grade;
@@ -20,6 +22,7 @@ Run:  python scripts/eval_json.py   # writes results/eval.json
 
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 
@@ -29,6 +32,18 @@ from opt_agent.run_results import ScoredRun, load
 from opt_agent.stats import wilson
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _script(name: str):
+    """A sibling script as a module, whether this file runs as a script or is loaded by a
+    test (scripts/ isn't a package)."""
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+amendment4 = _script("amendment4")
 TEST = ROOT / "runs" / "test"
 PERTURBED = ROOT / "runs" / "test-perturbed"
 FREEZE = ROOT / "docs" / "FREEZE.json"
@@ -55,6 +70,7 @@ def build(test_dir: Path = TEST, perturbed_dir: Path = PERTURBED, freeze: Path =
         "perturbed": perturbed_results(perturbed_report),
         "sensitivity": sensitivity(test_report),
         "exploratory_amendment_3": test_report[AMENDMENT_3],
+        "amendment_4": amendment4.row(test, test_report),
         "hand_checks": hand_checks(test_report, test),
         "self_correction": self_correction({"test": test, "test-perturbed": perturbed}),
         "cost_latency": cost_latency({"test": test_report, "test-perturbed": perturbed_report}),
