@@ -25,15 +25,16 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.lock   # the exact versions the ground truth was built with
 pip install --no-deps -e .
-cp .env.example .env   # then add your ANTHROPIC_API_KEY
+cp .env.example .env   # then add your ANTHROPIC_API_KEY (read only with OPT_AGENT_LIVE=1)
 python -m opt_agent.data          # pinned, checksummed downloads of the datasets
 python -m opt_agent.ground_truth  # rebuild data/nl4opt/ground_truth/ (committed already)
 ```
 
-Solve a word problem (needs `ANTHROPIC_API_KEY`):
+Solve a word problem (needs `ANTHROPIC_API_KEY` exported, or `OPT_AGENT_LIVE=1` to use the
+key in `.env`; without one of them nothing can spend):
 
 ```bash
-python -m opt_agent.agent "A gas company can transport gas using a pipeline or by train. ..."
+OPT_AGENT_LIVE=1 python -m opt_agent.agent "A gas company can transport gas using a pipeline or by train. ..."
 ```
 
 (NL4Opt dev problem 439170086. Demos and tests use dev problems only; the two test
@@ -55,7 +56,8 @@ ruff check . && ruff format --check .
 
 Tests never call the Claude API, so they run without a key (this is also how CI runs them):
 the agent's tests use a fake client. Three opt-in tests call the real API
-(`python -m pytest -m live -s`, a fraction of a cent each); none has been run yet.
+(`OPT_AGENT_LIVE=1 python -m pytest -m live -s`, a fraction of a cent each); they first
+passed on 2026-10-28.
 The property-based tests explore new random problems on every local run; in CI
 (`HYPOTHESIS_PROFILE=ci`) they replay a fixed set, so CI is deterministic. CI installs
 from `requirements.lock`, and a test fails if the installed versions differ from it, so a
@@ -184,7 +186,7 @@ Every count, including who labeled and confirmed what, lives in the generated
 
 ```
 src/opt_agent/
-  config.py        # API key loading (.env or environment)
+  config.py        # API key loading (the environment; .env only with OPT_AGENT_LIVE=1)
   schema.py        # Pydantic LP/MIP schema: the contract between the LLM and the solver
   solution.py      # what a solver returns: status, values, slacks, duals
   solver.py        # schema -> PuLP -> CBC

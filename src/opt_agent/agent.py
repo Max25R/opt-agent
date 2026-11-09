@@ -2,7 +2,8 @@
 -> independent checks -> explanation.
 
 Run:  python -m opt_agent.agent "A gas company can transport gas using a pipeline or by train. ..."
-      (or pass - and pipe the problem in). Needs ANTHROPIC_API_KEY (see .env.example).
+      (or pass - and pipe the problem in). Needs ANTHROPIC_API_KEY exported, or
+      OPT_AGENT_LIVE=1 to use the key in .env (see .env.example).
 """
 
 import argparse

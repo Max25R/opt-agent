@@ -310,11 +310,14 @@ point is a trustworthy evaluation, not a demo.
   `tests/test_live.py` (marker `live`, excluded by default and in CI) calls the real API,
   and it uses dev problems only.
 - `.env` exists in the owner's checkout (git-ignored). Claude never reads or commits it.
+  `config.get_api_key` uses an exported `ANTHROPIC_API_KEY`, and reads `.env` only when
+  `OPT_AGENT_LIVE=1` (2026-11-08, from the audit): unsetting the key guarantees that
+  nothing can spend.
 - `Result.confirmed`: CBC and HiGHS agree and the checks pass, for any status.
   `Result.verified`: confirmed and optimal. Both are about the solution of Claude's model,
   not whether the model matches the text; that's milestone 6. A flagged revision can be
   "verified" too, which is why the flags exist.
-- The live tests (`python -m pytest -m live -s`, 4 to 8 calls) first passed on
+- The live tests (`OPT_AGENT_LIVE=1 python -m pytest -m live -s`, 4 to 8 calls) first passed on
   2026-10-28.
 
 ## Budget (hard constraint, owner, 2026-10-28)
@@ -359,11 +362,11 @@ python -m opt_agent.ground_truth    # rebuild data/nl4opt/ground_truth/ (~55 s)
 python -m opt_agent.perturb         # then rebuild the perturbed splits (~4.5 min)
 python scripts/dev_walkthrough.py   # rebuild the 30-problem dev review sheet
 python -m opt_agent.packets integrality|reviews|agreement   # the owner's packets
-python -m opt_agent.agent "problem text"   # needs ANTHROPIC_API_KEY
-python -m pytest -m live -s         # the tests that call the real API (not in CI)
+OPT_AGENT_LIVE=1 python -m opt_agent.agent "problem text"   # or export ANTHROPIC_API_KEY
+OPT_AGENT_LIVE=1 python -m pytest -m live -s   # the tests that call the real API (not in CI)
 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ... --plan   # worst case, no calls
-python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ...   # dev only; resumable
-python -m opt_agent.evaluate --out runs/NAME --cap 0.50 --all    # every scorable problem
+OPT_AGENT_LIVE=1 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ...   # dev only; resumable
+OPT_AGENT_LIVE=1 python -m opt_agent.evaluate --out runs/NAME --cap 0.50 --all    # every scorable problem
 python -m opt_agent.freeze          # what's left before the freeze; whether inputs match it
 python -m opt_agent.freeze approve  # THE OWNER'S STEP ONLY: writes docs/FREEZE.json
 python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.json
