@@ -123,9 +123,11 @@ Problems these checks found, each with a regression test:
    some problems are infeasible as written. The loop stops without revising when Claude
    returns the same model, refuses, or when the failure isn't Claude's: the solvers
    disagree, one times out, or the API call fails (then the problem counts as failed).
-   Revisions that delete or loosen a constraint (its right-hand side, direction, or
-   coefficients), loosen a bound, relax integrality, remove a variable, drop one from the
-   objective, or flip the objective are flagged. Every attempt is logged as one JSONL line.
+   Revisions that delete or loosen a constraint (its right-hand side or coefficients), flip
+   a constraint's direction, change an equation at all, loosen a bound, relax integrality,
+   remove a variable, drop one from the objective or negate its coefficient there, or flip
+   the objective are flagged. Constraints are compared by structure, so a renamed, reordered
+   or rewritten row isn't a change. Every attempt is logged as one JSONL line.
 3. **Solve and verify** with both solvers and the checks above. An answer is *confirmed*
    when they agree and the checks pass (for any status), and *verified* when it's also an
    optimum. This is about the solution of Claude's model, not whether the model matches

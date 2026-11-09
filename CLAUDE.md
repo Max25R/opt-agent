@@ -53,7 +53,9 @@ point is a trustworthy evaluation, not a demo.
    `feedback.conflicting_constraints`, which first confirms the whole set is infeasible).
    `changes.compare` flags deleted or loosened constraints (rhs, direction, or
    coefficients), loosened bounds, relaxed integrality, removed variables, variables
-   dropped from the objective, and a flipped objective.
+   dropped from the objective, and a flipped objective. Since M7 (audit finding 6) it pairs
+   constraints by structure (identical, then name, then same variables) and also flags any
+   direction flip, any edit to an equation, and a negated objective coefficient.
    - **Pre-milestone-6 fixes (2026-10-19, from a health check; Batches A-D):**
      certified rays and LP duality certificates (`rays.py`, `verify.optimality_problems`);
      `Status.TIMEOUT`; `answer()`/`scorable()` require a trusted answer; one request

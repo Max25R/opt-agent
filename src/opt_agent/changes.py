@@ -2,10 +2,16 @@
 
 When a model is infeasible or unbounded, the easy way out is to drop or weaken whatever
 the solver complained about. So these are *flagged*: deleting or loosening a constraint
-(through its right-hand side, its direction, or its coefficients), loosening a bound,
-making an integer variable continuous, removing a variable, dropping a variable from the
-objective, or flipping the objective. A flag isn't proof of cheating (the first model may
-have had a typo), but it marks the revision for review.
+(through its right-hand side or its coefficients), flipping a constraint's direction,
+changing an equation at all, loosening a bound, making an integer variable continuous,
+removing a variable, dropping a variable from the objective or negating its coefficient
+there, or flipping the objective. A flag isn't proof of cheating (the first model may have
+had a typo, and the one outcome self-correction changed in M6 came from a flagged revision
+that was right), but it marks the revision for review.
+
+Constraints are compared by structure (direction, coefficients, right-hand side), not by
+text: a renamed, reordered, or rewritten-the-other-way-round row is the same row (audit,
+finding 6).
 """
 
 from pydantic import BaseModel
@@ -35,41 +41,121 @@ def compare(old: LPModel, new: LPModel) -> Changes:
 
 def _constraint_changes(old: LPModel, new: LPModel) -> list[tuple[str, bool]]:
     signs = _signs(old, new)
-    found, matched = [], []
-    for c in old.constraints:
-        unmatched = [n for n in new.constraints if all(n is not m for m in matched)]
-        counterpart = _counterpart(c, unmatched)
-        if counterpart is None:
-            found.append((f"deleted constraint {c.name!r}", True))
-        else:
-            matched.append(counterpart)
-            found += _constraint_diff(c, counterpart, signs)
-    for n in new.constraints:
-        if all(n is not m for m in matched):
-            found.append((f"added constraint {n.name!r}", False))
+    pairs, deleted, added = _pairs(old.constraints, new.constraints)
+    found = []
+    for c, n in pairs:
+        found += _constraint_diff(c, n, signs)
+    found += [(f"deleted constraint {c.name!r}", True) for c in deleted]
+    found += [(f"added constraint {n.name!r}", False) for n in added]
     return found
 
 
-def _counterpart(c: Constraint, candidates: list[Constraint]) -> Constraint | None:
-    """The same constraint in the new model: same name, or else the same left-hand side."""
-    by_name = next((n for n in candidates if n.name == c.name), None)
-    return by_name or next((n for n in candidates if _coefs(n.terms) == _coefs(c.terms)), None)
+def _pairs(
+    old: list[Constraint], new: list[Constraint]
+) -> tuple[list[tuple[Constraint, Constraint]], list[Constraint], list[Constraint]]:
+    """Each old constraint's counterpart in the new model, compared by structure, not text.
+    1. The same constraint, whatever its name, its place in the list, the order of its
+       terms, or which way round it's written (a >= row is the <= of its negation): no
+       change at all.
+    2. The same name.
+    3. The same variables, the closest first (same direction, fewest coefficient changes,
+       nearest right-hand side).
+    What's left is deleted (old) or added (new)."""
+    left, right = list(old), list(new)
+    pairs = []
+    for counterpart in (_same_constraint, _same_name, _closest_with_the_same_variables):
+        for c in list(left):
+            n = counterpart(c, right)
+            if n is not None:
+                pairs.append((c, n))
+                left = [x for x in left if x is not c]
+                right = [x for x in right if x is not n]
+    position = {id(c): i for i, c in enumerate(old)}
+    pairs.sort(key=lambda pair: position[id(pair[0])])
+    changed = [(c, n) for c, n in pairs if _canonical(c) != _canonical(n)]
+    return changed, left, right
+
+
+def _same_constraint(c: Constraint, candidates: list[Constraint]) -> Constraint | None:
+    return next((n for n in candidates if _canonical(n) == _canonical(c)), None)
+
+
+def _same_name(c: Constraint, candidates: list[Constraint]) -> Constraint | None:
+    return next((n for n in candidates if n.name == c.name), None)
+
+
+def _closest_with_the_same_variables(
+    c: Constraint, candidates: list[Constraint]
+) -> Constraint | None:
+    same = [n for n in candidates if _coefs(n.terms).keys() == _coefs(c.terms).keys()]
+    return min(same, key=lambda n: _distance(c, n), default=None)
+
+
+def _canonical(c: Constraint) -> tuple:
+    """The set of points a constraint allows, as a comparable value."""
+    coefs, rhs, sense = _coefs(c.terms), c.rhs, c.sense
+    if sense == ">=":
+        coefs, rhs, sense = {var: -a for var, a in coefs.items()}, -rhs, "<="
+    return sense, frozenset(coefs.items()), rhs
+
+
+def _distance(c: Constraint, n: Constraint) -> tuple:
+    n = _aligned(c, n)
+    old, new = _coefs(c.terms), _coefs(n.terms)
+    return (c.sense != n.sense, sum(old.get(v) != new.get(v) for v in {**old, **new}),
+            abs(c.rhs - n.rhs))  # fmt: skip
+
+
+def _aligned(c: Constraint, n: Constraint) -> Constraint:
+    """`n` written the way round `c` is, when it's c's inequality turned around
+    (x <= 7 for -x >= -7); otherwise `n` as it is, so a real flip shows as a flip."""
+    opposite = {"<=": ">=", ">=": "<="}
+    if opposite.get(c.sense) != n.sense:
+        return n
+    turned = n.model_copy(update={"terms": [Term(var=t.var, coef=-t.coef) for t in n.terms],
+                                  "rhs": -n.rhs, "sense": c.sense})  # fmt: skip
+    old = _coefs(c.terms)
+
+    def differing(x: Constraint) -> int:
+        new = _coefs(x.terms)
+        return sum(old.get(v) != new.get(v) for v in {**old, **new})
+
+    return turned if differing(turned) < differing(n) else n
 
 
 def _constraint_diff(c: Constraint, n: Constraint, signs: dict[str, int]) -> list[tuple[str, bool]]:
     label = repr(c.name) if c.name == n.name else f"{c.name!r} (now {n.name!r})"
+    n = _aligned(c, n)
+    details = "; ".join(d for d in (_rhs_text(c, n), _terms_text(c, n)) if d)
+    if c.sense != n.sense:
+        also = f"; {details}" if details else ""
+        if c.sense == "==":  # an equation became an inequality: strictly weaker
+            return [(f"loosened {label}: == became {n.sense}{also}", True)]
+        if n.sense == "==" and not details:  # the same row, now as an equation: narrower
+            return [(f"tightened {label}: {c.sense} became ==", False)]
+        # A flip may be the fix the feedback asked for, but it changes which points are
+        # allowed: always marked for review, with whatever else changed in the row.
+        return [(f"flipped {label}: {c.sense} became {n.sense}{also}", True)]
+    if c.sense == "==":  # moving an equation can make an infeasible model feasible
+        return [(f"changed the equation {label}: {details}", True)]
     found = []
     if _coefs(c.terms) != _coefs(n.terms):
         found.append(_term_diff(label, c, n, signs))
-    if c.sense != n.sense:
-        if c.sense == "==":  # an equation became an inequality: strictly weaker
-            return [*found, (f"loosened {label}: == became {n.sense}", True)]
-        return [*found, (f"flipped {label}: {c.sense} became {n.sense}", False)]
     if c.rhs != n.rhs:
         looser = (c.sense == "<=" and n.rhs > c.rhs) or (c.sense == ">=" and n.rhs < c.rhs)
-        verb = "loosened" if looser else "changed" if c.sense == "==" else "tightened"
+        verb = "loosened" if looser else "tightened"
         found.append((f"{verb} {label}: right-hand side {c.rhs:g} became {n.rhs:g}", looser))
     return found
+
+
+def _rhs_text(c: Constraint, n: Constraint) -> str:
+    return f"right-hand side {c.rhs:g} became {n.rhs:g}" if c.rhs != n.rhs else ""
+
+
+def _terms_text(c: Constraint, n: Constraint) -> str:
+    old, new = _coefs(c.terms), _coefs(n.terms)
+    edits = [(var, old.get(var, 0.0), new.get(var, 0.0)) for var in {**old, **new}]
+    return ", ".join(f"{var!r} {a:g} became {b:g}" for var, a, b in edits if a != b)
 
 
 def _term_diff(label: str, c: Constraint, n: Constraint, signs: dict[str, int]) -> tuple[str, bool]:
@@ -79,9 +165,7 @@ def _term_diff(label: str, c: Constraint, n: Constraint, signs: dict[str, int]) 
     old, new = _coefs(c.terms), _coefs(n.terms)
     edits = [(var, old.get(var, 0.0), new.get(var, 0.0)) for var in {**old, **new}]
     edits = [(var, a, b) for var, a, b in edits if a != b]
-    details = ", ".join(f"{var!r} {a:g} became {b:g}" for var, a, b in edits)
-    if c.sense != n.sense or c.sense == "==":
-        return (f"changed the terms of {label}: {details}", False)  # no direction to judge
+    details = _terms_text(c, n)
     looser = any(_loosens(c.sense, b - a, signs[var]) for var, a, b in edits)
     verb = "loosened" if looser else "tightened"
     return (f"{verb} the terms of {label}: {details}", looser)
@@ -150,6 +234,13 @@ def _objective_changes(old: LPModel, new: LPModel) -> list[tuple[str, bool]]:
     old_terms, new_terms = _coefs(old.objective.terms), _coefs(new.objective.terms)
     if old_terms != new_terms:
         found.append(("changed the objective's terms", False))
+    # Negating a coefficient turns a direction that improved forever into one that doesn't,
+    # as surely as dropping the variable would.
+    found += [
+        (f"negated {var!r} in the objective: {coef:g} became {new_terms[var]:g}", True)
+        for var, coef in old_terms.items()
+        if new_terms.get(var, 0.0) * coef < 0
+    ]
     # Zeroing a variable's objective coefficient silences an unbounded direction without
     # touching any constraint. (A variable removed outright is flagged on its own.)
     new_names = {v.name for v in new.variables}
@@ -162,7 +253,8 @@ def _objective_changes(old: LPModel, new: LPModel) -> list[tuple[str, bool]]:
 
 
 def _coefs(terms: list[Term]) -> dict[str, float]:
-    return {t.var: t.coef for t in terms}
+    """Coefficients by variable, zeros left out: a zero term says nothing."""
+    return {t.var: t.coef for t in terms if t.coef != 0}
 
 
 def _as_number(bound: float | None, infinite_side: int) -> float:

@@ -61,11 +61,11 @@ def test_an_equation_becoming_an_inequality_is_flagged():
     assert compare(equation, WYNDOR).flags == ["loosened 'plant_1_hours': == became <="]
 
 
-def test_flipping_a_direction_is_a_change_not_a_flag():
-    """Fixing a reversed <= is exactly what infeasibility feedback asks for."""
+def test_flipping_a_direction_is_flagged():
+    """Infeasibility feedback asks Claude to check for a reversed <=, so a flip may be the
+    right fix; but it changes which points are allowed, so it's marked for review."""
     changes = compare(WYNDOR, with_constraint(WYNDOR, "plant_1_hours", sense=">="))
-    assert changes.changes == ["flipped 'plant_1_hours': <= became >="]
-    assert changes.flags == []
+    assert changes.flags == ["flipped 'plant_1_hours': <= became >="]
 
 
 def test_relaxing_integrality_is_flagged():
@@ -170,3 +170,87 @@ def test_dropping_a_variable_from_the_objective_is_flagged():
     objective = WYNDOR.objective.model_copy(update={"terms": terms({"doors": 3})})
     changes = compare(WYNDOR, edited(WYNDOR, objective=objective))
     assert changes.flags == ["dropped 'windows' from the objective"]
+
+
+# ---- structural comparison: direction, coefficients and right-hand side, not text --------
+
+
+def test_a_flip_with_a_new_right_hand_side_reports_both():
+    """The old early return hid the rhs of a flipped row (audit: x >= 5 became x <= 1000)."""
+    revised = with_constraint(WYNDOR, "plant_1_hours", sense=">=", rhs=1)
+    assert compare(WYNDOR, revised).flags == [
+        "flipped 'plant_1_hours': <= became >=; right-hand side 4 became 1"
+    ]
+
+
+def test_a_flip_with_new_coefficients_reports_both():
+    revised = with_constraint(WYNDOR, "plant_3_hours", sense=">=",
+                              terms=terms({"doors": 1, "windows": 2}))  # fmt: skip
+    assert compare(WYNDOR, revised).flags == [
+        "flipped 'plant_3_hours': <= became >=; 'doors' 3 became 1"
+    ]
+
+
+def test_moving_an_equation_is_flagged():
+    """Moving an equation is the most direct way to make an infeasible model feasible."""
+    equation = with_constraint(WYNDOR, "plant_1_hours", sense="==")
+    changes = compare(equation, with_constraint(equation, "plant_1_hours", rhs=5))
+    assert changes.flags == ["changed the equation 'plant_1_hours': right-hand side 4 became 5"]
+
+
+def test_editing_an_equations_coefficients_is_flagged():
+    equation = with_constraint(WYNDOR, "plant_3_hours", sense="==")
+    revised = with_terms(equation, "plant_3_hours", {"doors": 4, "windows": 2})
+    assert compare(equation, revised).flags == [
+        "changed the equation 'plant_3_hours': 'doors' 3 became 4"
+    ]
+
+
+def test_an_unchanged_model_reordered_renamed_and_rewritten_has_no_changes():
+    """Same constraints in another order, terms in another order, other names, a <= row
+    written as the >= of its negation, and a zero coefficient added: nothing changed."""
+    reordered = edited(WYNDOR, constraints=[
+        WYNDOR.constraints[2].model_copy(update={"name": "assembly",
+                                                 "terms": terms({"windows": 2, "doors": 3})}),
+        WYNDOR.constraints[1].model_copy(update={"name": "window shop", "sense": ">=",
+                                                 "terms": terms({"windows": -2}), "rhs": -12}),
+        WYNDOR.constraints[0].model_copy(update={"terms": terms({"doors": 1, "windows": 0})}),
+    ])  # fmt: skip
+    changes = compare(WYNDOR, reordered)
+    assert changes.none and changes.flags == []
+
+
+def test_swapping_two_names_is_not_a_change():
+    """Audit: two rows with the same left-hand side, renamed crosswise, were paired by
+    left-hand side and reported as a loosening."""
+    pair = edited(WYNDOR, constraints=[
+        WYNDOR.constraints[0].model_copy(update={"name": "a", "rhs": 4}),
+        WYNDOR.constraints[0].model_copy(update={"name": "b", "rhs": 7}),
+    ])  # fmt: skip
+    swapped = edited(WYNDOR, constraints=[
+        WYNDOR.constraints[0].model_copy(update={"name": "c", "rhs": 7}),
+        WYNDOR.constraints[0].model_copy(update={"name": "d", "rhs": 4}),
+    ])  # fmt: skip
+    assert compare(pair, swapped).none
+
+
+def test_a_loosening_behind_new_names_is_flagged():
+    """Audit: `min: x >= 5` and `max: x <= 3` became `A: x <= 3` and `B: x >= 0`; the real
+    change, a minimum lowered from 5 to 0, went unreported."""
+    band = edited(WYNDOR, constraints=[
+        WYNDOR.constraints[0].model_copy(update={"name": "min", "sense": ">=", "rhs": 5}),
+        WYNDOR.constraints[0].model_copy(update={"name": "max", "sense": "<=", "rhs": 3}),
+    ])  # fmt: skip
+    renamed = edited(WYNDOR, constraints=[
+        WYNDOR.constraints[0].model_copy(update={"name": "A", "sense": "<=", "rhs": 3}),
+        WYNDOR.constraints[0].model_copy(update={"name": "B", "sense": ">=", "rhs": 0}),
+    ])  # fmt: skip
+    assert compare(band, renamed).flags == ["loosened 'min' (now 'B'): right-hand side 5 became 0"]
+
+
+def test_negating_an_objective_coefficient_is_flagged():
+    """It silences an unbounded direction as surely as dropping the variable does."""
+    objective = WYNDOR.objective.model_copy(update={"terms": terms({"doors": 3, "windows": -5})})
+    assert compare(WYNDOR, edited(WYNDOR, objective=objective)).flags == [
+        "negated 'windows' in the objective: 5 became -5"
+    ]
