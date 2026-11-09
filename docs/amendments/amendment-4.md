@@ -1,6 +1,6 @@
 # Amendment 4: two omitted pre-registered rows, and an exploratory corrected-labels row
 
-**Status: DRAFT (2026-11-08). Not approved, not tagged.** Drafted by Claude from the project
+**Status: tagged amendment-4 (5f10814); text otherwise unchanged since the tag.** Drafted by Claude from the project
 audit (`docs/audit/2026-11-review.md`, sections 1.1 and 1.2). Like Amendment 3, it lives
 here because `docs/PREREGISTRATION.md` is frozen (`docs/FREEZE.json` hashes it).
 
