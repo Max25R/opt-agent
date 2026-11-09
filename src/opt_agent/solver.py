@@ -24,7 +24,18 @@ _STATUS_FROM_PULP = {
 
 
 def solve(model: LPModel) -> Solution:
-    """CBC's answer. A claimed optimum stands only if no certified improving ray refutes it."""
+    """CBC's answer. A claimed optimum stands only if no certified improving ray refutes it.
+
+    If CBC doesn't run to completion anywhere along the way (PuLP raises PulpSolverError
+    when it exits with an error or writes no solution), the answer is ERROR with PuLP's
+    message: a loud failure, never an exception that ends a run, never an answer."""
+    try:
+        return _solve(model)
+    except pulp.PulpSolverError as error:
+        return Solution(solver="cbc", status=Status.ERROR, note=f"CBC didn't run: {error}")
+
+
+def _solve(model: LPModel) -> Solution:
     claimed = _solve_once(model)
     if claimed.status is Status.OPTIMAL:
         ray = certified_ray(model, claimed.values, _solve_once)
