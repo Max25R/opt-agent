@@ -317,7 +317,10 @@ point is a trustworthy evaluation, not a demo.
   model for bulk eval runs. Check model IDs and prices in the docs before changing it.
 - Every API call goes through `api.call`: the request is built once
   (`formulate.build_request`, `explain.build_request`), and that same dict is sent,
-  hashed (`request_sha256`, the cache key), cached, and logged. Thinking and effort are
+  hashed (`request_sha256`, logged), cached, and logged. The cache's key is `api.cache_key`
+  (model, system, messages, sampling settings; not the SDK-built schema, since M7), and
+  `Cache` indexes M6's files, named by `request_sha256`, by the request each stored, so
+  every M6 reply is still found. Thinking and effort are
   pinned (`api.THINKING`, `api.EFFORT`): adaptive thinking with its text omitted, and
   medium effort, Haiku 5.5's current defaults. Haiku 5.5 rejects `thinking: enabled`
   with a budget, and temperature can only be 1, so a run is reproducible only by replaying

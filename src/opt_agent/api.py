@@ -17,10 +17,13 @@ replayed from a cache when it has been sent before, and never raising an API err
   owner's own limit) fails every call until it resets, so it raises SpendLimitReached, a
   RunStopped: the whole run stops cleanly instead of logging every remaining problem as
   errored. budget.BudgetExceeded, our own cap, is a RunStopped too.
-- **The cache** keys each response by the SHA-256 of the full request. Sending the same
-  request again replays the response: a crashed run resumes where it stopped, and a
-  finished run can be reproduced without an API key. Failed calls aren't cached, so a
-  re-run retries them.
+- **The cache** keys each response by what Claude was asked (cache_key: the model, the
+  system prompt, the messages, and the sampling settings), not by the whole request: the
+  structured-output schema is built by the SDK (anthropic.transform_schema), so an SDK or
+  pydantic upgrade would otherwise miss every cached reply (audit, finding 6). Sending the
+  same request again replays the response: a crashed run resumes where it stopped, and a
+  finished run can be reproduced without calling the API. Failed calls aren't cached, so a
+  re-run retries them. request_sha256 (the whole request) is still what the logs record.
 """
 
 import hashlib
@@ -72,7 +75,7 @@ class SpendLimitReached(RunStopped):
 class CallInfo(BaseModel):
     """How a call went, apart from what Claude said."""
 
-    request_sha256: str  # the cache key
+    request_sha256: str  # of the whole request as sent (the cache's key is cache_key)
     tries: int = 0
     latency_s: float = 0.0  # the try that got the response (or the last one that failed)
     retry_s: float = 0.0  # failed tries and the waits after them
@@ -85,18 +88,34 @@ def canonical_json(request: dict) -> str:
 
 
 def request_sha256(request: dict) -> str:
+    """The whole request, exactly as sent: what the logs record, and what a run's settings
+    hash (evaluate.settings_sha256), so a run directory can't mix prompt or schema versions."""
     return hashlib.sha256(canonical_json(request).encode()).hexdigest()
+
+
+# What decides Claude's reply: who answers, what it's told, and how it samples. Not the
+# output schema: it's written by the SDK, and the system prompt names the task anyway.
+KEYED_FIELDS = ("model", "system", "messages", "max_tokens", "thinking", "temperature",
+                "top_p", "top_k", "stop_sequences")  # fmt: skip
+
+
+def cache_key(request: dict) -> str:
+    """The response cache's key: the KEYED_FIELDS present, and the requested effort."""
+    keyed = {name: request[name] for name in KEYED_FIELDS if name in request}
+    effort = (request.get("output_config") or {}).get("effort")
+    if effort is not None:
+        keyed["effort"] = effort
+    return hashlib.sha256(canonical_json(keyed).encode()).hexdigest()
 
 
 def call(
     client: anthropic.Anthropic, request: dict, cache: "Cache | None" = None
 ) -> tuple[Message | None, CallInfo]:
-    key = request_sha256(request)
-    if cache is not None and (hit := cache.get(key)) is not None:
+    if cache is not None and (hit := cache.get(cache_key(request))) is not None:
         return hit
-    response, info = _send(client, request, key)
+    response, info = _send(client, request, request_sha256(request))
     if cache is not None and response is not None:
-        cache.put(key, request, response, info)
+        cache.put(cache_key(request), request, response, info)
     return response, info
 
 
@@ -187,14 +206,25 @@ def usage_of(response: Message | None) -> TokenUsage:
 
 
 class Cache:
-    """Successful responses on disk, one JSON file per request hash."""
+    """Successful responses on disk, one JSON file per cache_key, each with the request it
+    answered.
+
+    Files written before cache_key existed (milestone 6's runs) are named by request_sha256
+    of the whole request. They're never rewritten: runs/ is frozen. On a miss, the cache
+    indexes its directory once, keying every file by cache_key of the request it stored,
+    and serves the reply from there. Deriving the key from the stored request, not the
+    current one, is what keeps those replies after an SDK upgrade: a fallback to the old
+    key would recompute it with the new SDK's schema and miss."""
 
     def __init__(self, directory: Path):
         self.directory = Path(directory)
+        self._index: dict[str, Path] | None = None  # cache_key -> file, built on a miss
 
     def get(self, key: str) -> tuple[Message, CallInfo] | None:
         path = self._path(key)
         if not path.exists():
+            path = self._indexed().get(key)
+        if path is None:
             return None
         entry = json.loads(path.read_text())
         info = CallInfo.model_validate(entry["info"]).model_copy(update={"cached": True})
@@ -210,6 +240,12 @@ class Cache:
         temporary = self._path(key).with_suffix(".tmp")
         temporary.write_text(json.dumps(entry, indent=1, ensure_ascii=False) + "\n")
         os.replace(temporary, self._path(key))  # atomic: a crash never leaves half a file
+
+    def _indexed(self) -> dict[str, Path]:
+        if self._index is None:
+            files = sorted(self.directory.glob("*.json")) if self.directory.exists() else []
+            self._index = {cache_key(json.loads(f.read_text())["request"]): f for f in files}
+        return self._index
 
     def _path(self, key: str) -> Path:
         return self.directory / f"{key}.json"

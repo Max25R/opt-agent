@@ -69,7 +69,7 @@ class Budget:
         if self.ledger is not None:
             entry = {
                 "time": datetime.now(UTC).isoformat(timespec="seconds"),
-                "request_sha256": request_sha256(request),  # the cache key
+                "request_sha256": request_sha256(request),  # the whole request, as logged
                 "model": request["model"],
                 "usage": usage.model_dump(),
                 "cost_usd": cost,

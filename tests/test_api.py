@@ -5,7 +5,7 @@ from fakes import GAS_PROBLEM, GAS_REPLY, INFEASIBLE_REPLY, FakeClient, connecti
 from fakes import status_error as error
 
 from opt_agent import api
-from opt_agent.api import Cache, call, request_sha256
+from opt_agent.api import Cache, cache_key, call
 from opt_agent.formulate import DEFAULT_MODEL, build_request
 from opt_agent.runs import Run
 from opt_agent.self_correct import solve_with_revisions
@@ -75,7 +75,7 @@ def test_a_cached_response_is_replayed_without_a_call(tmp_path):
     assert again == first
     assert replayed.cached and not info.cached
     assert replayed.latency_s == info.latency_s  # the original call's time, not the replay's
-    stored = json.loads((tmp_path / f"{request_sha256(REQUEST)}.json").read_text())
+    stored = json.loads((tmp_path / f"{cache_key(REQUEST)}.json").read_text())
     assert stored["request"] == REQUEST  # the cache can be read without this code
 
 

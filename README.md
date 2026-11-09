@@ -43,9 +43,11 @@ problems used while building the agent are excluded from scoring, see
 
 `--attempts 1` turns off self-correction. Each run appends to `logs/attempts.jsonl`
 (`--log` to change it): a header with the git commit and package versions, then one line
-per API call with the full request, its SHA-256, and the reply. Responses are cached by
-that hash in `cache/responses/` (`--cache`, or `--no-cache` to always call the API), so
-re-running a request replays it instead of paying again.
+per API call with the full request, its SHA-256, and the reply. Responses are cached in
+`cache/responses/` (`--cache`, or `--no-cache` to always call the API) under a key of what
+Claude was asked (model, system prompt, messages, sampling settings), so re-running a
+request replays it instead of paying again, even after an SDK upgrade changes the output
+schema it sends.
 
 ## Running tests
 
