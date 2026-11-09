@@ -303,6 +303,12 @@ point is a trustworthy evaluation, not a demo.
        disputed reviews) and an exploratory corrected-labels row (268/274 per condition).
        `scripts/amendment4.py` computes them; `eval_json.py` writes them as `amendment_4`;
        264/274 stays the result of record.
+     - **M7 part 1 (robustness, audit findings 6 and 2):** integer bounds rounded inward in
+       both solvers; `PulpSolverError` is a loud solver error; change flags compare
+       constraints by structure; the cache key leaves out the SDK-built schema (M6's files
+       found through `Cache`'s index); `agent.run(estimate=True)` adds a report-only
+       low-confidence flag (its counts on M6's cache were reported to the owner, and are
+       deliberately not in any results file).
      - **Amendment 5 (draft, not tagged):** external corroboration against LLM4OR's cleaned
        NL4Opt (`docs/EXTERNAL_DATA.md`, data git-ignored): it removed 5 of Amendment 4's six
        key errors. `scripts/amendment5.py` → eval.json `amendment_5`, which CI copies forward

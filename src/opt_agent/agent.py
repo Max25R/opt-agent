@@ -1,6 +1,13 @@
 """The whole pipeline: word problem -> Claude's model (revised if it fails) -> CBC's solution
 -> independent checks -> explanation.
 
+With `estimate`, Claude is also asked for the answer directly, with no solver (the no-solver
+baseline's request, baseline.py), and a confirmed answer that disagrees with that estimate
+beyond the scoring tolerance is marked low confidence (audit, finding 2): every failure in
+M6 was a confirmed answer to a wrong model, which verification can't see, and a direct
+answer that disagrees is a cheap sign of one. The flag is report-only: it's computed after
+everything else and changes no answer, check or revision.
+
 Run:  python -m opt_agent.agent "A gas company can transport gas using a pipeline or by train. ..."
       (or pass - and pipe the problem in). Needs ANTHROPIC_API_KEY exported, or
       OPT_AGENT_LIVE=1 to use the key in .env (see .env.example).
@@ -15,9 +22,11 @@ import anthropic
 from pydantic import BaseModel
 
 from opt_agent.api import Cache, CallInfo
+from opt_agent.baseline import DirectAnswer, answer_directly
 from opt_agent.config import MissingAPIKeyError, get_api_key
 from opt_agent.explain import Explanation, explain, solver_facts
 from opt_agent.formulate import DEFAULT_MODEL, Formulation
+from opt_agent.ground_truth import TOLERANCE, same_value
 from opt_agent.runs import Run, Tags
 from opt_agent.schema import LPModel, Term
 from opt_agent.self_correct import MAX_ATTEMPTS, Outcome, solve_with_revisions
@@ -35,12 +44,17 @@ class Result(BaseModel):
     highs_agrees: bool | None = None  # False is a loud failure: no answer is reported
     check_problems: list[str] = []  # from verify.check_solution: [] means it checks out
     explanation: Explanation | None = None  # only for verified answers
+    estimate: DirectAnswer | None = None  # Claude's direct answer, if one was asked for
+    # True: the estimate disagrees with the confirmed answer. None: nothing to compare.
+    low_confidence: bool | None = None
+    low_confidence_reason: str | None = None
     wall_s: float = 0.0  # the whole pipeline, as measured; a replayed run is faster
 
     @property
     def calls(self) -> list[CallInfo]:
         formulations = [a.formulation.call for a in self.outcome.attempts]
-        return formulations + ([self.explanation.call] if self.explanation else [])
+        extra = [x.call for x in (self.estimate, self.explanation) if x is not None]
+        return formulations + extra
 
     @property
     def retry_s(self) -> float:
@@ -83,7 +97,9 @@ def run(
     max_attempts: int = MAX_ATTEMPTS,
     session: Run | None = None,
     tags: Tags | None = None,
+    estimate: bool = False,
 ) -> Result:
+    """`estimate`: also ask for a direct answer (one more call) and set low_confidence."""
     start = time.perf_counter()
     session = session or Run()
     outcome = solve_with_revisions(problem, client, model_id, max_attempts, session, tags)
@@ -93,6 +109,10 @@ def run(
         result.highs_solution = outcome.final.highs_solution  # the loop solved with both
         result.highs_agrees = same_answer(model, solution, result.highs_solution)
         result.check_problems = check_solution(model, solution)
+    if estimate:  # after the loop and the checks, so it can't change either
+        result.estimate = answer_directly(problem, client, model_id, session.cache)
+        _log_estimate(session, tags, result.estimate)
+        result.low_confidence, result.low_confidence_reason = confidence(result)
     if with_explanation and result.verified:  # never explain an answer that failed a check
         facts = solver_facts(model, solution)
         result.explanation = explain(problem, model, facts, client, model_id, session.cache)
@@ -100,6 +120,33 @@ def run(
     result.wall_s = time.perf_counter() - start
     _log_problem(session, tags, result)
     return result
+
+
+def confidence(result: Result) -> tuple[bool | None, str]:
+    """Does Claude's direct estimate disagree with the confirmed answer, beyond the scoring
+    tolerance (ground_truth.TOLERANCE, 1e-6)? None when there's nothing to compare."""
+    e, s = result.estimate, result.solution
+    if e.status is None:
+        return None, f"no direct estimate to compare ({e.error})"
+    if not result.confirmed:
+        return None, "no confirmed answer to compare the direct estimate with"
+    if e.status != s.status:
+        estimated, solved = _said(e.status, e.objective), _said(s.status, s.objective)
+        return True, f"the direct estimate says {estimated}, the solver {solved}"
+    if s.status is Status.OPTIMAL and not same_value(e.objective, s.objective, TOLERANCE):
+        return True, f"the direct estimate is {e.objective:g}, the solver's optimum {s.objective:g}"
+    return False, "the direct estimate agrees with the solver's answer"
+
+
+def _said(status: Status, objective: float | None) -> str:
+    return f"optimal ({objective:g})" if status is Status.OPTIMAL else status.value
+
+
+def _log_estimate(session: Run, tags: Tags | None, a: DirectAnswer) -> None:
+    session.write("estimate", tags, model_id=a.model_id, request_sha256=a.call.request_sha256,
+                  request=a.request, reply=a.raw_text, stop_reason=a.stop_reason,
+                  usage=a.usage.model_dump(), call=a.call.model_dump(), error=a.error,
+                  status=a.status, objective=a.objective)  # fmt: skip
 
 
 def _log_explanation(session: Run, tags: Tags | None, e: Explanation) -> None:
@@ -118,7 +165,8 @@ def _log_problem(session: Run, tags: Tags | None, result: Result) -> None:
               verified=result.verified,
               wall_s=round(result.wall_s, 3), latency_s=round(result.latency_s, 3),
               retry_s=round(result.retry_s, 3),
-              cached_calls=sum(c.cached for c in result.calls))  # fmt: skip
+              cached_calls=sum(c.cached for c in result.calls),
+              low_confidence=result.low_confidence)  # fmt: skip
 
 
 # ---- command line ----------------------------------------------------------------------
@@ -149,6 +197,8 @@ def render(result: Result) -> str:
         lines += [f"  {name} = {value:g}" for name, value in s.values.items()]
     lines.append(f"Verified (HiGHS agrees, constraints check out): {result.verified}")
     lines += [f"  problem: {p}" for p in result.check_problems]
+    if result.low_confidence:
+        lines.append(f"LOW CONFIDENCE: {result.low_confidence_reason}.")
     e = result.explanation
     if e:
         lines += ["", e.text] if e.text else [""]
@@ -213,6 +263,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE, help="response cache")
     parser.add_argument("--no-cache", action="store_true", help="always call the API")
     parser.add_argument("--no-explanation", action="store_true", help="skip the last call")
+    parser.add_argument("--estimate", action="store_true",
+                        help="also ask for the answer directly (one more call) and flag a "
+                             "confirmed answer that disagrees with it")  # fmt: skip
     args = parser.parse_args(argv)
     problem = sys.stdin.read() if args.problem == "-" else args.problem
     try:
@@ -221,7 +274,8 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(str(error))
     cache = None if args.no_cache else Cache(args.cache)
     session = Run.start(log_path=args.log, cache=cache)
-    result = run(problem, client, args.model, not args.no_explanation, args.attempts, session)
+    result = run(problem, client, args.model, not args.no_explanation, args.attempts, session,
+                 estimate=args.estimate)  # fmt: skip
     print(render(result))
 
 

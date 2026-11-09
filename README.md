@@ -139,6 +139,10 @@ Problems these checks found, each with a regression test:
    a correct rounding of a fact or an input, or it's flagged. That checks where a number
    comes from, not whether the sentence is true: "10 trips move 1,000 fish" passes when 10
    and 1,000 are both facts. A refused, cut-off or empty explanation is flagged too.
+5. **Low confidence** (optional, `--estimate`: one more call): Claude also answers directly,
+   with no solver, and a confirmed answer that disagrees with that estimate is marked low
+   confidence. Verification can't see a wrong model; a disagreeing direct answer is a cheap
+   sign of one. It changes no answer, check or revision.
 
 ## Ground truth
 
