@@ -301,6 +301,10 @@ point is a trustworthy evaluation, not a demo.
        disputed reviews) and an exploratory corrected-labels row (268/274 per condition).
        `scripts/amendment4.py` computes them; `eval_json.py` writes them as `amendment_4`;
        264/274 stays the result of record.
+     - **Amendment 5 (draft, not tagged):** external corroboration against LLM4OR's cleaned
+       NL4Opt (`docs/EXTERNAL_DATA.md`, data git-ignored): it removed 5 of Amendment 4's six
+       key errors. `scripts/amendment5.py` → eval.json `amendment_5`, which CI copies forward
+       without recomputing (no data there).
 7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.

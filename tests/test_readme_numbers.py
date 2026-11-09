@@ -1,7 +1,7 @@
 """Pre-registration section 7: every number in the README's Evaluation section comes from
-results/eval.json, at the precision the README shows it. So does every number in Amendment
-4's "The rows" section (docs/amendments/amendment-4.md), whose rows scripts/amendment4.py
-generates into eval.json.
+results/eval.json, at the precision the README shows it. So does every number in the "The
+rows" sections of Amendments 4 and 5 (docs/amendments/amendment-4.md, amendment-5.md), whose
+rows scripts/amendment4.py and amendment5.py generate into eval.json.
 
 How a number in the README is read:
 - `-123` in backticks is a problem id: some string in eval.json must equal it.
@@ -28,9 +28,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 AMENDMENT_4 = ROOT / "docs" / "amendments" / "amendment-4.md"
+AMENDMENT_5 = ROOT / "docs" / "amendments" / "amendment-5.md"
 EVAL = ROOT / "results" / "eval.json"
 # Each checked document, and the section of it that reports results.
-CHECKED = [(README, "Evaluation"), (AMENDMENT_4, "The rows")]
+CHECKED = [(README, "Evaluation"), (AMENDMENT_4, "The rows"), (AMENDMENT_5, "The rows")]
 
 NOT_RESULTS = [
     r"\]\([^)]*\)",  # a link's target

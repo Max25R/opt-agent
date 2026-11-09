@@ -7,6 +7,10 @@ tests/test_readme_numbers.py checks that. It's built from:
   rebuild drops that row, so this script refuses to run without it;
 - Amendment 4's rows (scripts/amendment4.py), computed here from the test run and its
   report rather than stored in the report, so a rebuild can't drop them;
+- Amendment 5's rows (scripts/amendment5.py), from the test run and LLM4OR's cleaned NL4Opt
+  (docs/EXTERNAL_DATA.md). That data is git-ignored, so where it's absent (CI) the committed
+  amendment_5 block is kept as it is; tests/test_amendment5.py, which needs the data,
+  recomputes it and compares;
 - the runs' scored pairs, for self-correction's revisions and changed outcomes;
 - the test run's taxonomy and blind-grading sheets, for the two judges' agreement and each
   blind grade;
@@ -44,6 +48,7 @@ def _script(name: str):
 
 
 amendment4 = _script("amendment4")
+amendment5 = _script("amendment5")
 TEST = ROOT / "runs" / "test"
 PERTURBED = ROOT / "runs" / "test-perturbed"
 FREEZE = ROOT / "docs" / "FREEZE.json"
@@ -71,10 +76,22 @@ def build(test_dir: Path = TEST, perturbed_dir: Path = PERTURBED, freeze: Path =
         "sensitivity": sensitivity(test_report),
         "exploratory_amendment_3": test_report[AMENDMENT_3],
         "amendment_4": amendment4.row(test, test_report),
+        "amendment_5": _amendment_5(test),
         "hand_checks": hand_checks(test_report, test),
         "self_correction": self_correction({"test": test, "test-perturbed": perturbed}),
         "cost_latency": cost_latency({"test": test_report, "test-perturbed": perturbed_report}),
     }
+
+
+def _amendment_5(test: ScoredRun) -> dict:
+    """Computed from LLM4OR's data when it's here; otherwise the committed block, unchanged
+    (the data is never committed: it has no license)."""
+    if amendment5.available():
+        return amendment5.row(test)
+    committed = json.loads(OUT.read_text()) if OUT.exists() else {}
+    if "amendment_5" not in committed:
+        raise ValueError("Amendment 5's rows need LLM4OR's data: see docs/EXTERNAL_DATA.md")
+    return committed["amendment_5"]
 
 
 def _report(run_dir: Path) -> dict:
