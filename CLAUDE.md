@@ -309,6 +309,17 @@ point is a trustworthy evaluation, not a demo.
        found through `Cache`'s index); `agent.run(estimate=True)` adds a report-only
        low-confidence flag (its counts on M6's cache were reported to the owner, and are
        deliberately not in any results file).
+     - **Formulation checklist (M7, report-only; owner's design, 2026-11-09):**
+       `checklist.py` asks what a correct formulation must contain, given only the text and
+       the model's variable names (no fuzzy mapping; a missing variable is a known gap), and
+       `review` gives typed flags (integrality, coefficient, missing, extra,
+       invented-from-preference, objective). `--checklist` in the agent CLI and `evaluate`;
+       it changes no answer, score or revision. **Its prompt was designed after seeing the M6
+       test failures:** tune on dev only (follow-up dev, NL4Opt dev); any M6 number from it is
+       exploratory, labeled "prompt designed after seeing these failures", and never goes in
+       `results/eval.json` or the README's results. **Follow-up split**
+       (`docs/FOLLOWUP_SPLIT.md`): ComplexLP 25 dev / 86 test, IndustryOR all test; the test
+       side is sealed (`followup.load` raises `Sealed`) until its pre-registration is frozen.
      - **Amendment 5 (draft, not tagged):** external corroboration against LLM4OR's cleaned
        NL4Opt (`docs/EXTERNAL_DATA.md`, data git-ignored): it removed 5 of Amendment 4's six
        key errors. `scripts/amendment5.py` → eval.json `amendment_5`, which CI copies forward
@@ -397,6 +408,8 @@ OPT_AGENT_LIVE=1 python -m pytest -m live -s   # the tests that call the real AP
 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ... --plan   # worst case, no calls
 OPT_AGENT_LIVE=1 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ...   # dev only; resumable
 OPT_AGENT_LIVE=1 python -m opt_agent.evaluate --out runs/NAME --cap 0.50 --all    # every scorable problem
+python scripts/followup_split.py    # the follow-up split (made once; refuses to change it)
+python -m opt_agent.evaluate --split complexlp-dev --all --conditions single-shot --estimate --checklist --out runs/NAME --cap 0.25 --plan   # follow-up dev, report-only extras
 python -m opt_agent.freeze          # what's left before the freeze; whether inputs match it
 python -m opt_agent.freeze approve  # THE OWNER'S STEP ONLY: writes docs/FREEZE.json
 python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.json

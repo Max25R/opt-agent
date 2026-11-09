@@ -319,6 +319,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--estimate", action="store_true",
                         help="also ask for the answer directly (one more call) and flag a "
                              "confirmed answer that disagrees with it")  # fmt: skip
+    parser.add_argument("--checklist", action="store_true",
+                        help="also ask what a correct formulation must contain (one more "
+                             "call) and list the model's differences from it")  # fmt: skip
     args = parser.parse_args(argv)
     problem = sys.stdin.read() if args.problem == "-" else args.problem
     try:
@@ -328,7 +331,7 @@ def main(argv: list[str] | None = None) -> None:
     cache = None if args.no_cache else Cache(args.cache)
     session = Run.start(log_path=args.log, cache=cache)
     result = run(problem, client, args.model, not args.no_explanation, args.attempts, session,
-                 estimate=args.estimate)  # fmt: skip
+                 estimate=args.estimate, checklist=args.checklist)  # fmt: skip
     print(render(result))
 
 

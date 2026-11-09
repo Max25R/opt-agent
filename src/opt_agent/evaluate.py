@@ -31,6 +31,12 @@ first checks the fingerprint against the owner's approval and refuses on any dif
 A test run is the whole pre-registered experiment, every scorable problem in every
 condition, so it takes --all and no subset. Every pass records its fingerprint's digest.
 
+Report-only extras (M7, audit finding 2): with --estimate and --checklist, the solver
+conditions also record agent.run's low-confidence flag and checklist flags, with their calls'
+cost apart (report_only_*). They change no answer. The manifest records them, so a resume
+with different extras is refused. The follow-up dev split (complexlp-dev, followup.py) runs
+too; its answers are compared with the benchmark's at 1e-4. Follow-up test is sealed.
+
 Run:  python -m opt_agent.evaluate --out runs/smoke --cap 1.00 ID [ID ...]
       python -m opt_agent.evaluate --out runs/dev --cap 0.50 --all
       (add --plan to see the pending pairs and the worst-case cost without calling; a plan
@@ -48,7 +54,8 @@ from typing import Literal
 import anthropic
 from pydantic import BaseModel
 
-from opt_agent import agent, api, baseline, formulate, freeze, pricing
+from opt_agent import agent, api, baseline, followup, formulate, freeze, pricing
+from opt_agent import checklist as formulation_checklist
 from opt_agent.api import Cache, RunStopped
 from opt_agent.budget import Budget, BudgetedClient
 from opt_agent.config import MissingAPIKeyError, get_api_key
@@ -64,6 +71,7 @@ CONDITIONS: tuple[Condition, ...] = ("baseline", "single-shot", "self-correction
 ATTEMPTS = {"single-shot": 1, "self-correction": MAX_ATTEMPTS}
 MAX_ERRORS_IN_A_ROW = 3  # the API is down or the limits are too low: stop, resume later
 DEV_SPLITS = ["dev", "dev-perturbed"]
+FOLLOWUP_DEV_SPLITS = sorted(followup.DEV_SPLITS)  # the follow-up's dev; its test is sealed
 TEST_SPLITS = ["test", "test-perturbed"]  # frozen inputs only (freeze.py)
 
 # Why a done pair has no answer: the loud failures of pre-registration section 3g. (An API
@@ -99,6 +107,15 @@ class Item(BaseModel):
     latency_s: float = 0.0  # API plus solver time, without retries
     retry_s: float = 0.0  # failed tries and the waits after them
     wall_s: float = 0.0  # as measured in this pass; shorter when calls replay from the cache
+    # Report-only extras (--estimate, --checklist): never part of the answer or its cost.
+    estimate_status: str | None = None
+    estimate_objective: float | None = None
+    low_confidence: bool | None = None
+    low_confidence_reason: str | None = None
+    checklist_flags: list[dict] | None = None
+    checklist_notes: list[str] = []
+    report_only_cost_usd: float = 0.0  # the estimate's and the checklist's calls
+    report_only_paid_usd: float = 0.0
 
 
 class Manifest(BaseModel):
@@ -112,11 +129,17 @@ class Manifest(BaseModel):
 
 
 def manifest_for(
-    split: str, records: list[Record], conditions: tuple[Condition, ...], model_id: str
+    split: str,
+    records: list[Record],
+    conditions: tuple[Condition, ...],
+    model_id: str,
+    extras: tuple[str, ...] = (),
 ) -> Manifest:
+    """`extras`: "estimate" and/or "checklist", recorded with their request settings."""
+    settings = {c: settings_sha256(c, model_id) for c in conditions}
+    settings |= {extra: extra_settings_sha256(extra, model_id) for extra in extras}
     return Manifest(split=split, problem_ids=[r.id for r in records],
-                    conditions=list(conditions), model_id=model_id,
-                    settings={c: settings_sha256(c, model_id) for c in conditions})  # fmt: skip
+                    conditions=list(conditions), model_id=model_id, settings=settings)  # fmt: skip
 
 
 def fix_manifest(out: Path, manifest: Manifest) -> None:
@@ -135,6 +158,14 @@ def fix_manifest(out: Path, manifest: Manifest) -> None:
         )
 
 
+def extra_settings_sha256(extra: str, model_id: str) -> str:
+    if extra == "estimate":
+        template = baseline.build_request("", model_id)
+    else:
+        template = formulation_checklist.build_request("", [], model_id)
+    return api.request_sha256(template)[:12]
+
+
 def settings_sha256(condition: Condition, model_id: str) -> str:
     """Changes whenever the condition's prompt, schema, or pinned settings change, so
     results from different versions can't be mixed in one run directory."""
@@ -149,6 +180,7 @@ def evaluate(
     out: Path,
     split: str = "dev",
     model_id: str = formulate.DEFAULT_MODEL,
+    extras: tuple[str, ...] = (),
 ) -> list[Item]:
     """Every pending pair, in order; returns the items this call added. Raises RunStopped
     (after writing a "stopped" line) when the run has to stop. On a test split, raises
@@ -159,7 +191,7 @@ def evaluate(
         require_whole_experiment(split, records, conditions)
     else:
         prints = freeze.digest(freeze.fingerprint())
-    fix_manifest(out, manifest_for(split, records, conditions, model_id))
+    fix_manifest(out, manifest_for(split, records, conditions, model_id, extras))
     results = out / "results.jsonl"
     done = done_pairs(results, model_id)
     session = Run.start(log_path=out / "attempts.jsonl", cache=Cache(out / "cache"),
@@ -172,7 +204,7 @@ def evaluate(
                 if (record.id, condition) in done:
                     continue
                 tags = Tags(problem_id=record.id, split=split, condition=condition)
-                item = run_item(record, condition, client, session, tags, model_id)
+                item = run_item(record, condition, client, session, tags, model_id, extras)
                 _append(results, item.model_dump(mode="json"))
                 added.append(item)
                 errors_in_a_row = errors_in_a_row + 1 if item.outcome == "errored" else 0
@@ -197,7 +229,15 @@ def require_whole_experiment(
 
 
 def scorable_records(split: str) -> list[Record]:
+    if split in FOLLOWUP_DEV_SPLITS:
+        return followup.load(split)  # every one is scored, against the benchmark's answer
     return [r for r in load_records(GROUND_TRUTH_DIR / f"{split}.json") if is_scorable(r)]
+
+
+def _correct(record, item: Item) -> bool:
+    if isinstance(record, followup.Problem):
+        return followup.is_correct(record, item.status, item.objective)
+    return score(record, item.status, item.objective).correct
 
 
 def run_item(
@@ -207,6 +247,7 @@ def run_item(
     session: Run,
     tags: Tags,
     model_id: str,
+    extras: tuple[str, ...] = (),
 ) -> Item:
     base = {
         "problem_id": record.id,
@@ -218,7 +259,7 @@ def run_item(
     }
     if condition == "baseline":
         return _baseline_item(record, client, session, tags, model_id, base)
-    return _solver_item(record, condition, client, session, tags, model_id, base)
+    return _solver_item(record, condition, client, session, tags, model_id, base, extras)
 
 
 def _baseline_item(
@@ -258,9 +299,12 @@ def _solver_item(
     tags: Tags,
     model_id: str,
     base: dict,
+    extras: tuple[str, ...] = (),
 ) -> Item:
     result = agent.run(record.document, client, model_id, with_explanation=False,
-                       max_attempts=ATTEMPTS[condition], session=session, tags=tags)  # fmt: skip
+                       max_attempts=ATTEMPTS[condition], session=session, tags=tags,
+                       estimate="estimate" in extras,
+                       checklist="checklist" in extras)  # fmt: skip
     formulations = [a.formulation for a in result.outcome.attempts]
     costs = [pricing.cost_usd(f.usage, f.model_id) for f in formulations]
     spend = {
@@ -278,9 +322,28 @@ def _solver_item(
         return Item(**base, **spend, outcome="errored", reason=formulations[-1].call.error)
     s = result.solution
     status, objective = (s.status, s.objective) if result.confirmed else (None, None)
-    return Item(**base, **spend, outcome="done", status=status, objective=objective,
-                no_answer=_no_answer(result), reason=_reason(result),
+    return Item(**base, **spend, **_report_only(result), outcome="done", status=status,
+                objective=objective, no_answer=_no_answer(result), reason=_reason(result),
                 flags=result.outcome.flags)  # fmt: skip
+
+
+def _report_only(result: agent.Result) -> dict:
+    """The estimate's and the checklist's outcome and cost: recorded, never scored."""
+    calls = [x for x in (result.estimate, result.checklist) if x is not None]
+    costs = [pricing.cost_usd(x.usage, x.model_id) for x in calls]
+    e = result.estimate
+    return {
+        "estimate_status": e.status if e else None,
+        "estimate_objective": e.objective if e else None,
+        "low_confidence": result.low_confidence,
+        "low_confidence_reason": result.low_confidence_reason,
+        "checklist_flags": None if result.checklist_flags is None
+        else [f.model_dump() for f in result.checklist_flags],
+        "checklist_notes": result.checklist_notes,
+        "report_only_cost_usd": sum(costs),
+        "report_only_paid_usd": sum(c for c, x in zip(costs, calls, strict=True)
+                                    if not x.call.cached),
+    }  # fmt: skip
 
 
 def _no_answer(result: agent.Result) -> NoAnswer | None:
@@ -354,11 +417,21 @@ def _now() -> str:
 # ---- planning and reporting -------------------------------------------------------------
 
 
+# The checklist's request names the model's variables, unknown before the run: plan for many
+# long names, so the bound stays a bound.
+PLANNED_NAMES = ["a_long_variable_name_for_the_worst_case"] * 30
+
+
 def worst_case_plan(
-    records: list[Record], conditions: tuple[Condition, ...], done: set, model_id: str
+    records: list[Record],
+    conditions: tuple[Condition, ...],
+    done: set,
+    model_id: str,
+    extras: tuple[str, ...] = (),
 ) -> tuple[int, float]:
     """(most paid calls, most they can cost) for the pending pairs, if every reply used
-    all of max_tokens. Self-correction's first call is free when single-shot runs too."""
+    all of max_tokens. Self-correction's first call is free when single-shot runs too. Each
+    extra (estimate, checklist) is one more call per solver pair, counted as paid."""
     calls, usd = 0, 0.0
     # A revision carries the previous reply (at most max_tokens) and feedback on top.
     revision_extra = pricing.prices_for(model_id, 0).input * (api.MAX_TOKENS + 2_000) / 1e6
@@ -376,22 +449,35 @@ def worst_case_plan(
             revisions = ATTEMPTS[condition] - 1
             calls += paid_first + revisions
             usd += paid_first * first + revisions * (first + revision_extra)
+            for extra in extras:
+                request = _extra_request(extra, record.document, model_id)
+                calls, usd = calls + 1, usd + pricing.worst_case_usd(request)
     return calls, usd
 
 
+def _extra_request(extra: str, problem: str, model_id: str) -> dict:
+    if extra == "estimate":
+        return baseline.build_request(problem, model_id)
+    return formulation_checklist.build_request(problem, PLANNED_NAMES, model_id)
+
+
 def render(items: list[Item], records: dict[str, Record], budget: Budget) -> str:
-    rows = [["problem", "condition", "result", "tries", "tokens in/out", "cost", "paid"]]
+    rows = [["problem", "condition", "result", "tries", "tokens in/out", "cost", "paid",
+             "low conf", "checklist"]]  # fmt: skip
     right: dict[str, int] = {}
     for i in items:
         if i.outcome == "errored":
             result = "ERRORED (not scored yet)"
         else:
-            s = score(records[i.problem_id], i.status, i.objective)
-            right[i.condition] = right.get(i.condition, 0) + s.correct
-            result = "right" if s.correct else f"wrong ({s.failure})"
+            correct = _correct(records[i.problem_id], i)
+            right[i.condition] = right.get(i.condition, 0) + correct
+            result = "right" if correct else ("wrong (loud)" if i.status is None else "wrong")
+        flags = "-" if i.checklist_flags is None else (
+            ", ".join(f["kind"] for f in i.checklist_flags) or "none")  # fmt: skip
+        low = {True: "LOW", False: "ok", None: "-"}[i.low_confidence]
         rows.append([i.problem_id, i.condition, result, str(i.attempts),
                      f"{i.input_tokens:,}/{i.output_tokens:,}", f"${i.cost_usd:.4f}",
-                     f"${i.paid_usd:.4f}"])  # fmt: skip
+                     f"${i.paid_usd:.4f}", low, flags])  # fmt: skip
     widths = [max(len(r[k]) for r in rows) for k in range(len(rows[0]))]
     lines = ["  ".join(cell.ljust(w) for cell, w in zip(r, widths, strict=True)) for r in rows]
     lines.append("")
@@ -399,9 +485,11 @@ def render(items: list[Item], records: dict[str, Record], budget: Budget) -> str
         mine = [i for i in items if i.condition == condition]
         if mine:
             scored = [i for i in mine if i.outcome == "done"]
+            extra = sum(i.report_only_cost_usd for i in mine)
             lines.append(
                 f"{condition}: {right.get(condition, 0)}/{len(scored)} right, "
                 f"{len(mine) - len(scored)} errored; cost ${sum(i.cost_usd for i in mine):.4f}"
+                + (f", plus ${extra:.4f} report-only" if extra else "")
             )
     lines.append(
         f"Spent in this directory: ${budget.spent_usd:.4f} on {budget.calls} paid calls, "
@@ -416,19 +504,32 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--all", action="store_true", help="every scorable problem in the split")
     parser.add_argument("--out", type=Path, required=True, help="the run's directory")
     parser.add_argument("--cap", type=float, default=1.00, help="dollar cap (default 1.00)")
-    parser.add_argument("--split", choices=DEV_SPLITS + TEST_SPLITS, default="dev",
-                        help="a test split runs only on frozen inputs, with --all")  # fmt: skip
+    parser.add_argument("--split", choices=DEV_SPLITS + TEST_SPLITS + FOLLOWUP_DEV_SPLITS,
+                        default="dev", help="a test split runs only on frozen inputs, with "
+                        "--all; the follow-up test splits are sealed")  # fmt: skip
     parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))
     parser.add_argument("--model", default=formulate.DEFAULT_MODEL)
     parser.add_argument("--plan", action="store_true", help="show the worst case; no calls")
+    parser.add_argument("--estimate", action="store_true",
+                        help="solver conditions: also record the low-confidence flag "
+                             "(report-only, one more call per pair)")  # fmt: skip
+    parser.add_argument("--checklist", action="store_true",
+                        help="solver conditions: also record the checklist flags "
+                             "(report-only, one more call per pair)")  # fmt: skip
     args = parser.parse_args(argv)
+    extras = tuple(x for x in ("estimate", "checklist") if getattr(args, x))
 
-    by_id = {r.id: r for r in load_records(GROUND_TRUTH_DIR / f"{args.split}.json")}
+    if args.split in FOLLOWUP_DEV_SPLITS:
+        by_id = {p.id: p for p in followup.load(args.split)}
+    else:
+        by_id = {r.id: r for r in load_records(GROUND_TRUTH_DIR / f"{args.split}.json")}
     if args.all == bool(args.ids):
         sys.exit("give problem ids or --all, not both")
     if args.split in TEST_SPLITS and not args.all:
         sys.exit(f"a {args.split} run covers every scorable problem: use --all")
-    unknown = [i for i in args.ids if i not in by_id or not is_scorable(by_id[i])]
+    followup_split = args.split in FOLLOWUP_DEV_SPLITS
+    unknown = [i for i in args.ids
+               if i not in by_id or not (followup_split or is_scorable(by_id[i]))]  # fmt: skip
     if unknown:
         sys.exit(f"not scorable {args.split} problems: {', '.join(unknown)}")
     records = scorable_records(args.split) if args.all else [by_id[i] for i in args.ids]
@@ -437,7 +538,7 @@ def main(argv: list[str] | None = None) -> None:
 
     done = done_pairs(args.out / "results.jsonl", args.model)
     pending = sum((r.id, c) not in done for r in records for c in conditions)
-    calls, worst = worst_case_plan(records, conditions, done, args.model)
+    calls, worst = worst_case_plan(records, conditions, done, args.model, extras)
     print(f"{pending} pairs pending: at most {calls} paid "
           f"calls, at most ${worst:.4f} if every reply used all {api.MAX_TOKENS:,} tokens. "
           f"Already spent here: ${budget.spent_usd:.4f} of the ${args.cap:.2f} cap.")  # fmt: skip
@@ -454,7 +555,7 @@ def main(argv: list[str] | None = None) -> None:
     except MissingAPIKeyError as error:
         sys.exit(str(error))
     try:
-        evaluate(records, conditions, client, args.out, args.split, args.model)
+        evaluate(records, conditions, client, args.out, args.split, args.model, extras)
     except RunStopped as stop:
         print(render(latest_items(args.out / "results.jsonl"), by_id, budget))
         sys.exit(f"\nSTOPPED: {stop}\nRe-run the same command to resume; nothing is paid twice.")
