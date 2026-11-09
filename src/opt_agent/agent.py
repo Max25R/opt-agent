@@ -37,7 +37,7 @@ from opt_agent.ground_truth import TOLERANCE, same_value
 from opt_agent.runs import Run, Tags
 from opt_agent.schema import LPModel, Term
 from opt_agent.self_correct import MAX_ATTEMPTS, Outcome, solve_with_revisions
-from opt_agent.solver import Solution, Status
+from opt_agent.solver import Solution, Status, solve
 from opt_agent.verify import check_solution, same_answer
 
 DEFAULT_LOG = Path("logs/attempts.jsonl")
@@ -149,8 +149,27 @@ def confidence(result: Result) -> tuple[bool | None, str]:
         estimated, solved = _said(e.status, e.objective), _said(s.status, s.objective)
         return True, f"the direct estimate says {estimated}, the solver {solved}"
     if s.status is Status.OPTIMAL and not same_value(e.objective, s.objective, TOLERANCE):
+        relaxed = _lp_relaxation(result.formulation.model)
+        if relaxed is not None and same_value(e.objective, relaxed, TOLERANCE):
+            # Revision 1, rule 5: the estimate ignored integrality. That's left to the
+            # checklist's integrality check, so it's a note, not low confidence.
+            return False, (f"the direct estimate {e.objective:g} equals the model's LP "
+                           f"relaxation, not its integer optimum {s.objective:g}: an "
+                           "integrality-only difference")  # fmt: skip
         return True, f"the direct estimate is {e.objective:g}, the solver's optimum {s.objective:g}"
     return False, "the direct estimate agrees with the solver's answer"
+
+
+def _lp_relaxation(model: LPModel) -> float | None:
+    """The optimum of the model with every variable continuous; None for a model with no
+    integer variable, or a relaxation without an optimum."""
+    if not model.is_mip:
+        return None
+    relaxed = model.model_copy(
+        update={"variables": [v.model_copy(update={"integer": False}) for v in model.variables]}
+    )
+    s = solve(relaxed)
+    return s.objective if s.status is Status.OPTIMAL else None
 
 
 def _check_formulation(
@@ -170,7 +189,10 @@ def _check_formulation(
     if c.checklist is None:
         result.checklist_notes = [f"no usable checklist: {c.error}"]
         return
-    found = review_checklist(model, c.checklist)
+    # The optimum, if there is a confirmed one: a difference it shows can't have changed
+    # the answer is a note, not a flag (revision 1, rule 4).
+    values = result.solution.values if result.verified else None
+    found = review_checklist(model, c.checklist, values)
     result.checklist_flags, result.checklist_notes = found.flags, found.notes
 
 

@@ -13,10 +13,10 @@ seeing these failures") and stays out of `results/eval.json` and the README's re
 
 | revision | what | status |
 |---|---|---|
-| 1 | checklist and low-confidence comparison logic | proposed 2026-11-09; see below |
+| 1 | checklist and low-confidence comparison logic | applied 2026-11-09; see below |
 | 2 | (in reserve) | unused |
 
-## Revision 1 (proposed 2026-11-09): comparison logic only, no prompt change
+## Revision 1 (applied 2026-11-09): comparison logic only, no prompt change
 
 **Evidence.** `runs/dev-checklist` (commit `0e4a193`): the 25 ComplexLP dev problems,
 single-shot with `--estimate --checklist`; 73 paid calls, $0.19; 22 of 25 right by the key.
@@ -57,6 +57,23 @@ Diagnosed from the cached replies with local solves only ($0).
 3 of the 23 truly right answers (was 18), 18 flags in all (was 235); low confidence on 1 (was
 5). Left as they are: the flow-conservation omissions in 100, 119 and 135 (a prompt line would
 be revision 2).
+
+**Applied** in `checklist.review` (rules 1 to 4; it now takes the model's optimum) and
+`agent.confidence` (rule 5), each rule with its tests first (`tests/test_checklist_rev1.py`).
+One refinement while applying rule 3, found by an existing test: a coefficient pair is judged
+both ways. It's flagged if the model is looser (the requirement isn't implied and the optimum
+violates it) or stricter (the model's row isn't implied by the requirements, uses no
+auxiliary variable, and binds at the optimum). Implying the requirement alone would have
+hidden a stricter wrong coefficient (`8000p + 200t >= 1e6` for `8000p + 2000t >= 1e6`). On
+dev every coefficient pair was the looser kind, so the expected numbers didn't move.
+
+**Re-scored at $0** (`scripts/rescore_dev.py runs/dev-checklist runs/dev-checklist-rev1`):
+every pair replayed through the pipeline from the run's cache, with a client that refuses any
+call. Every answer, cost and estimate is the same, and nothing was paid. The result is
+exactly the simulation's:
+- checklist flags on 3 of the 23 truly right answers (100, 119, 135: the flow conservation the
+  checklist doesn't list), 18 flags (17 "extra", 1 "objective");
+- low confidence on 1 (142, the estimate's arithmetic slip).
 
 **Also found on dev:**
 - **The key for 82 is wrong.** It's a 5-city tour with symmetric costs given in the text;

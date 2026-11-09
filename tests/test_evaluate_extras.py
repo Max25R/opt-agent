@@ -38,14 +38,15 @@ def single_shot(out, *replies, extras=()):
 
 def test_the_extras_are_recorded_and_change_no_answer_or_its_cost(tmp_path):
     plain = single_shot(tmp_path / "plain", GAS_REPLY)
-    flagged_checklist = json.dumps({**GAS_CHECKLIST,
-                                    "requirements": GAS_CHECKLIST["requirements"][:1]})  # fmt: skip
-    extra = single_shot(tmp_path / "extra", GAS_REPLY, says("optimal", 250), flagged_checklist,
+    continuous = [{**v, "kind": "continuous"} if v["name"] == "trains" else v
+                  for v in GAS_CHECKLIST["variables"]]  # fmt: skip
+    flagged_checklist = json.dumps({**GAS_CHECKLIST, "variables": continuous})
+    extra = single_shot(tmp_path / "extra", GAS_REPLY, says("optimal", 249), flagged_checklist,
                         extras=EXTRAS)  # fmt: skip
     assert {f: getattr(extra, f) for f in ANSWER} == {f: getattr(plain, f) for f in ANSWER}
-    assert (extra.estimate_status, extra.estimate_objective) == ("optimal", 250)
-    assert extra.low_confidence is True and "250" in extra.low_confidence_reason
-    assert [f["kind"] for f in extra.checklist_flags] == ["extra"]
+    assert (extra.estimate_status, extra.estimate_objective) == ("optimal", 249)
+    assert extra.low_confidence is True and "249" in extra.low_confidence_reason
+    assert [f["kind"] for f in extra.checklist_flags] == ["integrality"]
     assert extra.report_only_cost_usd == approx(2 * FAKE_CALL_USD) == extra.report_only_paid_usd
     assert plain.checklist_flags is None and plain.report_only_cost_usd == 0
 

@@ -216,11 +216,23 @@ def test_unknown_names_and_unwritable_requirements_are_notes_not_flags():
 # ---- report-only, opt-in -----------------------------------------------------------------
 
 
+def flagging_checklist(variable: str, kind: str) -> str:
+    """A checklist that flags the model's `variable` as the wrong kind, whatever else."""
+    requirement = {**GAS_CHECKLIST["requirements"][0], "terms": [{"var": variable, "coef": 1}],
+                   "sense": ">=", "rhs": 0}  # fmt: skip
+    return json.dumps({**GAS_CHECKLIST, "variables": [{"name": variable, "kind": kind,
+                                                       "quote": "q"}],
+                       "requirements": [requirement]})  # fmt: skip
+
+
 def test_the_checklist_changes_no_answer_score_or_revision():
     """The same replies with and without it: the same loop, answer, checks and formulation
     requests; the checklist call comes last, and its flags revise nothing."""
-    flagging = json.dumps({**GAS_CHECKLIST, "requirements": GAS_CHECKLIST["requirements"][:1]})
-    for replies in [(GAS_REPLY,), (INFEASIBLE_REPLY, INFEASIBLE_REPLY)]:
+    cases = [
+        ((GAS_REPLY,), flagging_checklist("trains", "continuous")),
+        ((INFEASIBLE_REPLY, INFEASIBLE_REPLY), flagging_checklist("x", "integer")),
+    ]
+    for replies, flagging in cases:
         plain, checked = FakeClient(*replies), FakeClient(*replies, flagging)
         a = run(GAS_PROBLEM, plain, with_explanation=False)
         b = run(GAS_PROBLEM, checked, with_explanation=False, checklist=True)
@@ -239,10 +251,9 @@ def test_it_is_opt_in():
 
 
 def test_flags_are_shown_and_a_clean_check_says_so():
-    flagged = run(GAS_PROBLEM, FakeClient(GAS_REPLY, json.dumps(
-        {**GAS_CHECKLIST, "requirements": GAS_CHECKLIST["requirements"][:1]})),
-        with_explanation=False, checklist=True)  # fmt: skip
-    assert "CHECKLIST: 1 difference(s)" in render(flagged) and "extra:" in render(flagged)
+    flagged = run(GAS_PROBLEM, FakeClient(GAS_REPLY, flagging_checklist("trains", "continuous")),
+                  with_explanation=False, checklist=True)  # fmt: skip
+    assert "CHECKLIST: 1 difference(s)" in render(flagged) and "integrality:" in render(flagged)
     clean = run(GAS_PROBLEM, FakeClient(GAS_REPLY, GAS_CHECKLIST_REPLY), with_explanation=False,
                 checklist=True)  # fmt: skip
     assert "Checklist: no differences from the text found." in render(clean)

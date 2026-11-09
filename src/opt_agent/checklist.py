@@ -17,15 +17,18 @@ answer, a score or a revision.
 """
 
 import math
+from collections import Counter
 from typing import Literal
 
 import anthropic
+import numpy as np
 from pydantic import BaseModel, ValidationError
+from scipy.optimize import linprog
 
 from opt_agent import api
 from opt_agent.api import CallInfo, TokenUsage
 from opt_agent.formulate import DEFAULT_MODEL, describe
-from opt_agent.schema import Constraint, LPModel, StrictModel, Term
+from opt_agent.schema import Constraint, LPModel, StrictModel, Term, Variable
 from opt_agent.strict import tighten
 
 # ---- what the checklist says ------------------------------------------------------------
@@ -208,28 +211,48 @@ class _Row(BaseModel):
     coefs: dict[str, float]
     sense: Literal["<=", ">=", "=="]
     rhs: float
+    bound: bool = False  # a variable's bound rather than a constraint
     implicit: bool = False  # a default lower bound of 0: matchable, never "extra"
 
 
-def review(model: LPModel, checklist: Checklist) -> ChecklistReview:
-    """Every way the model differs from the checklist, as typed flags. The four checks
-    (integrality, requirements, objective, not-requirements) are independent."""
+def review(
+    model: LPModel, checklist: Checklist, values: dict[str, float] | None = None
+) -> ChecklistReview:
+    """Every way the model differs from the checklist that could matter, as typed flags.
+    The four checks (integrality, requirements, objective, not-requirements) are
+    independent. `values` is the model's optimal solution, if it has one: with it, a
+    difference that can't have changed the answer is a note, not a flag (revision 1, rule 4).
+
+    Revision 1 (docs/FOLLOWUP_DEV_LOG.md), from the follow-up dev run:
+    1. an upper bound of 1 on an integer variable is its domain (binary), not a row;
+    2. a row that uses a variable no requirement uses is a modeling device (subtour
+       elimination, linking): noted, never "extra", and that variable's integrality isn't
+       checked;
+    3. a row the checklist's requirements imply isn't "extra", and a requirement the model's
+       rows imply isn't "missing" or "coefficient" (LP solves);
+    4. with the optimum: a requirement it satisfies isn't flagged, nor an "extra" row that
+       doesn't bind there."""
     names = {v.name for v in model.variables}
+    used = {t.var for r in checklist.requirements for t in r.terms}
     notes: list[str] = []
-    flags = _integrality(model, checklist, notes)
-    flags += _requirements(model, checklist, names, notes)
+    flags = _integrality(model, checklist, used, notes)
+    flags += _requirements(model, checklist, names, used, values, notes)
     flags += _objective(model, checklist, names, notes)
     notes += [f"can't be written with the model's variables (not checked): {c.quote!r} needs "
               f"{c.needs}" for c in checklist.cannot_express]  # fmt: skip
     return ChecklistReview(flags=flags, notes=notes)
 
 
-def _integrality(model: LPModel, checklist: Checklist, notes: list[str]) -> list[ChecklistFlag]:
+def _integrality(
+    model: LPModel, checklist: Checklist, used: set[str], notes: list[str]
+) -> list[ChecklistFlag]:
     kinds = {v.name: v.integer for v in model.variables}
     flags = []
     for v in checklist.variables:
         if v.name not in kinds:
             notes.append(f"the checklist names a variable the model doesn't have: {v.name!r}")
+        elif v.name not in used:
+            continue  # an auxiliary variable: its kind is the model's choice (rule 2)
         elif v.kind == "integer" and not kinds[v.name]:
             flags.append(ChecklistFlag(kind="integrality", quote=v.quote,
                                        detail=f"{v.name!r} counts whole things, but the model "
@@ -242,11 +265,17 @@ def _integrality(model: LPModel, checklist: Checklist, notes: list[str]) -> list
 
 
 def _requirements(
-    model: LPModel, checklist: Checklist, names: set[str], notes: list[str]
+    model: LPModel,
+    checklist: Checklist,
+    names: set[str],
+    used: set[str],
+    values: dict[str, float] | None,
+    notes: list[str],
 ) -> list[ChecklistFlag]:
     """Pair each requirement with a model row: the same row (or an accepted variant) first,
     then a row on the same variables (a coefficient flag). What's left is missing (a
-    requirement) or extra (a row), unless a not-requirement explains the row."""
+    requirement) or extra (a row), unless a not-requirement explains the row. Then revision
+    1's rules keep only the differences that could matter."""
     rows = _model_rows(model)
     usable = []
     for r in checklist.requirements:
@@ -257,26 +286,44 @@ def _requirements(
             notes.append(f"requirement not checked (no terms): {r.quote!r}")
         else:
             usable.append(r)
-    flags, left = [], []
+    left = []
     for r in usable:
         row = next((x for x in rows if _accepted(r, x, model)), None)
         if row is None:
             left.append(r)
         else:
             rows.remove(row)
+    model_rows = [(x.coefs, x.sense, x.rhs) for x in _model_rows(model)]
+    requirement_rows = [(_coefs(r.terms), r.sense, r.rhs) for r in usable]
+    flags, unflagged = [], Counter()
     for r in left:
         support = _coefs(r.terms).keys()
         near = [x for x in rows if not x.implicit and x.coefs.keys() == support]
-        if near:
-            row = min(near, key=lambda x: _differences(r, x))
+        row = min(near, key=lambda x: _differences(r, x)) if near else None
+        if row is not None:
             rows.remove(row)
+        # Looser: the model may allow what the text forbids. Rules 3 and 4.
+        looser = not _implied(_coefs(r.terms), r.sense, r.rhs, model.variables, model_rows) and (
+            values is None or not _holds(_coefs(r.terms), r.sense, r.rhs, values)
+        )
+        # Stricter: the model's row may forbid what the text allows (a coefficient pair only).
+        stricter = (
+            row is not None
+            and not row.coefs.keys() - used
+            and not _implied(row.coefs, row.sense, row.rhs, model.variables, requirement_rows)
+            and (values is None or _binds(row.coefs, row.sense, row.rhs, values))
+        )
+        if row is not None and (looser or stricter):
             text_says, model_says = _show_requirement(r), _show_row(row)
             detail = f"the text gives {text_says}; the model's {row.label} is {model_says}"
             flags.append(ChecklistFlag(kind="coefficient", quote=r.quote, constraint=row.label,
                                        detail=detail))  # fmt: skip
-        else:
+        elif row is None and looser:
             detail = f"no row of the model is {_show_requirement(r)}"
             flags.append(ChecklistFlag(kind="missing", quote=r.quote, detail=detail))
+        else:
+            unflagged["requirements the model meets where it matters (rules 3 and 4)"] += 1
+    integer = {v.name for v in model.variables if v.integer}
     for row in (x for x in rows if not x.implicit):
         reason = next((n for n in checklist.not_requirements if _explains(n, row, names)), None)
         if reason is not None:
@@ -284,9 +331,18 @@ def _requirements(
                       f"something that isn't one: {reason.why}")  # fmt: skip
             flags.append(ChecklistFlag(kind="invented-from-preference", quote=reason.quote,
                                        constraint=row.label, detail=detail))  # fmt: skip
+        elif row.bound and row.sense == "<=" and row.rhs == 1 and row.coefs.keys() <= integer:
+            unflagged["binary-domain bounds (0 <= x <= 1 on an integer variable)"] += 1  # 1
+        elif row.coefs.keys() - used:
+            unflagged["rows with a variable no requirement uses (modeling devices)"] += 1  # 2
+        elif _implied(row.coefs, row.sense, row.rhs, model.variables, requirement_rows):
+            unflagged["rows the requirements imply"] += 1  # rule 3
+        elif values is not None and not _binds(row.coefs, row.sense, row.rhs, values):
+            unflagged["rows that don't bind at the optimum"] += 1  # rule 4
         else:
             detail = f"the model's {row.label} ({_show_row(row)}) is not among the requirements"
             flags.append(ChecklistFlag(kind="extra", constraint=row.label, detail=detail))
+    notes += [f"not flagged: {n} {why}" for why, n in unflagged.items()]
     return flags
 
 
@@ -317,10 +373,11 @@ def _model_rows(model: LPModel) -> list[_Row]:
     for v in model.variables:
         if v.lower is not None:
             rows.append(_Row(label=f"the lower bound of {v.name!r}", coefs={v.name: 1.0},
-                             sense=">=", rhs=v.lower, implicit=v.lower == 0))  # fmt: skip
+                             sense=">=", rhs=v.lower, bound=True,
+                             implicit=v.lower == 0))  # fmt: skip
         if v.upper is not None:
             rows.append(_Row(label=f"the upper bound of {v.name!r}", coefs={v.name: 1.0},
-                             sense="<=", rhs=v.upper))  # fmt: skip
+                             sense="<=", rhs=v.upper, bound=True))  # fmt: skip
     return rows
 
 
@@ -379,6 +436,78 @@ def _differences(r: Requirement, row: _Row) -> int:
     theirs = _canonical(row.coefs, row.sense, row.rhs)
     coefficients = sum(not _close(ours[1][v], theirs[1][v]) for v in ours[1])
     return coefficients + (ours[0] != theirs[0]) + (not _close(ours[2], theirs[2]))
+
+
+def _implied(
+    coefs: dict[str, float],
+    sense: str,
+    rhs: float,
+    variables: list[Variable],
+    rows: list[tuple[dict[str, float], str, float]],
+) -> bool:
+    """Do `rows` (with the variables' lower bounds) imply `coefs sense rhs`? Its left side's
+    max (and/or min) over their LP relaxation decides; unbounded or unsolved means no."""
+    tolerance = 1e-6 * max(1.0, abs(rhs))
+    if sense in ("<=", "==") and not _extreme_at_most(coefs, rhs + tolerance, variables, rows):
+        return False
+    negated = {v: -a for v, a in coefs.items()}
+    if sense in (">=", "==") and not _extreme_at_most(negated, -rhs + tolerance, variables, rows):
+        return False
+    return True
+
+
+def _extreme_at_most(
+    coefs: dict[str, float],
+    limit: float,
+    variables: list[Variable],
+    rows: list[tuple[dict[str, float], str, float]],
+) -> bool:
+    """Is the max of coefs . x over {rows, lower bounds} at most `limit`? HiGHS, in-process."""
+    rows = [r for r in rows if r[0]]
+    names = sorted({v for c, _, _ in rows for v in c} | set(coefs))
+    if not rows:
+        return False
+    index = {name: i for i, name in enumerate(names)}
+    lower = {v.name: v.lower for v in variables}
+    upper_rows, upper_rhs, equal_rows, equal_rhs = [], [], [], []
+    for c, s, b in rows:
+        vector = np.zeros(len(names))
+        for v, a in c.items():
+            vector[index[v]] = a
+        if s == "==":
+            equal_rows.append(vector)
+            equal_rhs.append(b)
+        else:
+            upper_rows.append(vector if s == "<=" else -vector)
+            upper_rhs.append(b if s == "<=" else -b)
+    cost = np.zeros(len(names))
+    for v, a in coefs.items():
+        cost[index[v]] = -a  # linprog minimizes
+    result = linprog(cost, A_ub=np.array(upper_rows) if upper_rows else None,
+                     b_ub=upper_rhs or None, A_eq=np.array(equal_rows) if equal_rows else None,
+                     b_eq=equal_rhs or None, method="highs",
+                     bounds=[(lower.get(n, 0.0), None) for n in names])  # fmt: skip
+    return result.status == 0 and -result.fun <= limit
+
+
+def _holds(coefs: dict[str, float], sense: str, rhs: float, values: dict[str, float]) -> bool:
+    lhs, tolerance = _at(coefs, values), _tolerance(coefs, rhs, values)
+    return {"<=": lhs <= rhs + tolerance, ">=": lhs >= rhs - tolerance,
+            "==": abs(lhs - rhs) <= tolerance}[sense]  # fmt: skip
+
+
+def _binds(coefs: dict[str, float], sense: str, rhs: float, values: dict[str, float]) -> bool:
+    return abs(_at(coefs, values) - rhs) <= _tolerance(coefs, rhs, values)
+
+
+def _at(coefs: dict[str, float], values: dict[str, float]) -> float:
+    return sum(a * values.get(v, 0.0) for v, a in coefs.items())
+
+
+def _tolerance(coefs: dict[str, float], rhs: float, values: dict[str, float]) -> float:
+    """Round-off allowed when comparing a row at a solution: relative to its terms' size."""
+    terms = sum(abs(a * values.get(v, 0.0)) for v, a in coefs.items())
+    return 1e-6 * max(1.0, abs(rhs), terms)
 
 
 def _scaled(coefs: dict[str, float]) -> dict[str, float]:

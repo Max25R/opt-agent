@@ -27,9 +27,10 @@ def gas(estimate_reply: str):
 
 
 def test_an_estimate_that_disagrees_flags_low_confidence():
-    result = gas(estimate("optimal", 250))
+    """249, not 250: 250 is the model's LP relaxation, which is a note (revision 1)."""
+    result = gas(estimate("optimal", 249))
     assert result.low_confidence is True
-    assert "250" in result.low_confidence_reason and "251" in result.low_confidence_reason
+    assert "249" in result.low_confidence_reason and "251" in result.low_confidence_reason
 
 
 def test_an_estimate_that_agrees_doesnt():
@@ -69,7 +70,7 @@ def test_the_flag_changes_no_answer_and_no_revision():
 
 
 def test_the_command_line_shows_it():
-    assert "LOW CONFIDENCE" in render(gas(estimate("optimal", 250)))
+    assert "LOW CONFIDENCE" in render(gas(estimate("optimal", 249)))
     assert "LOW CONFIDENCE" not in render(gas(estimate("optimal", 251)))
 
 
