@@ -299,7 +299,7 @@ point is a trustworthy evaluation, not a demo.
      - **The integrality-rule bug wasn't harmless:** a continuous label also switches off
        the strict reading, which cost 4 answers per condition (`docs/amendments/DEVIATIONS.md`,
        section 3).
-     - **Amendment 4 (draft, not tagged):** the omitted pre-registered rows (lenient, without
+     - **Amendment 4 (tagged `amendment-4`, 5f10814):** the omitted pre-registered rows (lenient, without
        disputed reviews) and an exploratory corrected-labels row (268/274 per condition).
        `scripts/amendment4.py` computes them; `eval_json.py` writes them as `amendment_4`;
        264/274 stays the result of record.
@@ -320,11 +320,17 @@ point is a trustworthy evaluation, not a demo.
        `results/eval.json` or the README's results. **Follow-up split**
        (`docs/FOLLOWUP_SPLIT.md`): ComplexLP 25 dev / 86 test, IndustryOR all test; the test
        side is sealed (`followup.load` raises `Sealed`) until its pre-registration is frozen.
-     - **Amendment 5 (draft, not tagged):** external corroboration against LLM4OR's cleaned
-       NL4Opt (`docs/EXTERNAL_DATA.md`, data git-ignored): it removed 5 of Amendment 4's six
-       key errors. `scripts/amendment5.py` → eval.json `amendment_5`, which CI copies forward
-       without recomputing (no data there).
-7. [ ] FastAPI `POST /solve` + one HTML page + Dockerfile.
+     - **Amendment 5 (tagged `amendment-5`, 1cb05ed; its status line still says draft):**
+       external corroboration against LLM4OR's cleaned NL4Opt (`docs/EXTERNAL_DATA.md`, data
+       git-ignored): it removed 5 of Amendment 4's six key errors. `scripts/amendment5.py` →
+       eval.json `amendment_5`, which CI copies forward without recomputing (no data there).
+7. [ ] **M7, in progress. Start from `docs/HANDOFF.md`.** Done: part 1's robustness fixes;
+   the formulation checklist with dev revision 1 (`docs/FOLLOWUP_DEV_LOG.md`: dev run
+   `runs/dev-checklist`, $0 re-score `runs/dev-checklist-rev1`, mutation recall 97% for either
+   check, an upper bound); a sample index in the cache key (`evaluate --sample n`). Next: the
+   follow-up pre-registration (4 conditions x 3 samples on 128 sealed test problems, with a
+   checklist-triggered revision condition), then the demo: FastAPI `POST /solve` + one HTML
+   page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
 
