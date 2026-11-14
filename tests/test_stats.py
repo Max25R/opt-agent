@@ -1,7 +1,11 @@
+import itertools
+
+import numpy as np
 import pytest
 from pytest import approx
 from scipy.stats import binomtest
 
+from opt_agent import stats
 from opt_agent.stats import holm, mcnemar_exact, wilson
 
 
@@ -42,3 +46,29 @@ def test_holm_by_hand():
 
 def test_holm_never_exceeds_one():
     assert holm({"a": 0.6, "b": 0.7}) == {"a": 1.0, "b": 1.0}
+
+
+def brute_force_sign_flip(diffs):
+    """Every one of the 2^k sign flips, counted."""
+    observed = abs(sum(diffs))
+    sizes = [abs(d) for d in diffs]
+    hits = sum(abs(sum(s * f for s, f in zip(sizes, flips, strict=True))) >= observed
+               for flips in itertools.product((1, -1), repeat=len(sizes)))  # fmt: skip
+    return hits / 2 ** len(sizes)
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_sign_flip_matches_brute_force(seed):
+    rng = np.random.default_rng(seed)
+    diffs = [int(d) for d in rng.integers(-3, 4, size=int(rng.integers(1, 14)))]
+    assert stats.sign_flip_exact(diffs) == pytest.approx(brute_force_sign_flip(diffs), abs=1e-12)
+
+
+def test_sign_flip_of_no_differences_is_one():
+    assert stats.sign_flip_exact([0] * 10) == stats.sign_flip_exact([]) == 1.0
+
+
+def test_sign_flip_with_sizes_of_one_is_the_two_sided_sign_test():
+    # all differences +/-1: the sum is 2 * (pluses) - n, so this is McNemar's binomial test
+    diffs = [1] * 9 + [-1] * 2
+    assert stats.sign_flip_exact(diffs) == pytest.approx(stats.mcnemar_exact(2, 9))

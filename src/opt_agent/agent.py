@@ -32,11 +32,18 @@ from opt_agent.checklist import ask as ask_checklist
 from opt_agent.checklist import review as review_checklist
 from opt_agent.config import MissingAPIKeyError, get_api_key
 from opt_agent.explain import Explanation, explain, solver_facts
+from opt_agent.feedback import for_checklist
 from opt_agent.formulate import DEFAULT_MODEL, Formulation
 from opt_agent.ground_truth import TOLERANCE, same_value
 from opt_agent.runs import Run, Tags
 from opt_agent.schema import LPModel, Term
-from opt_agent.self_correct import MAX_ATTEMPTS, Outcome, solve_with_revisions
+from opt_agent.self_correct import (
+    MAX_ATTEMPTS,
+    Attempt,
+    Outcome,
+    revise_once,
+    solve_with_revisions,
+)
 from opt_agent.solver import Solution, Status, solve
 from opt_agent.verify import check_solution, same_answer
 
@@ -58,13 +65,37 @@ class Result(BaseModel):
     checklist: ChecklistReply | None = None  # the checklist call, if one was asked for
     checklist_flags: list[ChecklistFlag] | None = None  # None: not asked, or nothing to check
     checklist_notes: list[str] = []  # what the checklist couldn't check, and why
+    # The checklist-triggered revision (follow-up condition 4): the attempt, if one was
+    # made, and whether its answer replaced the original (kept) or the original stands.
+    checklist_revision: Attempt | None = None
+    revision_kept: bool | None = None
+    revision_reason: str | None = None
+    revision_api_error: str | None = None  # its checklist or revision call failed
     wall_s: float = 0.0  # the whole pipeline, as measured; a replayed run is faster
 
     @property
+    def formulations(self) -> list[Formulation]:
+        """Every formulation call the answer took: the loop's attempts, and a checklist
+        revision that was discarded (a kept one is already among the attempts)."""
+        attempts = [a.formulation for a in self.outcome.attempts]
+        if self.checklist_revision is not None and not self.revision_kept:
+            attempts.append(self.checklist_revision.formulation)
+        return attempts
+
+    @property
     def calls(self) -> list[CallInfo]:
-        formulations = [a.formulation.call for a in self.outcome.attempts]
+        formulations = [f.call for f in self.formulations]
         extra = [x.call for x in (self.estimate, self.checklist, self.explanation) if x]
         return formulations + extra
+
+    @property
+    def api_error(self) -> str | None:
+        """A call the answer depends on failed after every retry: the pair is re-run
+        (Amendment 1), never scored. For a checklist revision that includes its checklist
+        and revision calls."""
+        if self.outcome.stopped == "api error":
+            return self.outcome.attempts[-1].formulation.call.error
+        return self.revision_api_error
 
     @property
     def retry_s(self) -> float:
@@ -109,24 +140,31 @@ def run(
     tags: Tags | None = None,
     estimate: bool = False,
     checklist: bool = False,
+    checklist_revision: bool = False,
 ) -> Result:
     """`estimate`: also ask for a direct answer (one more call) and set low_confidence.
     `checklist`: also ask for a formulation checklist (one more call) and set
-    checklist_flags. Neither changes the answer, the checks or the revisions."""
+    checklist_flags. Neither changes the answer, the checks or the revisions.
+
+    `checklist_revision`: the follow-up's condition 4. Single-shot (max_attempts is
+    ignored), then, if that's a confirmed optimum, the checklist; if it flags anything, one
+    revision with the flags as feedback. The revision's answer is kept only if it is a
+    confirmed optimum too; otherwise the original stands. Here the checklist decides the
+    answer, so it runs before the report-only extras, and `checklist` adds nothing."""
     start = time.perf_counter()
     session = session or Run()
-    outcome = solve_with_revisions(problem, client, model_id, max_attempts, session, tags)
+    attempts = 1 if checklist_revision else max_attempts
+    outcome = solve_with_revisions(problem, client, model_id, attempts, session, tags)
     result = Result(problem=problem, outcome=outcome)
+    _check_answer(result)
+    if checklist_revision:
+        _revise_on_checklist(problem, client, model_id, session, tags, result)
     model, solution = result.formulation.model, result.solution
-    if solution is not None:
-        result.highs_solution = outcome.final.highs_solution  # the loop solved with both
-        result.highs_agrees = same_answer(model, solution, result.highs_solution)
-        result.check_problems = check_solution(model, solution)
     if estimate:  # after the loop and the checks, so it can't change either
         result.estimate = answer_directly(problem, client, model_id, session.cache)
         _log_estimate(session, tags, result.estimate)
         result.low_confidence, result.low_confidence_reason = confidence(result)
-    if checklist:  # likewise after everything that decides the answer
+    if checklist and not checklist_revision:  # likewise after everything that decides it
         _check_formulation(problem, client, model_id, session, tags, result)
     if with_explanation and result.verified:  # never explain an answer that failed a check
         facts = solver_facts(model, solution)
@@ -135,6 +173,82 @@ def run(
     result.wall_s = time.perf_counter() - start
     _log_problem(session, tags, result)
     return result
+
+
+def _check_answer(result: Result) -> None:
+    """HiGHS's second opinion and the arithmetic checks, for the final attempt's answer."""
+    model, solution = result.formulation.model, result.solution
+    if solution is not None:
+        result.highs_solution = result.outcome.final.highs_solution  # solved with both
+        result.highs_agrees = same_answer(model, solution, result.highs_solution)
+        result.check_problems = check_solution(model, solution)
+
+
+def _revise_on_checklist(
+    problem: str, client: anthropic.Anthropic, model_id: str, session: Run, tags: Tags | None,
+    result: Result,
+) -> None:  # fmt: skip
+    """Condition 4: checklist flags on a confirmed optimum trigger one revision, kept only
+    if it reaches a confirmed optimum itself (follow-up pre-registration, section 3)."""
+    if not result.verified:
+        result.revision_reason = "no confirmed optimum: no checklist, no revision"
+        _log_revision(session, tags, result)
+        return
+    _check_formulation(problem, client, model_id, session, tags, result)
+    if result.checklist.api_failed:
+        result.revision_api_error = result.checklist.call.error
+        result.revision_reason = "the checklist call failed (API error): re-run the pair"
+        _log_revision(session, tags, result)
+        return
+    if not result.checklist_flags:
+        result.revision_reason = "no checklist flags: no revision"
+        _log_revision(session, tags, result)
+        return
+    first = result.outcome.attempts[0]
+    feedback = for_checklist(result.checklist_flags)
+    attempt = revise_once(problem, client, first, feedback, model_id, session, tags)
+    result.checklist_revision = attempt
+    trial = Result(problem=problem, outcome=Outcome(run_id=session.run_id, attempts=[attempt],
+                                                    stopped="optimal"))  # fmt: skip
+    _check_answer(trial)
+    if attempt.formulation.api_failed:
+        result.revision_kept = False
+        result.revision_api_error = attempt.formulation.call.error
+        result.revision_reason = "the revision call failed (API error): re-run the pair"
+    elif trial.verified:
+        first = first.model_copy(update={"feedback": feedback})
+        result.outcome = Outcome(run_id=result.outcome.run_id, attempts=[first, attempt],
+                                 stopped="optimal")  # fmt: skip
+        result.highs_solution, result.highs_agrees = trial.highs_solution, trial.highs_agrees
+        result.check_problems = trial.check_problems
+        result.revision_kept, result.revision_reason = True, "revised to a confirmed optimum"
+    else:
+        result.revision_kept = False
+        result.revision_reason = f"the original answer stands: the revision {_why_not(trial)}"
+    _log_revision(session, tags, result)
+
+
+def _why_not(trial: Result) -> str:
+    """Why a revision's answer isn't a confirmed optimum, in a few words."""
+    f, s = trial.formulation, trial.solution
+    if f.api_failed:
+        return "failed (API error)"
+    if f.model is None:
+        return f"was unusable ({f.error})"
+    if s.failed or (trial.highs_solution and trial.highs_solution.failed):
+        return "couldn't be solved (time-out or solver error)"
+    if trial.highs_agrees is False:
+        return "got different answers from CBC and HiGHS"
+    if trial.check_problems:
+        return f"failed checks ({'; '.join(trial.check_problems)})"
+    return f"is {s.status.value}"
+
+
+def _log_revision(session: Run, tags: Tags | None, result: Result) -> None:
+    session.write("checklist_revision", tags, revised=result.checklist_revision is not None,
+                  kept=result.revision_kept, reason=result.revision_reason,
+                  flags=None if result.checklist_flags is None
+                  else [f.model_dump() for f in result.checklist_flags])  # fmt: skip
 
 
 def confidence(result: Result) -> tuple[bool | None, str]:

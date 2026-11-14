@@ -1,6 +1,7 @@
 from problems import (
     BLEND,
     CBC_FREE_VARIABLE_BUG,
+    CBC_INFEASIBLE_OPTIMUM_BUG,
     CBC_PREPROCESS_BUG,
     HARD_INTEGER_INFEASIBLE,
     INFEASIBLE,
@@ -15,7 +16,7 @@ from opt_agent import solver
 from opt_agent.highs import solve_with_highs
 from opt_agent.schema import LPModel
 from opt_agent.solver import Status, solve
-from opt_agent.verify import check_solution
+from opt_agent.verify import check_solution, feasibility_problems
 
 
 def test_wyndor_known_answer():
@@ -91,6 +92,49 @@ def test_regression_cbc_preprocessing_bug():
 def test_regression_cbc_false_optimum_with_free_variables():
     """CBC reported "Optimal" (objective about -6.25e11) for this unbounded LP."""
     assert solve(CBC_FREE_VARIABLE_BUG).status is Status.UNBOUNDED
+
+
+def test_regression_cbc_optimum_at_an_infeasible_point():
+    """CBC called this unbounded LP "optimal" at a point breaking x3 <= 1. That claim is
+    settled like an "infeasible or unbounded" label: a feasibility solve, then a ray."""
+    claimed = solver._solve_once(CBC_INFEASIBLE_OPTIMUM_BUG)  # CBC's own word, unchecked
+    assert claimed.status is Status.OPTIMAL, "cbcbox no longer shows the bug; keep the fix"
+    assert feasibility_problems(CBC_INFEASIBLE_OPTIMUM_BUG, claimed.values) == [
+        "variable 'x3' = 100.0 is above its upper bound 1.0"
+    ]
+    s = solve(CBC_INFEASIBLE_OPTIMUM_BUG)
+    assert s.status is Status.UNBOUNDED and "x1 +1" in s.note  # the certified ray: x1 grows
+    assert solve_with_highs(CBC_INFEASIBLE_OPTIMUM_BUG).status is Status.UNBOUNDED
+
+
+def test_an_infeasible_claimed_optimum_with_no_certified_ray_is_an_error(monkeypatch):
+    """Without a certified ray the label stays unexplained: ERROR, a loud failure, never
+    the claimed optimum and never an unproven "unbounded"."""
+    monkeypatch.setattr(solver, "certified_ray", lambda *args: None)
+    s = solve(CBC_INFEASIBLE_OPTIMUM_BUG)
+    assert s.status is Status.ERROR and s.objective is None
+    assert "no certified ray" in s.note
+
+
+def test_an_infeasible_claimed_optimum_of_an_infeasible_model_is_infeasible(monkeypatch):
+    """The feasibility solve decides: no feasible point at all, so infeasible."""
+    real = solver._solve_once
+    fake_point = {v.name: 1e6 for v in INFEASIBLE.variables}  # breaks INFEASIBLE's rows
+
+    def claims_an_optimum(model):
+        if model is INFEASIBLE:
+            return solver.Solution(solver="cbc", status=Status.OPTIMAL, objective=0.0,
+                                   values=fake_point)  # fmt: skip
+        return real(model)
+
+    monkeypatch.setattr(solver, "_solve_once", claims_an_optimum)
+    assert feasibility_problems(INFEASIBLE, fake_point)
+    assert solve(INFEASIBLE).status is Status.INFEASIBLE
+
+
+def test_a_feasible_optimum_is_left_alone():
+    s = solve(WYNDOR)
+    assert s.status is Status.OPTIMAL and feasibility_problems(WYNDOR, s.values) == []
 
 
 def test_cbc_times_out_instead_of_guessing(monkeypatch):

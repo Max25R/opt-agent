@@ -69,3 +69,29 @@ def conflicting_constraints(model: LPModel) -> list[str] | None:
         if not verdict:
             kept = rest
     return [c.name for c in kept]
+
+
+# Condition 4 of the follow-up (docs/FOLLOWUP_PREREGISTRATION.md, section 3): the checklist's
+# flags, and nothing from the solver. Like the status feedback, it must not push Claude to
+# change what the text supports: a flag can be wrong, and keeping the model is allowed.
+CHECKLIST_INTRO = (
+    "A separate check of your model against the problem text found these possible differences:"
+)
+CHECKLIST_OUTRO = (
+    "Fix each one that is a real error in your model. A flag can be wrong: keep anything the "
+    "problem text supports, and don't add a requirement the text doesn't state."
+)
+
+
+def for_checklist(flags: list) -> str:
+    """The revision feedback for checklist flags (checklist.ChecklistFlag), one line each:
+    its kind, what differs, the model's row and the problem's words, where there are any."""
+    lines = [CHECKLIST_INTRO]
+    for flag in flags:
+        line = f"- {flag.kind}: {flag.detail}"
+        if flag.constraint:
+            line += f" (your row: {flag.constraint})"
+        if flag.quote:
+            line += f' (the text: "{flag.quote}")'
+        lines.append(line)
+    return "\n".join(lines + [CHECKLIST_OUTRO])

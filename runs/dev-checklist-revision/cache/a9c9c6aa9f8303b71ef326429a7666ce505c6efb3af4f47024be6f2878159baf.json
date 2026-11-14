@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine we're managing a telecommunications network that spans 6 key points, from a primary data center (Point 0) to a major user hub (Point 5). These points are interconnected by data lines, each with a specific capacity for data transfer.\n\nHere are the capacities of each data line, indicating the maximum amount of data (in Gigabytes per second) that can flow from one point to another:\n\n- From Point 0 (Data Center): Can send data to Point 1 (14 GB/s), Point 2 (9 GB/s), Point 3 (8 GB/s), Point 4 (7 GB/s), and Point 5 (8 GB/s).\n- From Point 1: Can send data to Point 0 (4 GB/s), Point 2 (9 GB/s), Point 3 (10 GB/s), and Point 5 (12 GB/s).\n- From Point 2: Can send data to Point 0 (4 GB/s), Point 1 (12 GB/s), Point 3 (13 GB/s), Point 4 (20 GB/s), and Point 5 (16 GB/s).\n- From Point 3: Can send data to Point 0 (10 GB/s), Point 1 (8 GB/s), Point 2 (12 GB/s), and Point 5 (18 GB/s).\n- From Point 4: Can send data to Point 0 (3 GB/s), Point 1 (13 GB/s), Point 2 (11 GB/s), Point 3 (20 GB/s), and Point 5 (2 GB/s).\n- From Point 5 (User Hub): Can send data back to Point 0 (17 GB/s), Point 1 (4 GB/s), Point 2 (8 GB/s), Point 3 (2 GB/s), and Point 4 (12 GB/s).\n\nIn this network, a capacity of \"0\" means there is no direct data line between those two points.\n\nThe objective is to find out the maximum amount of data that can be transferred from Point 0 (Data Center) to Point 5 (User Hub) per second, while making sure that the data transfer through each line does not exceed its capacity. What is the maximum amount of data that can be sent from the data center to the user hub per second in Gigabytes?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Cgx2aLKwLahCVARGWA9BX",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"GB/s flow from Point 0 to Point 1\",\"lower\":0,\"upper\":14,\"integer\":false},{\"name\":\"GB/s flow from Point 0 to Point 2\",\"lower\":0,\"upper\":9,\"integer\":false},{\"name\":\"GB/s flow from Point 0 to Point 3\",\"lower\":0,\"upper\":8,\"integer\":false},{\"name\":\"GB/s flow from Point 0 to Point 4\",\"lower\":0,\"upper\":7,\"integer\":false},{\"name\":\"GB/s flow from Point 0 to Point 5\",\"lower\":0,\"upper\":8,\"integer\":false},{\"name\":\"GB/s flow from Point 1 to Point 0\",\"lower\":0,\"upper\":4,\"integer\":false},{\"name\":\"GB/s flow from Point 1 to Point 2\",\"lower\":0,\"upper\":9,\"integer\":false},{\"name\":\"GB/s flow from Point 1 to Point 3\",\"lower\":0,\"upper\":10,\"integer\":false},{\"name\":\"GB/s flow from Point 1 to Point 5\",\"lower\":0,\"upper\":12,\"integer\":false},{\"name\":\"GB/s flow from Point 2 to Point 0\",\"lower\":0,\"upper\":4,\"integer\":false},{\"name\":\"GB/s flow from Point 2 to Point 1\",\"lower\":0,\"upper\":12,\"integer\":false},{\"name\":\"GB/s flow from Point 2 to Point 3\",\"lower\":0,\"upper\":13,\"integer\":false},{\"name\":\"GB/s flow from Point 2 to Point 4\",\"lower\":0,\"upper\":20,\"integer\":false},{\"name\":\"GB/s flow from Point 2 to Point 5\",\"lower\":0,\"upper\":16,\"integer\":false},{\"name\":\"GB/s flow from Point 3 to Point 0\",\"lower\":0,\"upper\":10,\"integer\":false},{\"name\":\"GB/s flow from Point 3 to Point 1\",\"lower\":0,\"upper\":8,\"integer\":false},{\"name\":\"GB/s flow from Point 3 to Point 2\",\"lower\":0,\"upper\":12,\"integer\":false},{\"name\":\"GB/s flow from Point 3 to Point 5\",\"lower\":0,\"upper\":18,\"integer\":false},{\"name\":\"GB/s flow from Point 4 to Point 0\",\"lower\":0,\"upper\":3,\"integer\":false},{\"name\":\"GB/s flow from Point 4 to Point 1\",\"lower\":0,\"upper\":13,\"integer\":false},{\"name\":\"GB/s flow from Point 4 to Point 2\",\"lower\":0,\"upper\":11,\"integer\":false},{\"name\":\"GB/s flow from Point 4 to Point 3\",\"lower\":0,\"upper\":20,\"integer\":false},{\"name\":\"GB/s flow from Point 4 to Point 5\",\"lower\":0,\"upper\":2,\"integer\":false},{\"name\":\"GB/s flow from Point 5 to Point 0\",\"lower\":0,\"upper\":17,\"integer\":false},{\"name\":\"GB/s flow from Point 5 to Point 1\",\"lower\":0,\"upper\":4,\"integer\":false},{\"name\":\"GB/s flow from Point 5 to Point 2\",\"lower\":0,\"upper\":8,\"integer\":false},{\"name\":\"GB/s flow from Point 5 to Point 3\",\"lower\":0,\"upper\":2,\"integer\":false},{\"name\":\"GB/s flow from Point 5 to Point 4\",\"lower\":0,\"upper\":12,\"integer\":false}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"GB/s flow from Point 0 to Point 1\",\"coef\":1},{\"var\":\"GB/s flow from Point 0 to Point 2\",\"coef\":1},{\"var\":\"GB/s flow from Point 0 to Point 3\",\"coef\":1},{\"var\":\"GB/s flow from Point 0 to Point 4\",\"coef\":1},{\"var\":\"GB/s flow from Point 0 to Point 5\",\"coef\":1}]},\"constraints\":[{\"name\":\"flow conservation at Point 1\",\"terms\":[{\"var\":\"GB/s flow from Point 0 to Point 1\",\"coef\":1},{\"var\":\"GB/s flow from Point 2 to Point 1\",\"coef\":1},{\"var\":\"GB/s flow from Point 3 to Point 1\",\"coef\":1},{\"var\":\"GB/s flow from Point 4 to Point 1\",\"coef\":1},{\"var\":\"GB/s flow from Point 5 to Point 1\",\"coef\":1},{\"var\":\"GB/s flow from Point 1 to Point 0\",\"coef\":-1},{\"var\":\"GB/s flow from Point 1 to Point 2\",\"coef\":-1},{\"var\":\"GB/s flow from Point 1 to Point 3\",\"coef\":-1},{\"var\":\"GB/s flow from Point 1 to Point 5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"flow conservation at Point 2\",\"terms\":[{\"var\":\"GB/s flow from Point 0 to Point 2\",\"coef\":1},{\"var\":\"GB/s flow from Point 1 to Point 2\",\"coef\":1},{\"var\":\"GB/s flow from Point 3 to Point 2\",\"coef\":1},{\"var\":\"GB/s flow from Point 4 to Point 2\",\"coef\":1},{\"var\":\"GB/s flow from Point 5 to Point 2\",\"coef\":1},{\"var\":\"GB/s flow from Point 2 to Point 0\",\"coef\":-1},{\"var\":\"GB/s flow from Point 2 to Point 1\",\"coef\":-1},{\"var\":\"GB/s flow from Point 2 to Point 3\",\"coef\":-1},{\"var\":\"GB/s flow from Point 2 to Point 4\",\"coef\":-1},{\"var\":\"GB/s flow from Point 2 to Point 5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"flow conservation at Point 3\",\"terms\":[{\"var\":\"GB/s flow from Point 0 to Point 3\",\"coef\":1},{\"var\":\"GB/s flow from Point 1 to Point 3\",\"coef\":1},{\"var\":\"GB/s flow from Point 2 to Point 3\",\"coef\":1},{\"var\":\"GB/s flow from Point 4 to Point 3\",\"coef\":1},{\"var\":\"GB/s flow from Point 5 to Point 3\",\"coef\":1},{\"var\":\"GB/s flow from Point 3 to Point 0\",\"coef\":-1},{\"var\":\"GB/s flow from Point 3 to Point 1\",\"coef\":-1},{\"var\":\"GB/s flow from Point 3 to Point 2\",\"coef\":-1},{\"var\":\"GB/s flow from Point 3 to Point 5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"flow conservation at Point 4\",\"terms\":[{\"var\":\"GB/s flow from Point 0 to Point 4\",\"coef\":1},{\"var\":\"GB/s flow from Point 2 to Point 4\",\"coef\":1},{\"var\":\"GB/s flow from Point 5 to Point 4\",\"coef\":1},{\"var\":\"GB/s flow from Point 4 to Point 0\",\"coef\":-1},{\"var\":\"GB/s flow from Point 4 to Point 1\",\"coef\":-1},{\"var\":\"GB/s flow from Point 4 to Point 2\",\"coef\":-1},{\"var\":\"GB/s flow from Point 4 to Point 3\",\"coef\":-1},{\"var\":\"GB/s flow from Point 4 to Point 5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2267,
+   "output_tokens": 4089,
+   "output_tokens_details": {
+    "thinking_tokens": 1632
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "859bf5f0618c588841f64406df3b4a5e6ad924923fb9258e3e263e680f629ea8",
+  "tries": 1,
+  "latency_s": 14.36814483301714,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

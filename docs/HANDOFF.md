@@ -1,4 +1,4 @@
-# Handoff (2026-11-09)
+# Handoff (2026-11-11)
 
 Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
 
@@ -24,8 +24,28 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
     low confidence on 1;
   - mutation recall ($0, `scripts/mutation_recall.py`): 173/178 (97%; 94-99%) for either
     check. It's an upper bound, since the checks were made for the correct models.
+- **Follow-up pre-registration: drafted, not approved** (`docs/FOLLOWUP_PREREGISTRATION.md`).
+  The owner's decisions of 2026-11-10 and 2026-11-11 are in its section 0. Power:
+  `docs/followup/power.md` (`scripts/followup_power.py`, seed 20261109): H2 powered for about
+  15 pp (independent discordance), H1 for about 8 pp (shared samples: conditions 2-4 share
+  every sample's first reply). Dev revision 2 is declared unused; the checklist stays at revision 1.
+- **Built for the freeze (uncommitted until the owner reviews it), no API calls:**
+  - condition 4, `checklist-revision` (`agent.run(checklist_revision=True)`,
+    `self_correct.revise_once`, `feedback.for_checklist`): single-shot, then one revision when
+    a confirmed optimum gets checklist flags; kept only if it's a confirmed optimum. An API
+    error in its checklist or revision call makes the pair errored (Amendment 1);
+  - unused variables dropped with a note (`schema.drop_unused`, `formulate.parse_with_drops`,
+    `Formulation.dropped`, `Item.dropped`, the attempt log's `dropped`);
+  - the run protocol: follow-up splits in hash order (`followup.in_run_order`), several
+    samples in one directory under one cap (`evaluate --sample 0 1 2`), every sample and
+    condition of a problem before the next;
+  - conditions 2, 3 and 4 share their first reply per problem and sample (mocked test,
+    `tests/test_shared_first_reply.py`);
+  - `stats.sign_flip_exact` (exact, brute-force tested); the analysis,
+    `src/opt_agent/followup_report.py`, tested on synthetic answers.
 - **Spend:** $0.98 of the $20 credit; about $9.29 of November's $10 limit is left.
-- **Unpushed:** the last 4 commits on `main` (`git push origin main`).
+- **Unpushed:** the last 4 commits on `main` (`git push origin main`), plus the uncommitted
+  follow-up work above.
 
 ## Gotchas
 - `runs/` is git-ignored: commit a run directory with `git add -f`.
@@ -46,26 +66,20 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
   `scripts/eval_json.py`. CI checks the freeze against the tag (`fetch-depth: 0`), so push
   tags with commits.
 
-## Open pre-registration decisions (from the dev log)
-1. **The unused-variable rule:** keep rejecting (self-correction fixes it with one line) or
-   drop unused variables with a note (that changes answers). On dev it made 2 of 25 replies
-   unusable (118, 137).
-2. **Answer keys:** whether and how to check keys before scoring (the dev key for 82 is
-   wrong; brute force where a problem is small enough).
-3. **Seen problems:** keep the 7 seen before the split (all follow-up test) or leave them out.
-4. Also to fix in the pre-registration: the 4th condition's trigger rule, how 3 samples
-   aggregate per problem, the 1e-4 tolerance for external keys, and whether revision 2 is
-   used.
-
 ## Next steps
-1. **Follow-up pre-registration** (a new draft, then the owner's approval and a freeze tag):
-   4 conditions x 3 samples on the 128 follow-up test problems (86 ComplexLP + 42
-   IndustryOR): baseline, single-shot, self-correction, and checklist-triggered revision.
-   That last one is new code (revise when the checklist flags something, with the flags as
-   feedback); build it and run it on dev first. Projected cost from dev actuals, scaled by
-   length: about $3.29, or $4.94 with a 1.5x margin.
-2. **M7 demo:** FastAPI `POST /solve`, one HTML page and a Dockerfile, returning the answer
-   with its checks (confirmed, low confidence, checklist flags).
-3. **M8:** README rewrite (result first, the lenient and sensitivity rows, the six key errors
-   explained, a diagram, no TODOs); one reproduce script (rebuild plus a cache replay, with no
-   key); the audit's docs fixes (section 5).
+1. **Dev smoke run of condition 4** (owner's terminal; cap $0.75, the owner's, 2026-11-11):
+   the commands are in `docs/FOLLOWUP_DEV_LOG.md`. Then `python -m opt_agent.followup_report
+   runs/dev-checklist-revision` and look for bugs (not tuning). A fix is allowed only where the
+   code doesn't do what revision 1 specifies, logged in the dev log.
+2. **The follow-up freeze tool: built** (`src/opt_agent/followup_freeze.py`; `approve` is the
+   owner's step). `followup.load_sealed` reads a test split only after `check()` passes.
+   The test split is wired into `evaluate` (`--split followup-test`, labels as ids), keys are
+   parsed by format alone (`followup.parse_key`; all 128 are numbers, checked in aggregate),
+   and a `max_tokens` reply is scored, never re-run (draft sections 0, 4 and 6). Since
+   2026-11-13: a rounding clause for non-whole keys, and the 5b judge prompt
+   (`docs/followup/judge_prompt.md`, frozen).
+3. **Approval, freeze and tag** by the owner; then the test run (4 conditions x 3 samples,
+   128 problems, `--cap 6.00`).
+4. **M7 demo:** FastAPI `POST /solve`, one HTML page and a Dockerfile.
+5. **M8:** README rewrite; one reproduce script (rebuild plus a cache replay, no key); the
+   audit's docs fixes (section 5).

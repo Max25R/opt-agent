@@ -5,6 +5,7 @@ import pulp
 from opt_agent.rays import certified_ray, describe
 from opt_agent.schema import Constraint, LPModel, Term, Variable, no_whole_number
 from opt_agent.solution import Solution, Status
+from opt_agent.verify import feasibility_problems
 
 __all__ = ["Solution", "Status", "build_problem", "solve"]  # Solution/Status re-exported
 
@@ -37,6 +38,13 @@ def solve(model: LPModel) -> Solution:
 
 def _solve(model: LPModel) -> Solution:
     claimed = _solve_once(model)
+    if claimed.status is Status.OPTIMAL and feasibility_problems(model, claimed.values):
+        # CBC can call a point that breaks a bound "optimal" when the model is unbounded
+        # (found by the CBC-vs-HiGHS property test: CBC_INFEASIBLE_OPTIMUM_BUG in
+        # tests/problems.py). An infeasible point is no optimum, and no ray can be certified
+        # from it, so settle the model as for an "infeasible or unbounded" label: a
+        # feasibility solve, then a certified ray, or else ERROR (loud).
+        return _infeasible_or_unbounded(model)
     if claimed.status is Status.OPTIMAL:
         ray = certified_ray(model, claimed.values, _solve_once)
         if ray is not None:

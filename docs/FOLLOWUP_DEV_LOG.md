@@ -14,7 +14,11 @@ seeing these failures") and stays out of `results/eval.json` and the README's re
 | revision | what | status |
 |---|---|---|
 | 1 | checklist and low-confidence comparison logic | applied 2026-11-09; see below |
-| 2 | (in reserve) | unused |
+| 2 | (in reserve) | **declared unused** (owner, 2026-11-10): the checklist stays at revision 1 |
+
+**From 2026-11-10 (owner):** while building the follow-up's freeze code, fixing a bug (code
+not doing what revision 1 specifies) is allowed and gets an entry here; changing what gets
+flagged is not. One so far: see the smoke run of condition 4 below.
 
 ## Revision 1 (applied 2026-11-09): comparison logic only, no prompt change
 
@@ -128,3 +132,130 @@ the estimate's own integrality slip. In-sample on dev; no revision was made from
   before scoring (for example, brute force where a problem is small enough) is decided before
   the test split is opened.
 - **The seen problems** listed in `docs/FOLLOWUP_SPLIT.md`: keep or leave out of scoring.
+
+## Smoke run of condition 4 (2026-11-11; bug-finding only, not a revision)
+
+**Cap: $0.75, set by the owner on 2026-11-11.** `--plan` gave at most 75 paid calls and at
+most $0.7056. Run by the owner from their terminal, condition 4 alone, sample 0, all 25 dev
+problems, in the pre-registered order:
+
+```bash
+OPT_AGENT_LIVE=1 python -m opt_agent.evaluate --split complexlp-dev --all --conditions checklist-revision --sample 0 --out runs/dev-checklist-revision --cap 0.75
+python -m opt_agent.followup_report runs/dev-checklist-revision
+```
+
+**Result** (`runs/dev-checklist-revision`): 24/25 by the key (82 is the known bad key; see
+above), 0 errored pairs, 57 paid calls, $0.1775. Dev results are for finding bugs only; the
+checklist stays at revision 1 and nothing was tuned.
+- **Revisions:** 7 (100, 118, 119, 135, 137, 142, 144), all kept (each reached a confirmed
+  optimum), every one with the same objective as before. All 7 were right before and after:
+  0 right to wrong, 0 wrong to right. 82, the one wrong answer, got no flags.
+- **Flags** (47; 29 "extra", 14 "coefficient", 4 "objective"): one flag per flagged row, not
+  duplicates. 100, 118, 119, 135 and 137 are the known flow-conservation omission (revision 1
+  left it). 142 and 144 are a "coefficient" flag per demand row: the text gives `>= d`, the
+  model `== d`. Revision 1 flags a stricter row that binds at the optimum, and an equation
+  always binds, so this is what revision 1 specifies; changing it would be a revision, and
+  revision 2 is declared unused. Sampling decides it: in the first dev run, 142's model wrote
+  `>=`, so it didn't show then. These two revisions cost about $0.006 and changed no answer.
+- **Unused variables:** one drop with a note (119); it was right.
+- **Output tokens:** the largest single call used 12,593 of 16,000 (a checklist call); no call
+  stopped at `max_tokens`.
+- **Bug fixed** (code not doing what was specified; owner's rule of 2026-11-10):
+  `followup_report.py` wrote `NaN` into its JSON for sample agreement with one sample (and
+  would have for an empty subset). JSON has no NaN; these are now `null`, and the report is
+  written with `allow_nan=False`. Test: `test_one_sample_gives_no_agreement_and_no_nan`.
+
+## Key-format check (2026-11-12, $0; not a revision)
+
+The owner asked how the follow-up keys parse before writing the parsing rule. Neither
+split's text, ids or values were shown: `scripts/key_formats.py` prints, per benchmark, how
+many keys the old parser (`float`) reads as finite numbers, a shape mask (digit -> 9, letter
+-> a) with a count for the rest, and how the new rule (`followup.parse_key`) reads them.
+
+| keys | finite numbers | other shapes | `parse_key` | equal to `float` |
+|---|---|---|---|---|
+| ComplexLP follow-up test: 86 | 86 | none | 86 optimal | 86 |
+| IndustryOR follow-up test: 42 | 42 | none | 42 optimal | 42 |
+
+The 25 ComplexLP dev keys are numbers written as text (`"14.0"`). So no problem is left out
+for its key, and the rule changes no key's value. The rule itself is section 4 of the draft
+(owner, 2026-11-12).
+
+## Bug fixed while connecting the test split (2026-11-12)
+
+`followup_report.contrast` crashed on a row with no complete problems: an empty list became a
+float array, and `~` (not) fails on floats. That happens when every complete problem is
+exposed, or when a run stopped before finishing one. The majority arrays are now boolean.
+Test: `test_the_report_uses_labels_and_lists_unscorable_keys` (both made-up problems are
+exposed, so the primary row is empty).
+
+## Aggregate prompt-length check (2026-11-11, $0; logged 2026-11-13)
+
+For the test run's cost projection, Claude computed the mean and maximum character count of
+the problem texts per benchmark. It printed only those four numbers, no text or ids:
+ComplexLP follow-up test mean 1,774 (max 3,732), IndustryOR mean 1,365 (max 10,869), against
+ComplexLP dev's mean 1,983. The projection (draft section 6) scales IndustryOR by 0.69.
+
+## Key-precision check (2026-11-13, $0; not a revision)
+
+The owner asked whether 1e-4 relative is safe for rounded keys. `scripts/key_formats.py` now
+also prints, per benchmark, counts of keys by decimal places as written and, for keys that
+aren't whole numbers, by significant figures. No ids or values.
+
+| | ComplexLP (86) | IndustryOR (42) | both (128) |
+|---|---|---|---|
+| decimal places written: 0 | 8 | 26 | 34 |
+| 1 | 77 | 13 | 90 |
+| 2 | 1 | 2 | 3 |
+| 3+ | 0 | 1 | 1 |
+| whole numbers ("14", "14.0") | 84 | 37 | 121 |
+| not whole: <= 3 significant figures | 0 | 1 | 1 |
+| 4 | 1 | 0 | 1 |
+| 5+ | 1 | 4 | 5 |
+
+Two non-whole keys have fewer than 5 significant figures, so 1e-4 alone could fail an exact
+answer. The owner's rule (2026-11-13, draft section 4, follow-up only): an optimum is also
+right if it rounds to a non-whole key at the key's written decimals; whole-number keys stay
+at 1e-4. `followup.right_by` and `followup.written_decimals`; the report counts answers right
+only by rounding. On the dev smoke run it changes nothing (every dev key is whole).
+
+## Solver bug fixed before the freeze (2026-11-13; predates the follow-up)
+
+**Found by** the CBC-vs-HiGHS property test (`tests/test_crosscheck.py::test_cbc_and_highs_agree`),
+on a random model Hypothesis had saved, during the full-suite run of 2026-11-13. The same
+failure reproduces at HEAD (`e213060`), so it predates the follow-up's code; nothing in M7
+introduced it. It's a solver fix, not a checklist revision.
+
+**The bug.** For an unbounded LP (`CBC_INFEASIBLE_OPTIMUM_BUG` in `tests/problems.py`: x1 >= 0
+with a +1 objective coefficient, in no constraint), CBC (cbcbox 2.929) reports "Optimal",
+about 3.05e22, at a point that breaks a bound (x3 = 100 against x3 <= 1). The improving-ray
+check certifies rays only from a feasible point, so it couldn't refute the claim, and `solve`
+returned it as optimal. HiGHS says unbounded. Downstream it was always loud: the arithmetic
+check fails on that point and the solvers disagree, so `Result.confirmed` was False. But
+self-correction stopped on "solvers disagree" instead of sending "unbounded" feedback.
+
+**The fix** (`solver._solve`): a claimed optimum whose point fails `verify.feasibility_problems`
+(the same check, at the same tolerance, as `check_solution`) is settled like an "infeasible or
+unbounded" label: a feasibility solve; no feasible point gives infeasible; a feasible point
+and an improving ray certified from it give unbounded; otherwise ERROR (loud), never the
+claimed optimum. Since `check_solution` already rejected every such point, the fix can't take
+away a confirmed answer; it can only settle one that was loud.
+
+**Tests:** `test_regression_cbc_optimum_at_an_infeasible_point` (known answer: unbounded, the
+ray along x1, HiGHS agreeing; it also asserts that CBC's raw claim still shows the bug), the
+no-ray case (ERROR), the infeasible-model case (infeasible), and a feasible optimum left
+alone. The property test passes.
+
+**Effect on existing results: none.** Every distinct model logged in `runs/test` (274),
+`runs/test-perturbed` (241), `runs/dev-1` (92), `runs/dev-perturbed-1` (85),
+`runs/dev-checklist` (25) and `runs/dev-checklist-revision` (31) was re-solved locally: in
+none is CBC's raw claim an optimum at an infeasible point, so the fix changes no logged solve.
+Also checked with the fix in place, all at $0:
+- the NL4Opt ground truth and perturbed splits rebuilt byte-identical (`python -m
+  opt_agent.ground_truth`, then `python -m opt_agent.perturb`);
+- M6: `runs/test/report.json`, `runs/test-perturbed/report.json` and `results/eval.json`
+  rebuilt byte-identical (`opt_agent.report` on both runs, `scripts/amendment3.py runs/test`,
+  `scripts/eval_json.py`);
+- this smoke run: replayed through the fixed pipeline from its cache with a client that
+  refuses any call (`scripts/rescore_dev.py`): all 25 pairs give the same answer, revision
+  and flags, and `followup_report.json` is unchanged.

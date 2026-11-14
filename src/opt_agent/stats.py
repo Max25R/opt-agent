@@ -6,12 +6,19 @@
   where they differ carry information, and under "no difference" each of those is a coin
   flip, so the p-value is a two-sided binomial test on the discordant pairs.
 - Holm's step-down correction for testing several hypotheses at once.
+- The paired sign-flip permutation test (the follow-up's primary test): under "no
+  difference" each problem's difference is as likely to be +d as -d, so the null
+  distribution of the sum is that of independent +/-d steps. With whole-number differences
+  (samples right out of 3, say) it's computed exactly, as a convolution of binomials.
 
 Each is cross-checked against SciPy in tests/test_stats.py.
 """
 
 import math
+from collections import Counter
+from functools import cache
 
+import numpy as np
 from scipy.stats import binom
 
 Z_95 = 1.959963984540054  # the 97.5th percentile of the standard normal
@@ -47,3 +54,27 @@ def holm(p_values: dict[str, float]) -> dict[str, float]:
         running = max(running, min(1.0, (m - i) * p))
         adjusted[name] = running
     return adjusted
+
+
+def sign_flip_exact(differences: list[int]) -> float:
+    """Two-sided exact p-value of the paired sign-flip test on whole-number differences:
+    P(|S| >= |observed sum|), S the sum of independent +/-|d_i|. Zeros carry no information."""
+    sizes = Counter(abs(int(d)) for d in differences if d != 0)
+    if not sizes:
+        return 1.0
+    dist, top = _sign_flip_null(tuple(sorted(sizes.items())))
+    observed = abs(int(sum(differences)))
+    sums = np.arange(-top, top + 1)
+    return float(min(1.0, dist[np.abs(sums) >= observed].sum()))
+
+
+@cache
+def _sign_flip_null(sizes: tuple[tuple[int, int], ...]) -> tuple[np.ndarray, int]:
+    """The null distribution of S for `count` steps of each `size`, over sums -top..top."""
+    dist = np.array([1.0])
+    for size, count in sizes:
+        # count steps of +/-size: S = size * (2 * heads - count), every 2 * size apart
+        step = np.zeros(2 * size * count + 1)
+        step[:: 2 * size] = binom.pmf(np.arange(count + 1), count, 0.5)
+        dist = np.convolve(dist, step)
+    return dist, (len(dist) - 1) // 2

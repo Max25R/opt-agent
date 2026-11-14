@@ -327,10 +327,46 @@ point is a trustworthy evaluation, not a demo.
 7. [ ] **M7, in progress. Start from `docs/HANDOFF.md`.** Done: part 1's robustness fixes;
    the formulation checklist with dev revision 1 (`docs/FOLLOWUP_DEV_LOG.md`: dev run
    `runs/dev-checklist`, $0 re-score `runs/dev-checklist-rev1`, mutation recall 97% for either
-   check, an upper bound); a sample index in the cache key (`evaluate --sample n`). Next: the
-   follow-up pre-registration (4 conditions x 3 samples on 128 sealed test problems, with a
-   checklist-triggered revision condition), then the demo: FastAPI `POST /solve` + one HTML
-   page + Dockerfile.
+   check, an upper bound); a sample index in the cache key (`evaluate --sample n`).
+   - **Follow-up pre-registration, drafted** (`docs/FOLLOWUP_PREREGISTRATION.md`; owner's
+     decisions 2026-11-10 and 2026-11-11 in its section 0; not approved, frozen or tagged).
+     H1 checklist-revision vs single-shot, H2 single-shot vs baseline, Holm; per-problem
+     score of 3 samples, exact sign-flip test (`stats.sign_flip_exact`), McNemar on majority;
+     "detected" only at Holm p < 0.05, else inconclusive with its interval. Power:
+     `docs/followup/power.md`: H2 about 15 pp, H1 about 8 pp (shared samples). **Dev revision 2 is declared unused**: only bug
+     fixes (code not doing what revision 1 specifies), logged in the dev log.
+   - **Built for it (no API calls):** condition 4 `checklist-revision` (`agent.run(...,
+     checklist_revision=True)`: one revision on checklist flags of a confirmed optimum, kept
+     only if it's a confirmed optimum; its API errors re-run the pair); unused variables
+     dropped with a note in every solver condition (`schema.drop_unused`, `Item.dropped`);
+     hash run order (`followup.in_run_order`) with `--sample 0 1 2` in one directory; conditions
+     2-4 share their first reply (`tests/test_shared_first_reply.py`); the analysis,
+     `followup_report.py`.
+   - **Dev smoke run of condition 4 (2026-11-11, owner's terminal):** `runs/dev-checklist-revision`,
+     24/25, $0.1775 on 57 calls; bug-finding only (dev log). One report bug fixed (NaN in JSON).
+   - **The follow-up freeze** (`followup_freeze.py`): section 3's fingerprint (all source, the
+     lock, the draft, split.json, both data files by hash, prompts, settings, seeds, id-list
+     hashes) and `analysis_sha256` for `followup_report.py`. `approve` is THE OWNER'S STEP
+     ONLY. `followup.load_sealed` reads a test split only after `followup_freeze.check()`
+     passes; a `Problem`'s repr hides its text and key.
+   - **The test split in `evaluate` (2026-11-12):** `--split followup-test`
+     (`followup.TEST_SPLIT`, `followup.load_test`): both benchmarks in one directory, each
+     problem named by its label (`complexlp:1`) in results, resumes, the manifest, the run
+     order and the report. Only the whole experiment runs (`require_whole_followup`), and
+     even `--plan` needs the follow-up freeze. Keys by format alone (`followup.parse_key`;
+     unparseable: left out, listed, never "no optimum"); the aggregate check
+     (`scripts/key_formats.py`) found all 128 are numbers. A `max_tokens` reply is the
+     condition's outcome, never re-run (already so).
+   - **Last fixes (2026-11-13):** a rounding clause for non-whole keys (`followup.right_by`;
+     follow-up only, M6 unchanged; whole keys stay at 1e-4), after an aggregate precision
+     check (7 non-whole keys, 2 under 5 significant figures); the encoding check's judge
+     prompt `docs/followup/judge_prompt.md`, in the follow-up freeze; `verified` vs
+     `confirmed` explained in the draft. A CBC fix found by the property test (it predates
+     the follow-up): a claimed optimum at an infeasible point is settled like an
+     "infeasible or unbounded" label (`CBC_INFEASIBLE_OPTIMUM_BUG`); it changes no logged
+     solve, the ground truth, or M6's results (all rebuilt byte-identical).
+   - Next: the owner approves, freezes and tags; the test run ($6 cap); then the demo:
+     FastAPI `POST /solve` + one HTML page + Dockerfile.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
 
@@ -382,7 +418,9 @@ point is a trustworthy evaluation, not a demo.
   `response.usage`) to a JSONL ledger, so a resumed run counts earlier spend. Cached
   replies cost nothing. Caps: $1 for smoke tests, $0.25 for all live-test runs together
   (`logs/spend/live-tests.jsonl`), and $3 for milestone 6's test + perturbed run (owner,
-  2026-10-28). Dev runs get their own cap, agreed with the owner before each one.
+  2026-10-28). Dev runs get their own cap, agreed with the owner before each one: $0.75 for
+  the condition-4 dev smoke run (owner, 2026-11-11). The follow-up test run's cap is $6
+  (draft pre-registration, section 6).
 - `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
   paid run. An unlisted model raises instead of being guessed.
 - Budget stops, spend-limit errors (`api.SpendLimitReached`: a 429 with
@@ -418,8 +456,14 @@ OPT_AGENT_LIVE=1 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ... 
 OPT_AGENT_LIVE=1 python -m opt_agent.evaluate --out runs/NAME --cap 0.50 --all    # every scorable problem
 python scripts/followup_split.py    # the follow-up split (made once; refuses to change it)
 python -m opt_agent.evaluate --split complexlp-dev --all --conditions single-shot --estimate --checklist --out runs/NAME --cap 0.25 --plan   # follow-up dev, report-only extras
+python -m opt_agent.evaluate --split complexlp-dev --all --conditions checklist-revision --sample 0 --out runs/NAME --cap 0.75 --plan   # condition 4, worst case
+python -m opt_agent.followup_report runs/NAME   # score a follow-up run: followup_report.json
+python scripts/key_formats.py       # the follow-up keys' formats, aggregate only (no ids or values)
+python scripts/followup_power.py    # docs/followup/power.md (~2 min, seeded)
 python -m opt_agent.freeze          # what's left before the freeze; whether inputs match it
 python -m opt_agent.freeze approve  # THE OWNER'S STEP ONLY: writes docs/FREEZE.json
+python -m opt_agent.followup_freeze          # the follow-up's: what's left, whether inputs match
+python -m opt_agent.followup_freeze approve  # THE OWNER'S STEP ONLY: docs/followup/FREEZE.json
 python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.json
 python -m opt_agent.report runs/P --original runs/NAME   # a perturbed run, paired
 python -m opt_agent.blind_grading runs/NAME [--size N]   # review/blind_grading/NAME/, first
@@ -502,6 +546,9 @@ python scripts/eval_json.py              # then results/eval.json (README number
   3-variable MIP (`CBC_PREPROCESS_BUG` in `tests/problems.py`).
 - **CBC's infeasible/unbounded labels are unreliable**, so both solvers settle them with a
   zero-objective feasibility solve.
+- **CBC can claim an optimum at an infeasible point** of an unbounded LP
+  (`CBC_INFEASIBLE_OPTIMUM_BUG`: x3 = 100 against x3 <= 1). `solver._solve` checks the claimed
+  point's feasibility first and settles a failure like an "infeasible or unbounded" label.
 - **Both solvers can claim a false optimum** when free variables let the objective run away,
   in one variable order only (`CBC_FREE_VARIABLE_BUG`, `HIGHS_FREE_VARIABLE_BUG`). CBC's log
   says "Unscaled problem has dual infeasibilities". `-scaling off` fixes that case but caused

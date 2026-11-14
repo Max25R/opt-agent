@@ -140,6 +140,37 @@ def _bound_problems(model: LPModel) -> list[str]:
     return problems
 
 
+def drop_unused(data: object) -> tuple[object, list[str]]:
+    """A raw reply with every variable that has no nonzero coefficient anywhere taken out,
+    and the names dropped (follow-up pre-registration, 5a). Its zero-coefficient terms go
+    too, or they'd name an undeclared variable. Such a variable can't change the optimum,
+    so dropping it keeps the solve; the drop is a note, never an error.
+
+    Works on the parsed JSON before validation, and leaves anything it can't read as a
+    model untouched, so the validator still reports what's wrong with it. A model built
+    directly as LPModel is still rejected for an unused variable (_term_problems)."""
+    try:
+        expressions = [data["objective"]["terms"]] + [c["terms"] for c in data["constraints"]]
+        used = {t["var"] for terms in expressions for t in terms if t["coef"] != 0}
+        unused = [v["name"] for v in data["variables"] if v["name"] not in used]
+    except (TypeError, KeyError):
+        return data, []
+    if not unused:
+        return data, []
+    drop = set(unused)
+
+    def kept(terms: list) -> list:
+        return [t for t in terms if t["var"] not in drop]
+
+    cleaned = {
+        **data,
+        "variables": [v for v in data["variables"] if v["name"] not in drop],
+        "objective": {**data["objective"], "terms": kept(data["objective"]["terms"])},
+        "constraints": [{**c, "terms": kept(c["terms"])} for c in data["constraints"]],
+    }
+    return cleaned, unused
+
+
 def _term_problems(model: LPModel) -> list[str]:
     problems = []
     declared = {v.name for v in model.variables}

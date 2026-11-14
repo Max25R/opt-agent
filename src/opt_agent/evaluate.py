@@ -35,7 +35,14 @@ Report-only extras (M7, audit finding 2): with --estimate and --checklist, the s
 conditions also record agent.run's low-confidence flag and checklist flags, with their calls'
 cost apart (report_only_*). They change no answer. The manifest records them, so a resume
 with different extras is refused. The follow-up dev split (complexlp-dev, followup.py) runs
-too; its answers are compared with the benchmark's at 1e-4. Follow-up test is sealed.
+too; its answers are compared with the benchmark's at 1e-4.
+
+The follow-up test run (`--split followup-test`, followup.TEST_SPLIT) holds both sealed
+benchmarks in one directory, each problem named by its label ("complexlp:1",
+"industryor:1"): results, resumes, the manifest and the run order all use the labels. Its
+problems load only on the follow-up's frozen inputs (followup_freeze.check), so even --plan
+needs the owner's approval, and it is the whole experiment: every scorable problem (a key
+that can't be parsed is left out by format alone), all four conditions, samples 0, 1, 2.
 
 Run:  python -m opt_agent.evaluate --out runs/smoke --cap 1.00 ID [ID ...]
       python -m opt_agent.evaluate --out runs/dev --cap 0.50 --all
@@ -47,6 +54,7 @@ import argparse
 import json
 import sys
 import time
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -54,7 +62,7 @@ from typing import Literal
 import anthropic
 from pydantic import BaseModel
 
-from opt_agent import agent, api, baseline, followup, formulate, freeze, pricing
+from opt_agent import agent, api, baseline, feedback, followup, formulate, freeze, pricing
 from opt_agent import checklist as formulation_checklist
 from opt_agent.api import Cache, RunStopped
 from opt_agent.budget import Budget, BudgetedClient
@@ -66,13 +74,18 @@ from opt_agent.scoring import score
 from opt_agent.self_correct import MAX_ATTEMPTS
 from opt_agent.solver import Status
 
-Condition = Literal["baseline", "single-shot", "self-correction"]
-CONDITIONS: tuple[Condition, ...] = ("baseline", "single-shot", "self-correction")
-ATTEMPTS = {"single-shot": 1, "self-correction": MAX_ATTEMPTS}
+Condition = Literal["baseline", "single-shot", "self-correction", "checklist-revision"]
+CONDITIONS: tuple[Condition, ...] = ("baseline", "single-shot", "self-correction")  # M6's
+# The follow-up's four (docs/FOLLOWUP_PREREGISTRATION.md, section 3): M6's, and
+# single-shot with one checklist-triggered revision (agent.run(checklist_revision=True)).
+FOLLOWUP_CONDITIONS: tuple[Condition, ...] = (*CONDITIONS, "checklist-revision")
+ATTEMPTS = {"single-shot": 1, "self-correction": MAX_ATTEMPTS, "checklist-revision": 1}
 MAX_ERRORS_IN_A_ROW = 3  # the API is down or the limits are too low: stop, resume later
 DEV_SPLITS = ["dev", "dev-perturbed"]
 FOLLOWUP_DEV_SPLITS = sorted(followup.DEV_SPLITS)  # the follow-up's dev; its test is sealed
 TEST_SPLITS = ["test", "test-perturbed"]  # frozen inputs only (freeze.py)
+FOLLOWUP_TEST = followup.TEST_SPLIT  # the follow-up's frozen inputs only (followup_freeze.py)
+FOLLOWUP_SAMPLES = (0, 1, 2)  # follow-up pre-registration, section 3
 
 # Why a done pair has no answer: the loud failures of pre-registration section 3g. (An API
 # error is an errored pair instead; only the report turns one into a failure.)
@@ -91,7 +104,7 @@ class Item(BaseModel):
     condition: Condition
     outcome: Literal["done", "errored"]
     run_id: str | None = None  # the pass that wrote this line (runs.Run)
-    sample: int = 0  # which repeated sample of the pair (a run directory is one sample)
+    sample: int = 0  # which repeated sample of the pair (Cache(dir, sample))
     model_id: str
     settings_sha256: str  # the condition's request template: prompt, schema, settings
     status: str | None = None  # the system's answer; None if there's no confirmed one
@@ -99,6 +112,13 @@ class Item(BaseModel):
     no_answer: NoAnswer | None = None  # why a done pair has no answer
     reason: str | None = None  # in words: why the loop stopped, or the error
     flags: list[str] = []  # revisions that deleted or loosened something (changes.py)
+    dropped: list[str] = []  # unused variables the answer's model had dropped (a note)
+    # checklist-revision only: whether a revision was made, kept, and why (or why not)
+    revised: bool | None = None
+    revision_kept: bool | None = None
+    revision_reason: str | None = None
+    original_status: str | None = None  # the single-shot answer a revision started from
+    original_objective: float | None = None
     attempts: int = 0
     cached_calls: int = 0
     input_tokens: int = 0
@@ -135,14 +155,17 @@ def manifest_for(
     conditions: tuple[Condition, ...],
     model_id: str,
     extras: tuple[str, ...] = (),
-    sample: int = 0,
+    samples: tuple[int, ...] = (0,),
 ) -> Manifest:
     """`extras`: "estimate" and/or "checklist", recorded with their request settings.
-    `sample`: which repeated sample the run directory holds (only recorded after the 0th)."""
+    `samples`: the repeated samples the run directory holds. Sample 0 alone isn't recorded,
+    and one other sample is recorded as before, so older manifests still match."""
     settings = {c: settings_sha256(c, model_id) for c in conditions}
     settings |= {extra: extra_settings_sha256(extra, model_id) for extra in extras}
-    if sample:
-        settings["sample"] = str(sample)
+    if len(samples) > 1:
+        settings["samples"] = ",".join(map(str, samples))
+    elif samples != (0,):
+        settings["sample"] = str(samples[0])
     return Manifest(split=split, problem_ids=[r.id for r in records],
                     conditions=list(conditions), model_id=model_id, settings=settings)  # fmt: skip
 
@@ -175,6 +198,10 @@ def settings_sha256(condition: Condition, model_id: str) -> str:
     """Changes whenever the condition's prompt, schema, or pinned settings change, so
     results from different versions can't be mixed in one run directory."""
     template = (baseline if condition == "baseline" else formulate).build_request("", model_id)
+    if condition == "checklist-revision":  # its checklist and feedback decide answers too
+        template = {"formulate": template,
+                    "checklist": formulation_checklist.build_request("", [], model_id),
+                    "feedback": [feedback.CHECKLIST_INTRO, feedback.CHECKLIST_OUTRO]}  # fmt: skip
     return api.request_sha256(template)[:12]
 
 
@@ -186,36 +213,55 @@ def evaluate(
     split: str = "dev",
     model_id: str = formulate.DEFAULT_MODEL,
     extras: tuple[str, ...] = (),
-    sample: int = 0,
+    sample: int | tuple[int, ...] = 0,
 ) -> list[Item]:
     """Every pending pair, in order; returns the items this call added. Raises RunStopped
     (after writing a "stopped" line) when the run has to stop. On a test split, raises
     FreezeError (before writing anything) unless the inputs are the approved ones, and
-    ValueError unless it's the whole experiment."""
+    ValueError unless it's the whole experiment.
+
+    `sample`: one sample, or several, all in this directory under one cap. Each problem
+    runs every sample in every condition before the next problem starts, so a stopped run
+    leaves whole problems. A follow-up split runs in its pre-registered order
+    (followup.in_run_order); NL4Opt splits keep file order, as M6 ran them."""
+    samples = (sample,) if isinstance(sample, int) else tuple(sample)
+    if split in FOLLOWUP_DEV_SPLITS or split == FOLLOWUP_TEST:
+        records = followup.in_run_order(split, records)
     if split in TEST_SPLITS:
         prints = freeze.check()
         require_whole_experiment(split, records, conditions)
+    elif split == FOLLOWUP_TEST:
+        from opt_agent import (
+            followup_freeze,  # here: it imports followup_report, which imports this
+        )
+
+        prints = followup_freeze.check()
+        require_whole_followup(records, conditions, samples)
     else:
         prints = freeze.digest(freeze.fingerprint())
-    fix_manifest(out, manifest_for(split, records, conditions, model_id, extras, sample))
+    fix_manifest(out, manifest_for(split, records, conditions, model_id, extras, samples))
     results = out / "results.jsonl"
     done = done_pairs(results, model_id)
-    session = Run.start(log_path=out / "attempts.jsonl", cache=Cache(out / "cache", sample),
-                        fingerprint=prints)  # fmt: skip
+    first = Run.start(log_path=out / "attempts.jsonl", cache=Cache(out / "cache", samples[0]),
+                      fingerprint=prints)  # fmt: skip
+    # One pass, one run_id and one log; each sample reads and writes its own cache entries.
+    sessions = {s: replace(first, cache=Cache(out / "cache", s)) for s in samples}
     added: list[Item] = []
     errors_in_a_row = 0
     try:
         for record in records:
-            for condition in conditions:
-                if (record.id, condition) in done:
-                    continue
-                tags = Tags(problem_id=record.id, split=split, condition=condition)
-                item = run_item(record, condition, client, session, tags, model_id, extras)
-                _append(results, item.model_dump(mode="json"))
-                added.append(item)
-                errors_in_a_row = errors_in_a_row + 1 if item.outcome == "errored" else 0
-                if errors_in_a_row >= MAX_ERRORS_IN_A_ROW:
-                    raise RunStopped(f"{errors_in_a_row} API errors in a row: {item.reason}")
+            for s in samples:
+                for condition in conditions:
+                    if (record.id, condition, s) in done:
+                        continue
+                    tags = Tags(problem_id=record.id, split=split, condition=condition)
+                    item = run_item(record, condition, client, sessions[s], tags, model_id,
+                                    extras)  # fmt: skip
+                    _append(results, item.model_dump(mode="json"))
+                    added.append(item)
+                    errors_in_a_row = errors_in_a_row + 1 if item.outcome == "errored" else 0
+                    if errors_in_a_row >= MAX_ERRORS_IN_A_ROW:
+                        raise RunStopped(f"{errors_in_a_row} API errors in a row: {item.reason}")
     except RunStopped as stop:
         _append(results, {"kind": "stopped", "time": _now(), "reason": str(stop)})
         raise
@@ -234,9 +280,32 @@ def require_whole_experiment(
         raise ValueError(f"a {split} run covers every condition: {', '.join(CONDITIONS)}")
 
 
+def require_whole_followup(
+    records: list[Record], conditions: tuple[Condition, ...], samples: tuple[int, ...]
+) -> None:
+    """The follow-up test run is its pre-registered experiment: every scorable problem, in
+    the pre-registered order, in all four conditions, with samples 0, 1 and 2."""
+    expected = followup.in_run_order(FOLLOWUP_TEST, scorable_records(FOLLOWUP_TEST))
+    if [r.id for r in records] != [r.id for r in expected]:
+        raise ValueError(f"a {FOLLOWUP_TEST} run covers all {len(expected)} scorable problems, "
+                         "in the pre-registered order (--all)")  # fmt: skip
+    if tuple(conditions) != FOLLOWUP_CONDITIONS:
+        raise ValueError(f"a {FOLLOWUP_TEST} run covers every condition: "
+                         f"{', '.join(FOLLOWUP_CONDITIONS)}")  # fmt: skip
+    if tuple(samples) != FOLLOWUP_SAMPLES:
+        raise ValueError(f"a {FOLLOWUP_TEST} run holds samples 0 1 2 (--sample 0 1 2)")
+
+
+def followup_problems(split: str) -> list[followup.Problem]:
+    """Every problem of a follow-up split, scorable or not (the test split only on frozen
+    inputs: FreezeError otherwise)."""
+    return followup.load_test() if split == FOLLOWUP_TEST else followup.load(split)
+
+
 def scorable_records(split: str) -> list[Record]:
-    if split in FOLLOWUP_DEV_SPLITS:
-        return followup.load(split)  # every one is scored, against the benchmark's answer
+    if split in FOLLOWUP_DEV_SPLITS or split == FOLLOWUP_TEST:
+        # a key that can't be parsed leaves its problem out, by format alone (section 4)
+        return [p for p in followup_problems(split) if p.scorable]
     return [r for r in load_records(GROUND_TRUTH_DIR / f"{split}.json") if is_scorable(r)]
 
 
@@ -308,14 +377,19 @@ def _solver_item(
     base: dict,
     extras: tuple[str, ...] = (),
 ) -> Item:
+    revising = condition == "checklist-revision"
     result = agent.run(record.document, client, model_id, with_explanation=False,
                        max_attempts=ATTEMPTS[condition], session=session, tags=tags,
-                       estimate="estimate" in extras,
-                       checklist="checklist" in extras)  # fmt: skip
-    formulations = [a.formulation for a in result.outcome.attempts]
+                       estimate="estimate" in extras, checklist="checklist" in extras,
+                       checklist_revision=revising)  # fmt: skip
+    # Every call the answer used: for checklist-revision that includes its checklist.
+    calls = list(result.formulations)
+    if revising and result.checklist is not None:
+        calls.append(result.checklist)
+    formulations = calls
     costs = [pricing.cost_usd(f.usage, f.model_id) for f in formulations]
     spend = {
-        "attempts": len(formulations),
+        "attempts": len(result.formulations),  # formulation attempts, not the checklist
         "cached_calls": sum(f.call.cached for f in formulations),
         "input_tokens": sum(f.usage.input_tokens for f in formulations),
         "output_tokens": sum(f.usage.output_tokens for f in formulations),
@@ -325,18 +399,30 @@ def _solver_item(
         "retry_s": result.retry_s,
         "wall_s": result.wall_s,
     }
-    if result.outcome.stopped == "api error":
-        return Item(**base, **spend, outcome="errored", reason=formulations[-1].call.error)
+    if result.api_error is not None:
+        return Item(**base, **spend, outcome="errored", reason=result.api_error)
     s = result.solution
     status, objective = (s.status, s.objective) if result.confirmed else (None, None)
-    return Item(**base, **spend, **_report_only(result), outcome="done", status=status,
-                objective=objective, no_answer=_no_answer(result), reason=_reason(result),
-                flags=result.outcome.flags)  # fmt: skip
+    revision = {}
+    if revising:
+        revision = {"revised": result.checklist_revision is not None,
+                    "revision_kept": result.revision_kept,
+                    "revision_reason": result.revision_reason}  # fmt: skip
+        if revision["revised"]:  # it started from a confirmed optimum: record it
+            first = result.outcome.attempts[0].solution
+            revision |= {"original_status": first.status, "original_objective": first.objective}
+    return Item(**base, **spend, **_report_only(result, revising), **revision, outcome="done",
+                status=status, objective=objective, no_answer=_no_answer(result),
+                reason=_reason(result), flags=result.outcome.flags,
+                dropped=result.formulation.dropped)  # fmt: skip
 
 
-def _report_only(result: agent.Result) -> dict:
-    """The estimate's and the checklist's outcome and cost: recorded, never scored."""
-    calls = [x for x in (result.estimate, result.checklist) if x is not None]
+def _report_only(result: agent.Result, checklist_decides: bool = False) -> dict:
+    """The estimate's and the checklist's outcome and cost: recorded, never scored. With
+    `checklist_decides` (checklist-revision) the checklist is part of the answer, so its
+    flags are recorded here but its cost is the answer's, not report-only."""
+    report_only = (result.estimate,) if checklist_decides else (result.estimate, result.checklist)
+    calls = [x for x in report_only if x is not None]
     costs = [pricing.cost_usd(x.usage, x.model_id) for x in calls]
     e = result.estimate
     return {
@@ -380,17 +466,17 @@ def _reason(result: agent.Result) -> str:
 # ---- resuming ---------------------------------------------------------------------------
 
 
-def done_pairs(results: Path, model_id: str) -> set[tuple[str, str]]:
-    """The pairs already done. A later line for a pair replaces an earlier one (errored,
-    then done on resume)."""
+def done_pairs(results: Path, model_id: str) -> set[tuple[str, str, int]]:
+    """The (problem, condition, sample) pairs already done. A later line for a pair replaces
+    an earlier one (errored, then done on resume)."""
     if not results.exists():
         return set()
-    latest: dict[tuple[str, str], dict] = {}
+    latest: dict[tuple[str, str, int], dict] = {}
     for line in results.read_text().splitlines():
         entry = json.loads(line)
         if entry["kind"] == "item":
-            latest[(entry["problem_id"], entry["condition"])] = entry
-    for (problem_id, condition), entry in latest.items():
+            latest[(entry["problem_id"], entry["condition"], entry.get("sample", 0))] = entry
+    for (problem_id, condition, _), entry in latest.items():
         expected = settings_sha256(condition, model_id)
         if (entry["model_id"], entry["settings_sha256"]) != (model_id, expected):
             raise ValueError(
@@ -402,12 +488,12 @@ def done_pairs(results: Path, model_id: str) -> set[tuple[str, str]]:
 
 
 def latest_items(results: Path) -> list[Item]:
-    latest: dict[tuple[str, str], Item] = {}
+    latest: dict[tuple[str, str, int], Item] = {}
     for line in results.read_text().splitlines() if results.exists() else []:
         entry = json.loads(line)
         if entry["kind"] == "item":
             item = Item.model_validate(entry)
-            latest[(item.problem_id, item.condition)] = item
+            latest[(item.problem_id, item.condition, item.sample)] = item
     return list(latest.values())
 
 
@@ -435,30 +521,38 @@ def worst_case_plan(
     done: set,
     model_id: str,
     extras: tuple[str, ...] = (),
+    samples: tuple[int, ...] = (0,),
 ) -> tuple[int, float]:
     """(most paid calls, most they can cost) for the pending pairs, if every reply used
-    all of max_tokens. Self-correction's first call is free when single-shot runs too. Each
-    extra (estimate, checklist) is one more call per solver pair, counted as paid."""
+    all of max_tokens. Self-correction's and checklist-revision's first call is free when
+    single-shot runs too. Each extra (estimate, checklist) is one more call per solver pair,
+    counted as paid; checklist-revision adds its checklist and one revision, and takes no
+    checklist extra (its own checklist is the same call)."""
     calls, usd = 0, 0.0
     # A revision carries the previous reply (at most max_tokens) and feedback on top.
     revision_extra = pricing.prices_for(model_id, 0).input * (api.MAX_TOKENS + 2_000) / 1e6
-    for record in records:
-        for condition in conditions:
-            if (record.id, condition) in done:
+    pending = [(r, c) for r in records for s in samples for c in conditions
+               if (r.id, c, s) not in done]  # fmt: skip
+    for record, condition in pending:
+        module = baseline if condition == "baseline" else formulate
+        first = pricing.worst_case_usd(module.build_request(record.document, model_id))
+        if condition == "baseline":
+            calls, usd = calls + 1, usd + first
+            continue
+        replayed = condition != "single-shot" and "single-shot" in conditions
+        paid_first = 0 if replayed else 1
+        revisions = ATTEMPTS[condition] - 1
+        calls += paid_first + revisions
+        usd += paid_first * first + revisions * (first + revision_extra)
+        if condition == "checklist-revision":
+            checklist = _extra_request("checklist", record.document, model_id)
+            calls += 2
+            usd += pricing.worst_case_usd(checklist) + first + revision_extra
+        for extra in extras:
+            if extra == "checklist" and condition == "checklist-revision":
                 continue
-            module = baseline if condition == "baseline" else formulate
-            first = pricing.worst_case_usd(module.build_request(record.document, model_id))
-            if condition == "baseline":
-                calls, usd = calls + 1, usd + first
-                continue
-            replayed = condition == "self-correction" and "single-shot" in conditions
-            paid_first = 0 if replayed else 1
-            revisions = ATTEMPTS[condition] - 1
-            calls += paid_first + revisions
-            usd += paid_first * first + revisions * (first + revision_extra)
-            for extra in extras:
-                request = _extra_request(extra, record.document, model_id)
-                calls, usd = calls + 1, usd + pricing.worst_case_usd(request)
+            request = _extra_request(extra, record.document, model_id)
+            calls, usd = calls + 1, usd + pricing.worst_case_usd(request)
     return calls, usd
 
 
@@ -488,7 +582,7 @@ def render(items: list[Item], records: dict[str, Record], budget: Budget) -> str
     widths = [max(len(r[k]) for r in rows) for k in range(len(rows[0]))]
     lines = ["  ".join(cell.ljust(w) for cell, w in zip(r, widths, strict=True)) for r in rows]
     lines.append("")
-    for condition in CONDITIONS:
+    for condition in FOLLOWUP_CONDITIONS:
         mine = [i for i in items if i.condition == condition]
         if mine:
             scored = [i for i in mine if i.outcome == "done"]
@@ -511,44 +605,54 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--all", action="store_true", help="every scorable problem in the split")
     parser.add_argument("--out", type=Path, required=True, help="the run's directory")
     parser.add_argument("--cap", type=float, default=1.00, help="dollar cap (default 1.00)")
-    parser.add_argument("--split", choices=DEV_SPLITS + TEST_SPLITS + FOLLOWUP_DEV_SPLITS,
-                        default="dev", help="a test split runs only on frozen inputs, with "
-                        "--all; the follow-up test splits are sealed")  # fmt: skip
-    parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))
+    parser.add_argument("--split", choices=DEV_SPLITS + TEST_SPLITS + FOLLOWUP_DEV_SPLITS
+                        + [FOLLOWUP_TEST], default="dev",
+                        help="a test split runs only on frozen inputs, with --all; "
+                        f"{FOLLOWUP_TEST} loads only on the follow-up's frozen inputs, even for "
+                        "--plan")  # fmt: skip
+    parser.add_argument("--conditions", nargs="+", choices=FOLLOWUP_CONDITIONS,
+                        default=list(CONDITIONS))  # fmt: skip
     parser.add_argument("--model", default=formulate.DEFAULT_MODEL)
     parser.add_argument("--plan", action="store_true", help="show the worst case; no calls")
     parser.add_argument("--estimate", action="store_true",
                         help="solver conditions: also record the low-confidence flag "
                              "(report-only, one more call per pair)")  # fmt: skip
-    parser.add_argument("--sample", type=int, default=0,
-                        help="which repeated sample this run directory holds: 0 replays "
-                             "existing caches; 1, 2, ... ask again")  # fmt: skip
+    parser.add_argument("--sample", type=int, nargs="+", default=[0],
+                        help="which repeated samples this run directory holds: 0 replays "
+                             "existing caches; 1, 2, ... ask again. Several (0 1 2) run "
+                             "together, problem by problem, under one cap")  # fmt: skip
     parser.add_argument("--checklist", action="store_true",
                         help="solver conditions: also record the checklist flags "
                              "(report-only, one more call per pair)")  # fmt: skip
     args = parser.parse_args(argv)
     extras = tuple(x for x in ("estimate", "checklist") if getattr(args, x))
 
-    if args.split in FOLLOWUP_DEV_SPLITS:
-        by_id = {p.id: p for p in followup.load(args.split)}
-    else:
-        by_id = {r.id: r for r in load_records(GROUND_TRUTH_DIR / f"{args.split}.json")}
     if args.all == bool(args.ids):
         sys.exit("give problem ids or --all, not both")
-    if args.split in TEST_SPLITS and not args.all:
+    if args.split in [*TEST_SPLITS, FOLLOWUP_TEST] and not args.all:
         sys.exit(f"a {args.split} run covers every scorable problem: use --all")
-    followup_split = args.split in FOLLOWUP_DEV_SPLITS
-    unknown = [i for i in args.ids
-               if i not in by_id or not (followup_split or is_scorable(by_id[i]))]  # fmt: skip
+    followup_split = args.split in FOLLOWUP_DEV_SPLITS or args.split == FOLLOWUP_TEST
+    if followup_split:
+        try:
+            by_id = {p.id: p for p in followup_problems(args.split)}
+        except freeze.FreezeError as refused:  # the sealed split: no approval, or a change
+            sys.exit(f"REFUSED: {refused}")
+    else:
+        by_id = {r.id: r for r in load_records(GROUND_TRUTH_DIR / f"{args.split}.json")}
+    unknown = [i for i in args.ids if i not in by_id or not (
+        by_id[i].scorable if followup_split else is_scorable(by_id[i]))]  # fmt: skip
     if unknown:
         sys.exit(f"not scorable {args.split} problems: {', '.join(unknown)}")
     records = scorable_records(args.split) if args.all else [by_id[i] for i in args.ids]
-    conditions = tuple(c for c in CONDITIONS if c in args.conditions)  # baseline first
+    if followup_split:  # the order evaluate() runs them in
+        records = followup.in_run_order(args.split, records)
+    conditions = tuple(c for c in FOLLOWUP_CONDITIONS if c in args.conditions)  # baseline first
+    samples = tuple(dict.fromkeys(args.sample))
     budget = Budget(args.cap, args.out / "spend.jsonl")
 
     done = done_pairs(args.out / "results.jsonl", args.model)
-    pending = sum((r.id, c) not in done for r in records for c in conditions)
-    calls, worst = worst_case_plan(records, conditions, done, args.model, extras)
+    pending = sum((r.id, c, s) not in done for r in records for s in samples for c in conditions)
+    calls, worst = worst_case_plan(records, conditions, done, args.model, extras, samples)
     print(f"{pending} pairs pending: at most {calls} paid "
           f"calls, at most ${worst:.4f} if every reply used all {api.MAX_TOKENS:,} tokens. "
           f"Already spent here: ${budget.spent_usd:.4f} of the ${args.cap:.2f} cap.")  # fmt: skip
@@ -560,13 +664,18 @@ def main(argv: list[str] | None = None) -> None:
             require_whole_experiment(args.split, records, conditions)
         except (freeze.FreezeError, ValueError) as refused:
             sys.exit(f"REFUSED: {refused}")
+    if args.split == FOLLOWUP_TEST:  # already frozen, or the problems wouldn't have loaded
+        try:
+            require_whole_followup(records, conditions, samples)
+        except ValueError as refused:
+            sys.exit(f"REFUSED: {refused}")
     try:
         client = BudgetedClient(anthropic.Anthropic(api_key=get_api_key()), budget)
     except MissingAPIKeyError as error:
         sys.exit(str(error))
     try:
         evaluate(records, conditions, client, args.out, args.split, args.model, extras,
-                 args.sample)  # fmt: skip
+                 samples)  # fmt: skip
     except RunStopped as stop:
         print(render(latest_items(args.out / "results.jsonl"), by_id, budget))
         sys.exit(f"\nSTOPPED: {stop}\nRe-run the same command to resume; nothing is paid twice.")

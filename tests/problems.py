@@ -177,6 +177,24 @@ CBC_FREE_VARIABLE_BUG = LPModel.model_validate(
     }
 )
 
+# Found by the CBC-vs-HiGHS property test (2026-11-13; it predates the follow-up). Unbounded:
+# x1 >= 0 has no upper bound and a +1 objective coefficient, and appears in no constraint, so
+# the objective grows forever. CBC (cbcbox 2.929) reports "Optimal" (about 3.05e22) at
+# x3 = 100, a point that breaks x3's upper bound of 1, so no ray can be certified from it.
+# HiGHS says unbounded.
+CBC_INFEASIBLE_OPTIMUM_BUG = LPModel.model_validate(
+    {
+        "variables": [
+            {"name": "x0", "lower": None, "upper": 2},
+            {"name": "x1"},
+            {"name": "x2"},
+            {"name": "x3", "lower": None, "upper": 1},
+        ],
+        "objective": {"sense": "max", "terms": terms({"x0": 1, "x1": 1, "x2": -5, "x3": 1})},
+        "constraints": [{"name": "c0", "terms": terms({"x0": 1}), "sense": "<=", "rhs": 1}],
+    }
+)
+
 # Found while investigating the one above (2026-10-19): a MIP where HiGHS reports "optimal"
 # (-144) with the variables and constraints listed in reverse, and "unbounded" as listed.
 # Unbounded: let x0 -> -inf with x3 = x0 / 4; both constraints keep holding and the

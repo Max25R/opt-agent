@@ -105,6 +105,26 @@ def solve_with_revisions(
     raise AssertionError("unreachable: the last attempt always stops the loop")
 
 
+def revise_once(
+    problem: str,
+    client: anthropic.Anthropic,
+    first: Attempt,
+    feedback: str,
+    model_id: str = DEFAULT_MODEL,
+    session: Run | None = None,
+    tags: Tags | None = None,
+) -> Attempt:
+    """One more attempt after `first`, with the given feedback (the follow-up's
+    checklist-triggered revision). Solved and judged like any attempt, and logged; whether
+    its answer is kept is the caller's decision."""
+    session = session or Run()
+    revision = Revision(previous_reply=first.formulation.raw_text, feedback=feedback)
+    formulation = formulate(problem, client, model_id, revision, session.cache)
+    attempt, stopped = _judge(first.number + 1, formulation, first.formulation.model)
+    _log(session, tags, attempt, stopped or "revised once")
+    return attempt
+
+
 def _judge(
     number: int, formulation: Formulation, last_model: LPModel | None
 ) -> tuple[Attempt, StopReason | None]:
@@ -157,6 +177,7 @@ def _log(session: Run, tags: Tags | None, attempt: Attempt, stopped: StopReason 
         usage=f.usage.model_dump(),
         call=f.call.model_dump(),
         error=f.error,
+        dropped=f.dropped,
         status=s.status.value if s else None,
         objective=s.objective if s else None,
         highs_status=h.status.value if h else None,

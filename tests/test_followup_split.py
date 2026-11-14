@@ -55,14 +55,16 @@ def test_the_dev_split_loads_dev_problems_only():
 
 
 @pytest.mark.parametrize(
-    ("answer", "status", "objective", "right"),
+    ("key", "status", "objective", "right"),
     [
-        (57.0, "optimal", 57.004, True),  # within 1e-4 relative
-        (57.0, "optimal", 57.1, False),
-        (57.0, "infeasible", None, False),
-        (None, "infeasible", None, True),  # no optimum, and none claimed
-        (57.0, None, None, False),  # no answer
+        ("57.0", "optimal", 57.004, True),  # within 1e-4 relative
+        ("57.0", "optimal", 57.1, False),
+        ("57.0", "infeasible", None, False),
+        ("Infeasible", "infeasible", None, True),  # the status the key names
+        ("Infeasible", "unbounded", None, False),  # not just any non-optimal status
+        ("unbounded", "unbounded", None, True),
+        ("57.0", None, None, False),  # no answer
     ],
 )
-def test_answers_are_compared_at_1e_4(answer, status, objective, right):
-    assert is_correct(Problem(id="x", document="", answer=answer), status, objective) is right
+def test_answers_are_compared_at_1e_4(key, status, objective, right):
+    assert is_correct(Problem.from_key("x", "", key), status, objective) is right

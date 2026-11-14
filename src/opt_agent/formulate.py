@@ -7,12 +7,14 @@ self-correction loop (self_correct.py) sends back to Claude in a `Revision`. A f
 call is an error too (`api_failed`), but not one Claude can fix.
 """
 
+import json
+
 import anthropic
 from pydantic import BaseModel, ValidationError
 
 from opt_agent import api
 from opt_agent.api import CallInfo, TokenUsage
-from opt_agent.schema import LPModel
+from opt_agent.schema import LPModel, drop_unused
 
 # Small and cheap, for bulk evaluation runs (the owner's requirement). Swap in
 # "claude-opus-5-5" for the best quality.
@@ -74,6 +76,7 @@ class Formulation(BaseModel):
     request: dict  # the full request sent (build_request)
     model: LPModel | None  # None if the reply couldn't be used
     error: str | None  # why not, in words Claude can act on (or the API error)
+    dropped: list[str] = []  # unused variables taken out before validation (a note)
     raw_text: str  # the reply exactly as received, for the logs
     stop_reason: str | None
     usage: TokenUsage
@@ -101,11 +104,12 @@ def formulate(
                            stop_reason=None, usage=api.usage_of(None), call=info,
                            model_id=model_id)  # fmt: skip
     text = api.reply_text(response)
-    model, error = parse_reply(text, response.stop_reason)
+    model, error, dropped = parse_with_drops(text, response.stop_reason)
     return Formulation(
         request=request,
         model=model,
         error=error,
+        dropped=dropped,
         raw_text=text,
         stop_reason=response.stop_reason,
         usage=api.usage_of(response),
@@ -115,13 +119,33 @@ def formulate(
 
 
 def parse_reply(text: str, stop_reason: str | None) -> tuple[LPModel | None, str | None]:
-    """(model, None) for a usable reply, else (None, the reason)."""
+    """(model, None) for a usable reply, else (None, the reason). Unused variables are
+    dropped first (parse_with_drops has the names)."""
+    model, error, _ = parse_with_drops(text, stop_reason)
+    return model, error
+
+
+def parse_with_drops(
+    text: str, stop_reason: str | None
+) -> tuple[LPModel | None, str | None, list[str]]:
+    """parse_reply, and the variables dropped because no expression uses them (follow-up
+    pre-registration, 5a: drop with a note, keep the solve)."""
     if stop_reason in api.UNFINISHED:
-        return None, api.UNFINISHED[stop_reason]
+        return None, api.UNFINISHED[stop_reason], []
     try:
-        return LPModel.model_validate_json(text), None
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        data = None  # not JSON: let the validator say so, in its own words
+    if data is None:
+        try:
+            return LPModel.model_validate_json(text), None, []
+        except ValidationError as error:
+            return None, describe(error), []
+    data, dropped = drop_unused(data)
+    try:
+        return LPModel.model_validate(data), None, dropped
     except ValidationError as error:
-        return None, describe(error)
+        return None, describe(error), dropped
 
 
 def describe(error: ValidationError) -> str:
