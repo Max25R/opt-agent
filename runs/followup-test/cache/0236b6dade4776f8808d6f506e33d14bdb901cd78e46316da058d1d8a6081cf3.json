@@ -1,0 +1,316 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are checking an operations research model before it is solved. Read the word problem and list what any correct formulation of it must contain. Don't write the model, and don't solve the problem.\n\nThe model's decision variables are listed by name in <variables>. Use exactly those names and no others. If a requirement needs a quantity that isn't one of them, put it in cannot_express instead.\n\n- variables: for each listed name, say whether it counts whole things (\"integer\": vehicles, trips, people, products, servings), measures a divisible quantity (\"continuous\": kilograms, acres, hours, money), or the text supports both (\"unclear\"). Quote the words that decide it.\n- objective: its direction (min or max) and its terms over the listed names, with the numbers exactly as given. Quote the words it comes from.\n- requirements: every requirement the text states, as a linear inequality or equation over the listed names. Use the numbers exactly as given, and write percentages as fractions (30% as 0.3). Quote the exact words each one comes from.\n  - strict: true if the wording is strict (\"more than\", \"must exceed\", \"fewer than\"); still write it with >= or <=.\n  - could_be_equal: true if the wording names no inequality at all (\"twice as many as\", \"three times the number of\"), so \"=\" would be a fair reading too.\n  - scope: \"combined\" if one limit covers several items together, \"per item\" if it applies to each item separately, \"single\" if it involves one quantity. Decide this from the text: \"at most 50 cakes of either type\" may be one total or one limit per type, so quote why.\n  - Leave out non-negativity, unless the text says a quantity can be negative.\n- not_requirements: every sentence that states a preference, a motivation, popularity, or background rather than a requirement (\"prefers\", \"is more popular\", \"would like\", \"sells better\"), with its quote, why it isn't a requirement, and the inequality someone might wrongly make of it (empty terms if there's none). Never turn one of these into a requirement.\n- cannot_express: each requirement that needs a quantity not among the listed names, with its quote and the quantity it needs.\n- Don't add anything the text doesn't state.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA company that produces only one product has 40 workers. Each worker produces 20 units per month. The demand for the semester changes according to the following table:\n\n| Month | 1 | 2 | 3 | 4 | 5 | 6 |\n| :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n| Demand (units) | 700 | 600 | 500 | 800 | 900 | 800 |\n\nTo adjust production based on demand, the company can offer some (paid) additional working hours (each worker can produce a maximum of 6 extra units per month, with a unit cost of 5 euros), use warehouse space (10 euros per unit per month), and hire or lay off employees (the number of employees can vary by a maximum of $\\\\pm 5$ per month, with a hiring cost of 500 euros per person and a layoff cost of 700 euros per person).\n\nInitially, the warehouse space is empty, and we require it to be empty at the end of the semester as well. Develop a mathematical program to maximize revenue and solve it using COPTPY. How does the objective function change when all variables are relaxed to continuous?\n</problem>\n\n<variables>\nworkers employed in month 1\nworkers employed in month 2\nworkers employed in month 3\nworkers employed in month 4\nworkers employed in month 5\nworkers employed in month 6\nhires in month 1\nhires in month 2\nhires in month 3\nhires in month 4\nhires in month 5\nhires in month 6\nlayoffs in month 1\nlayoffs in month 2\nlayoffs in month 3\nlayoffs in month 4\nlayoffs in month 5\nlayoffs in month 6\novertime units produced in month 1\novertime units produced in month 2\novertime units produced in month 3\novertime units produced in month 4\novertime units produced in month 5\novertime units produced in month 6\nunits in warehouse at end of month 1\nunits in warehouse at end of month 2\nunits in warehouse at end of month 3\nunits in warehouse at end of month 4\nunits in warehouse at end of month 5\nunits in warehouse at end of month 6\n</variables>"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "CannotExpress": {
+       "type": "object",
+       "title": "CannotExpress",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "needs": {
+         "type": "string",
+         "title": "Needs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "needs"
+       ]
+      },
+      "ChecklistObjective": {
+       "type": "object",
+       "title": "ChecklistObjective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms",
+        "quote"
+       ]
+      },
+      "ChecklistTerm": {
+       "type": "object",
+       "title": "ChecklistTerm",
+       "properties": {
+        "var": {
+         "type": "string",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "ChecklistVariable": {
+       "type": "object",
+       "title": "ChecklistVariable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "title": "Name"
+        },
+        "kind": {
+         "type": "string",
+         "enum": [
+          "integer",
+          "continuous",
+          "unclear"
+         ],
+         "title": "Kind"
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "kind",
+        "quote"
+       ]
+      },
+      "NotARequirement": {
+       "type": "object",
+       "title": "NotARequirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "why": {
+         "type": "string",
+         "title": "Why"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "why",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Requirement": {
+       "type": "object",
+       "title": "Requirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        },
+        "strict": {
+         "type": "boolean",
+         "title": "Strict"
+        },
+        "could_be_equal": {
+         "type": "boolean",
+         "title": "Could Be Equal"
+        },
+        "scope": {
+         "type": "string",
+         "enum": [
+          "single",
+          "combined",
+          "per item"
+         ],
+         "title": "Scope"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "terms",
+        "sense",
+        "rhs",
+        "strict",
+        "could_be_equal",
+        "scope"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "Checklist",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/ChecklistVariable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/ChecklistObjective"
+      },
+      "requirements": {
+       "type": "array",
+       "title": "Requirements",
+       "items": {
+        "$ref": "#/$defs/Requirement"
+       }
+      },
+      "not_requirements": {
+       "type": "array",
+       "title": "Not Requirements",
+       "items": {
+        "$ref": "#/$defs/NotARequirement"
+       }
+      },
+      "cannot_express": {
+       "type": "array",
+       "title": "Cannot Express",
+       "items": {
+        "$ref": "#/$defs/CannotExpress"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "requirements",
+      "not_requirements",
+      "cannot_express"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3xmJ76da5QSTxJLgS5z",
+  "container": null,
+  "content": [
+   {
+    "signature": "CAQSomgKEAgTGAI4AUIIdGhpbmtpbmcSDLUvece/zvU6jlfaexoMpMo0wKoNDCEzjGtoIjAbtY97HBALV0a/zvqNzFeb6AVcGVn3daoajsx4uNXXNW959VLBr0dkDQgJa9AZS48qv2d3OXIqmsUSzM6V0GpXt0dZ6T+DTQfHSFOhCgrK/wZw4SZOd45dQzFXPL+rQXCO1f9FJr2yiBoxcFo4xhbWUpOuJETOEDYdTOR4RRKc8AwkFL2/ZBlxAwYtjYNK+OhFgzzlheBl55ldI2VldOBepxQMCWvSTC1sWMNdu20tUVj1jlRdvwriA+P/fI316tltaaJbjnIGMNRSLb6Di4lQ8VtkBvFMoTvKVafg6+7V0+Czfqk/pJWBCZQo3lKge5DlTif3gJEW0eT03LZXRZSS65vhJXRsUVT81xzKpeJpIobinwK9pMpzqSWuBFMZ5B6yR/PS58sR+Zx4NwBqbJCpIp6HYrhtbBsYqXTBMag6Sg0g/1ndVGjpA/oflACL4fx+sqqSDhl9s+/ti5Aqvuv2ffiIF+P6FR2Czc3c+nJ7r2ExlL5wMZDGVPmvbsOx2AYnNckR2TX3N/RG/zaCp7Sl6C0Hsce3pqIuzFD3cejj5rX7E056qKO0FBNb1h8Z6ApzIlpISfKj7UaeaCH5I3J4wtbT5KsalwzQpcrzYD0d8Or0+lcj6aIkkHsJT8S9fjJZCP4F0CA1wFgdpjIv30q9SSdwh7sOoRXqu/Comc664cJEWg6IVJ/snhH7iXQ7rYliL9fXCnEKcMUDMSgin1Kvoht/aedjS7a+EMwB1bPrc/OHuJR33MNFWXU4/+ui+62kQDJuixJsJQbSETYwck+tUnsw46Mgn0i4fBgTHKf8qgcC+vOahfqJHDVTYB3C92kI8VvJZ24ltR/t8/3quaLSqWHIeRQEcWdhhi4F8llNR2ck+A2GcSbhS0R+PoFsbBvwBTpRAiaKqlOcJiETLG5MYlF0g3DihJwZaZQG+4m5ZZyvpnVJUBj8+jeSMPaegdk4rTgMSHrHkz2wYi38tOJ0wz2cbPD+Tjp9+/AWz6cvXmJ5YBaqA96/agwtK4ZNcmpBf7Lf4N0VnBMb0aMhbxewbXsQMbfAvNMndtIa6sqGdHFoyknTNVZcT5BouqisrDhXtL2dBtnlkoCzwiwn3FRzkfk9O7xIoM9nyJp2SYhgxrXeZ/ixtfasUMJFnUIJmPXscWRhyNaBQzzTCwskQsAfOsluYrFR+luwf+h+9Qfw+IhMKBJaaxYSvnpcuigvXNGzLV1c6FBXZsP45OONJXrdZMnUrTENZCGBtIAPyXo71mZ75MjWoMr9cQa/CqvKrwN5gjOko/iGFDl3lYI2Xq3ebOcV/rH8mhcncMnGQujg+A8uOEnyCdND5CK1GFxRbr07p0PvxBOZnxXGVkDd/4zkkYht9AhaH87/O0jTDzB3xJs9CCq/A6RelZCKSoBPY+iL0p6BYT1rU1PyTBEjqvlc16V8W+ewqwmBWl6FA3uEBpDYIQHb9Xce32NyYEAzR6TfgEE49SG+1GHyf6OfsytWC5dr4QJsmxOhknrZlkb2xb+o0TMspynZs803Ta8sdYdBewdZ3uAMWT/8DHOdoDTLs87WpmxX+swc+VjY+wkstrStXzdh1yw/ZyB/FTeijIm8x4k02qhZeV7D8gwEXpKUm8qROpov9Nl8s4aDxCfB7kJ0tIR7gvXlmQ9UCGuR1ukn2ruY9JgQy/ir7NXThPDa9jSaHhnaiHee/8G0ydPqHpA/JX5djx/mV0oUNsZ5tEog4GVU/82JpkgfmUplUsVHTyYBdOoOyeRy3ds3Rp9V+i06VX1aez0Cqjqlkm9TrVaccpx6MehGMJcNfO4G+aMvpjb8mCnR+1xiCo0bOht2goMuGwctSN+W+YsjcG6VQEUPMzoXno6PnRrBS05vNFOb7pOw2uMEIpGDComYTtbjVNjYcym/v5PErRsHdnyWQ6XBFTgrI8hkOh6L6hspKJvGYYJOPyT03tM9XxR1FcBzObdjNmFnhgPwnGYWQVxLgTtwEGlHX+z4XDnuyX6Av6fX3MHWer9Wj11grdIZQjLq1Zgw8PbWR8uLZZ1pbyH/YlMG/jCAppWFtwfrHST4OCZVyVN4sR/NHF+1tX4MlJNPHwxtLT2SYajQRowHhbAPtzUWoymjeF+zGhdHz3T1VBTCHNXJO+2/7A/0R8c0DXWL1O0oaA4VZSL8VE7WyzGBi4vm6g6ByFB3nNVt+cR7VzZbODYwz6/REpZ30aKgoHu9wpov8lcMBfY4m/ihAhDX/GUKf9e4yOqq7/FMncNG074L47Xb3KQ2Nj+rbwBiBwWCRW5gKoSA3J+Jv6XRXgIxt5LrCFOihVWZr1n/cDM9udmw/nwkRfiWeiuzStc27Rk786QlYtwHATltPQQsx9s6nlUCK3UHhrsxUb+vU1D4UVPWAfhWguZA9t8CZi2R9UCZjiIRTWX7iW2+9lvrJh3r4et616jqA5xq1nFoD9dXF6IoLbk633+Z9r5ReVTzGgJpYRVcDJ3mZHjQ8HTkGGgEpQqmE0fg282d5JHBO+36MWJ6iczUtpPPsusI4NWeZvOOF5oiMMlVqefWyTSNxKe2Kf2V/UGfi7yLYMWzIKOSgDHY2C7ia0fCxm5vcHI2k1hBur/4DaYpbR2/OcYxY0wAZuuLq1Iz40QDIIZC8Fuzo+boi/79B19/M3fwKalBLI3MTYWLqD3gE90Acxp8hmH6NYlWFsUkFy1RJr6rvpcvA2xTRvfc1CWh2Pfqlj4y6GZ2DY1lc576Qhof/0AHndLhr2+u7yd/npjAYpyzI5hCdD6u4XNdHRC47HsGDN1mTABWCNH+4SpZDoUrmDbW9Wngx/z1b3OyFiybYHIkLCOhi+S9e6X/OguYh0Fda7FQoarZgJKDOb0ADE2M9K/YHhxcJoEuNgG6Kh4uSd8dUGWhhCfe/1X2VEsd9JSBFPKeZJYuxy9gL1/oIXo8qbWoaKK/2Uk4rjTMjgoENHiwIlUXfilhtqh1z5GfKtkntEr4kkWVTrsOIdzVxb+ATKU8Qzn59kHb7RrWgDYqKB1Mv37MjLhANuYqYTJMrIJ3xQ842XmWl7PyR2olY51RfsCyLzR89odmGDnvIU9adlHxLT3Z/i3zXcZfen5nq2RI4IPzOnL1WdahEMzTkfYjYOfq4KTFXNtXpLOBKj//+k6faWT7aaVCUHjnD6VGfwFqwSALXw7e9PIG1eNCy9iWMy+Wk7lezgBA3dOmbedDpDnLvMRKuexj1bXmQKJk/uQb3qG8GQI1VqQaJ82btGJvgzWH2PsrbB/fBcl7iFo4AV15gXPCjq+Jkc8+Aote/bOiGu/vshLmwEVoeCut8bpuyVhFuBiWizOUg8DCU+fLih1pGIa22Slunl4fdPgXKrxJzpMmqDngxGcAHyTMcsN9aMkglS5lgQYm/4V+QKBc0lYmVwrnB6jWC5cHG5zPC/2hsC5Sj/+ih6hli6Bqh7rp1gmxFwQxZcKTa8mKBQahM8Fpbb2XtA2+erWOn1rJmManaf3ScP0RdsxdpFIPtH87sxnNTLaoUGttjQHAs0w3gUC+G7fd/gFsj9+aTQeHYZ4UdwpgVMuQiGAfGJIqwCX46ZpELUu1rP2TJY2vwyp20s9ivBsGguHSENDRG5sWGprdAi2W1xScYeCkl01/8wBqnj/xOWyt7yGTL/cUc+l/Lr/R5KQgCHI8mkAp8uvtqe+G+Q+yhMyoZ1Pxj6/6Fj702e4BntEgF1a/VphfGB4o75FqnPRLSOhIrrSbSq6Xiuh8G/5Lr5K0j7yRK8AL43Srudz8DAdAn2JQCLWaJ4wJbET4jVlFmyjBUUEpEKooZ8XDhBxr+LzEl9XoY8MHa9vxjna7UTBq0lR/+ChZJUHHKQwaaZ/qu+hYSz47egJoY0NdotvnK8/T4OiCV1qK04ppgXO4Aq1Jbhsx0gx6JD0y2dg7ESgyw9bAGK5FwByPmNw8YjTPo5NQBmHwsxKth7We10Po5QEWQksKChE+1vFKNDVc2kXaa8SltmmPKoU4IU8Jhn+qGUoBwtcJwA1vnFNe1LfQUbM2fCFZD4cO2cbsApaTudvVx+SzCfUNCgRwVVWrD1ntxmrVqOAQYxKCDuNWeqGiIERhqSggekdaMBL+bKc/PxzzYdRJoqo3UPa/JFCJ7m48lz4Z74GQr8olGKjSkpvaWFBTGt9W3RGD09SlwUub1DNYreji4Rt+44oEcoOcCPM9NHRVLQgkhHS3FJBVm8srlgKcnV6DVgkWmutxbtHI4MYhz1rV3HjcvDPgDk0TpTmJpOCdACYcPWlLSR3bCfdbs+sUNXLMqgjC9JxKII5taNzNPBpGEU3upCFP4C7cs88ka5LJP15OFEIj3oXNH7LFgjKBkA72FJAbE7fcwRK4UeuO8eclpKutfoNnZGkaCCVaw0abJuVeLNZXoR7BjlbbbOjvjbAzLr+VuQon4Uwzwivnkl/eOW85quO0LkQII4+Nji9aFkPorrvbkW0Ent6Go9mDjVtsaLJIKSw0Gbz01UUs0WFIEghy2CjTRLEw0HhIZrdRII/bkWqFJyXYj+55YblpJx+gdtp11E0/LXFH7/7t9DJn6FdnPUIpcIoWjDAduqfvesdE3VFw/e2ygaREIv3MF2pPr+ZkL4k0PrDGr+5u/ZRKUifcAff7WHuuRuRy+JC7/OzMgscrT/SbOmmR30HIojtgvY52l8LjQPomd8MQE79MeCD0Eoz0rkkZh/40vCnBgmNLPNsQQGd62DSPGyWNtBkhe2okBwY+pSYk2ofjvSwl0fTkrLQUvOT5EWJGjFehOr/QJxCKXbuMhw4QMeXeOSzYbFMMpwlxjGhGSgpKlPlCv5Cq8VHRLhrJnjBJ/i13Bf75t2Q97GNxfWq2CElEn0WprJ/cSaw6tBWp4lgs/olA1/okLB3NYPAUvzoX4wfZlavRF51NDx4Hi7ZtBfS1SYrdTqUwNJgwMJnKk+HCesslz/tHE4XRskIjPHKvLfndGzzM/0XQB9FUE17qc/Me7l+mo6WSkxXVky5bKVlFI1Yu8HqFY7P5G2i74m/KRArJvgUbo4N9LrejvfyTbnKsVvTe4DodFUGV7Y5EzqpK3JOxxPA7wR/am3pcb8T2htXEkmamt3TRWgK+DisL63IR98fsHQv4e7pyB4b3CLUQV93Fy+3zfu3VKfLnocvyPnO9azOmYqcUAdzyki2EwsbywPmLfvCa0ZNyDNfhS/OqZ2EQ9AKjQxVDWSrV2s5pkU8J0JFVJx7q5gmaCm8Dlf4qIF49MvO62//7Sip0yfTR389trv4MaU/hztNSOc3kM15hxII3maUhmkOMp46nGCuBjGniVSFRm0wHJ0y8snrQ5Y6j31MrpA+wjy7MTCctx/fOTq7vwP6GMqOBCM7584SuUrgvfMep8a7b88uHiv7K0XYJQCvH3o7D8Okcl5N00Tavt6e+X1o8zmIe974vK0aW0/WPQcWp3K5KTT+xtfnVFTd8uB/Vki+tAW9KAtLheKTUZU2KRe7jRcG417lgqqvgFb41e1fhwX0wKwJrlyaxufD8jTqcJmPZyPE/CQRfoCeLMZh4qt6lquK95a2nNEY3Io7GLcl9hrVwnwq9uz1mmEzCk9Wgsn8KDNVVPxMxfz+zx092HPlJehOP44wAebYJelbX04wlBWdvrlxboHbI4nanmNkI2ZmMeFAift/8slFqRnaZx/jngP/LCkj9WFaesTwGsTb0pCT1Kd/ILOiRiKgRjBBgqQvh6RSbcCjV2YNhwxnnW/hmR+dBZvdnQv1s4xRW7su+w0+LovNMxhKINSW3lG147jIv9HHTaUE2pkgRGb5ku3s4Tatxbsz9e/F7b50KeaJ9vAB3JB8qpngm+v0ZVt+bUgr+Z9H1prx7eZH1TfEyh4alOv442gDD5mq0kfJ/GLRIz9KjfnGZbztmyOuByVO/CdWtISdvz2uhQHF9fXmTZkRq2Jmd0MkcTHDIgkHqVXzGa5u0YQkPw9FsxwQoRHJTYGgFovhAE9+gbsgvKJ7QCyQxohC1e/fcv0JmxwngpVtTwN5Fy2Lx13UqOUAid9Eq0sWnNjzdYb2SlIsOBHi7uhUzTuliS6qFFItDaxSUbDs/s2/cEO5QjiFQZjcPtTESnPgscDOPu2P1hEF/8Stez7B31fYmXdjTsxXP10V1/iX0QnkttgRscIYBxfdmnCmKJuKxiZIS20Q8p+ysQClF+nXRtlRMiEEI16XibjDXo41W44YbBHoeRIS+1tmwUWPxGMrTPf9hst/R/nVlGT0EKu4o0Fip84xYGHC4F5QjnzRWF245bQM95IEM7x8NVcveIRn/JyMYNAX8kVHmG58Dqx3Ghnc/tI31qosxq8DhN9cNttOcX8UHttRtv8tQbAYbd6v6+hm1HSjeEB8TqKmYV+MmoPErS5ngyNzPUl4jfBZUtqsgJ9tRuArzfukCO6tS8uxCBpdM1wu+B50aPK6ufpV0FIYogCW1RxsUbZJ7ieqd8KihOw1Dhapm1anN5g6v4xJkKeYqCjpJ+X9gNV6IMQA1yvGoB8fPZ7MO0tMxAds3lZsZtw2faId4z46L6DTzw7jeW4EeZNH85t82GLOuoAY2QPGfcULkj892Zzuujuuvgpcakx8voUgs5g9WquM2qDrfBhI90Ck63/Ueghepr3prk+omPIImqM/24HKESAbOO84YOmfgU5HGMmbKunVVzO981IM+Qn5df3TASPKe5VMnon52DcI/o4h2NJtniykwNBEoiNx/wqTi5pydw0WI+9ThlKl8Upl0uMTQRXulOxgA6rp/tTlahzjLO3yuM/CBawJcZ4Q0C7DilMmXZnJ/yAnfLxPHvW1dTho+9j4iMFSybeE0vJSnx/D0A3/RlZSoxI1ryhOiM6nOEMxSwLRdi2THCzdUAiHUUa9uBgMc4HCG+LxkFPcgNOyOLF1ixIri10AzxbeAkw18McEa8z3Xs6R81KAj1Q6a/1sX2IrpeMfI9WmjrmLgzCB95iGVhMnqUBbRb/4UqX6nstaOX8eC4N11m7zLAvgKJJGBZ7Uw28z60XuxZuFLPp93VE0luWkmUd8bxGKMph1iwC6eW0ACfNsdaxJXiJ4vzg91HAR5YXsRXSYzTxB3GsJyjc1w6jA9q1lLoG39l2SRiUEFhcFcV09o1Ve74SegmUz6WSoRNebdzKvjR4WXS28ALwycO7pgOTGeQTRMSvE0EHGomWCxlmEdCCgEb/hA0MbKRks3BRaqL4SqklhHO19FmgQZO6nLAYhldEiDhtOMJTW9qR3x7OYyRXY9b2zpBmLEp2/T4ScZXjkOy8JkvKB4gW9t2MuKZj57suN0svH1rcC1+e0lF+v/Vv3lHWY1Xrj4WdPQGkjT+wFiWqUPnqfoVNVxo44nbWSzncC5h+3xdRIHt9FB8vIzW8qxh0pSQaYbhdd4gJy9ywpwtiXfy0lzIgAziE3gz1bbkkaOKz/hww9a0cN3Ppd0fPYi4YyUWYfE1+DaDoHD4uPuz5mxnMmmxg47jN3z73S1/yBm9Kbg9pS+I8tNw0GKXx7VchF3iUPSvRwE9o+CslaOnT7JiquJI6JXtvDvvcaqV68QzHfmfn0lk9uihLrPAzO1g/9LEeI4dn2AUXr9trAuZ905fDWXSgQLWdD7vBvSxjChitmBqLYVt+MkCWpuBWJFXcWlh17JE2YJlQof2U8h2KEG8aZHiDfdSKglWh4qvUoQxpX5Kp7Xo1kEUd3CVWGfR3qqwTegUUJzcY7/XK1oPopdMxro+4DuzmyvtykWln1fWdGX00yJbH4EZzfiomUbTDp4L+L69QhIYPud7rtsuvMXoX4WElpdM6ZooW6PbYKGBZoB9s2U3rzPSX2fFgketmMZMelLNXCYoOxdKl1ys4/X0veCdoB+GgJ4nB3lD+/la8BrhNlcoD7GarSP1BAKWcXqxWTjaZFgLouqzhJUYUuCXYJbFSOCVAThucyxmjbI7Wth4fPGCMwzFfNcRDqdQkSx0z7kIKdXlzmLEzWNY8dxqZBM9KUuF4zvuF9rCRVVJw7M9e1lWBYs67A8kq49jWy7tRXzZuEzTq5m+Gq3Gc/2QZSweiHML/Kqk+elLtkKpEgOiLNRld2ghztzJejWwxsXJOcMC98/j/bu2qffyHR62duLXfhT6XZlQEKbUKv1GUPdbioWC78XsL9Q/JBTEZ+cv/6yCYJ0CyMPP1wYGXLd0mVudt1WVpeZowsTTDZIFIjMB7LrymjZhme/3EPnhOn9ap9LLDKzL+BKbSoHHycxpwb3mM9FZJywi+yrZf4um57U4eoAQ2TXDP3S2bX9eSYCi4ubpcEThOUxzvm11G9jurF3l+B9Rhkx4r8oFXAuZRWTVSFoQLQx60PaRbktiIz9zKxgZd8IfREm7mqdXNCRodIwZp93upZNymUv6vbwX2U6Dtu1eJXLqpwQJh8xB0MDtOrIfYfa/vVK9Y/O05otcf/YepdFK/CIHqCvU9z3c0RjEVt+wyjah49vK2njIjQsB/tEz2ko6YiiVzW5HA3KZoj/Wc6VZRIMDe7xmPG0QorqtwrGDmV4kKrmwPiKtoKwX+1gGRG2usNwCm7oHndC4uJ4HJ9dlbPUU0PFjW+Gu6C7cJjTah/oTLucX75fMKsqrYbM6MeLfR2/sSCu+fXOxgKpjFOpSGHHffIrIs8eRzF5tcq68Mg8IgC0KdY2PDbMT4LVdTz0SDuj9oocFqGob4Ju5+yA/PB0TDDsMCgAqIkYrw+bG84ZbNfQ0nYx3gN5hMvaBJ22IZfVRPMP8cQcWf7qErYH6SdBFzCeCwDHwL1clZsm4h//1VKybscBHt7SWtt2oRPgMjpjG7twxuwXW4wW4OtWbL9ZR6AFlIqYg+YrYOD0lLCuNE5MCQIWr2d8Fbg0+/xzHL2JBb0rvVb7tdGrIaKuwS6iSIt5kYxGSebRLWsfdvjvy50NWrcv1Axt0/nZlYXhIdFNYKVEW4olgnA/7SGpZnKPA3EribV43+M3KEtu4Kxu+9a2MWPNMkTqnN2BtQInHeaBXDkG3eVO1reuJehtiovzXL/yKIE1AEutDSQvLPVmV0XJ6KY+vziV3Fwxd53E2FZcCSBZU0yHo7vO4h2Id9/B1t25Zec6Ze9hqp5j2fYURUJAPNupDs3bF5yQ8sLK7SQa7HVgw2L3pXDTs58zGxVQBHWBFig1adkOG8i+j7+f02yh1AIH+cpKqLcFBpGzkNDLd/9J8Xruc4j6upQsQp8jOtnNNljx5AGLbh7H6+nt3qSKqrAhAM8lFoHNhT81RLgSucrWIOa+Q+FZHs32ssjLaVgD0IfmEK6dk0Qe/EgiIQdyUFGWjH9wYVq57CffS41cx08/xDB/GcKiemK/yCDVk/EQn0fZdmTaYbnEzOUbmCK71OtbT7Knzi+KAtdtD1oISk3SNAWSSSfqPuCjNdq9aGfGyu5E4i/yaXGxBRr2O2L5DBJ0nC8klxKiWcdCrQ3WR+Q3iikUc4I+jXPUH8ZUeRXZnQT5b4TmmVGCUm/mCPLmvmGfTPoyzSMicYxFKIxaDvwc8xat3NiQInDOZZQRtx/O5ufGyYyJM/B5ySFDwykUL4aa4xBqRC+PiVqXlkSmVq5tI8GQBsRaDmJuQwxRxlSsm+iXDLPYQswtGrfQVFvgYyNZyLurm/yJWisYz9L+qwIPfj/Oy3xT3KdNUNRDQZP5vslCrAKpX0+0V9fWZqbaS2EfMfTbVCCv3RTXuVzho9qZJNeHxPH6HHhb/TLkYYCG9qZOzOIGCI51eifWD8MyB/DChYHz9NXmPnYeWhs2Ch6lg9dMllORqhwhC8EN4uBWaCqZE8sW6rj3UnFbOQk5ecjlN7C/OXHpHesUONLT2w8HLe9OM/ZVY3E3qjeUs49CCW9yJ0yMhUukmoFM3bJYeBtkv9eQmC4NuqeM7VOhK/quHGhV+ggBxBYphE6MD7qPDq1UVU/57tuwSUJpaCQHm6VTbnrDGDU5/xEsSPigTMRuOWCo+z0QPhWUjIpxvxlgk9K0aabe4onw706z1nZMb9hfsfOFMFprilyL0O/8kAhcO5uM77uDj+YbyY3r9A7A8iGMet/kNYBaRy/mdy4I+uxihxATyX3oQn03wpwIS8dzhQXyRmAlJN5PPtsfmBajS50VbXWOU5ocq/pvc3r1wOX/Is+U4T283LmoN/XUUmrTw8cyHuL9gMGb/qNao7Zews4LT85N9qgrtXnoA+lx/hLE8KinlgvBK/JxfTFYTjZ/Cdz7wD9mbIUIVHMzkE/znSSp9MOhVUr5s+fefsSyu6SyDQOgDMe/R4et2AhsdMhe0n7nGeoLSpzflFG7LhgmC+3e8/FDveg80/VxP8dSo5xBT8gSdGXz1UOa25empgkssUxCN46/YcRLf0mxuwdZfgBES7mYEydp6m5FeNp5wnAuZ6hYUZgsVzCChHDnaOi/DTTWryZ2EFlHjn6SonPPVMgh0wTbj5lNfzVq419UC6RzH0K+YThBccnVrwdzspt5c3hSELe+cwjVP1kqEDtPPhcCI2YRgXTg/ktXz1CqQw8N3jn4BKk1/PnNPAc9TuI0NAa4srEJdcAC6RB4hl+hsO3gqr11PmOueAOpJaVV3wCgQV+cbQtzvpm/tH/5qoowMc3ils0ZpyOmHNhHG9dmEEbIH/X0zuZjiiMRWYtpnKqfQIq4wdp/OqjVv0Fb0MZACs/S0DOdVXQ7rQ2POVbcP/Ab2ykKbihJ4ySc8DJJi+HUUKqVE5McBkumVqg55oEiyUD17CemOE3o7M9iUZumSHMuFh+fZLQf++VASzemhw3Rx/SxRWJn8vuyg6n3nqGcXghQRDwzWfhAVrjuxCar45/Ezz/70vyc4BlQJUjXpsfey4G6FiJkDV3sTE24aT5SqhhGO/dOODoGuqBTX920uwGgBvld56pqLC2bgqk/y4bAfuNq+WztlQOvmyc7quP3xy+KHHDAEZCBR/qdxp9TVitdfuYhSGOVtTVQjaqfW5orD+aa5IpFGmzN2v1r1MjlwJgvYP9dT7V8Vlehg5uoIIx/GEEPO+FZxqE9TcfxhcPZXdqHLIhiAVODOXKeO3lBrg6MOV2avLMjsyHvMTx1UuIzWb95tlziIzJ8znFGcRbIjNDnm6nnQEeTcWTB5jZKlkJ6bIWqUYewvr8+z+DCYlpPiN3+Kzrm7p2dS1STtoVYYDpgmgePEfs9+zYe4//x2eKSD8grSRGmo0xC6UkN3qIJKs+672YNZZ5L0KplExco953WwEwy7U+qqYpEBvpj9Dm0GDwFR82tgJ+n1uCOnOFL3NpgUGsclke/5zLdjzmkuhSElbijFJGQccW9sK2aLc10N7txcWexqbFEvU34EXfN4widnLv4NIkrcFIzxRFpZdTdEggm4vjToi5HOeiOQgBUGNk9y3SwbASs+467o4JPKVFr87GXboLoLIS5JDrsvzmawFxiFZjqUhtBU3nUxQ45VPr1O80xl2Udn1g3BaAcN4yBL2Tqe7U/wKMAjgMfQZfpu/FZh7gnDizR8Uwhq8lTQXyUk3K8+noiRCabTxo1+VnUvGUzGIqC1+rJ4dOHLXcjXur1EhnpZvsCpLYKsD8weLPVQW9hXPfQyVlo9kkjrtqlWxdlxsEjQkMvde3XziOXkFW6osyoEOlqZhJQg7RpKXf/1oqByT/59sNzq+6uowB1r13hNlyAzZSvA4FP51+daniN26HGt+qtr4A/b88zGB+5UsNXsDF0QhLKIhJRAtnJUx0czKuuKtsQm6k2nYvJjTWkg3PysIXMf1jel/iPSOkc12Or8CGOc8J743HvPuIEHPNWFRAgWkXDSc4XmQKFUgH3HCDAdT+UxwMG/Wj4aZbj516YZEr+H8VJukGBEPECIh+benxMzzhouhTS/8PNWD75oVpdD/XgkwpKRy8GqTHtrnF77Y5ZQVAwagT4jKldX5/eu9fMbA6g9YAGDNM5o0TjIVXlUkP5jCwrXZ1XpyDunBi0Fc96OGk4O2JM3zSOp1sjiIKpkN6b41f+34FgZnu0iOF9P/0lwpBHxVWAocNPmXEIVL4ty3l3GCKvdPO/a1D1CFoNFdAbMPYvFsSQKCtjSD1b1gJBqeyE7rarNK9xIuaHsbXCx5/CYV+TwtUwTCj0UTVZlFr3l/hHaOAfCd3v3BvFNSD72ZF/aLROW3a4+6AabrYudkxk4T+gUNAGV66D4dnPTMQldUnO8ETpfp/8iSt7xtWFlGkCdXFhML8SyOefVNi/vdetQXyU43N9Y0u6caLslthGN3CWn9oL6xnRA2hoiOUiswrM1TboWzAPToTPuo15f7GgfSf73x6xktOSfLMwV4CjOrtdx1Y8txZre0R6FxKaFoB1LW061KyVOeGhDJuTcg7NkiD3m7IxOy8VWx3aZrDdnbK3Cc/NIcurOJLbCbXSXMYiBjVq+SJK96gk1s/a1Q9VN5+4eisqijZSvwO5YxdPVJAtrgabI4mSNjUN2kbcWrL47JIDwaPFaQvw7ySlHTV+AZLMaPUJMmeGb3BXT5t0mfTO3ftGzLBRL+BgY2Pxo+tqsWMp11JgdYMZCLCjTgAaa/sXWoJ7+U+QY9q4ZcXHsE7kSDen+TU7vVwkBRy7w6xfYoPTzUH3O2sIizWjzqHAv5O2/trrkUktY3bdrwtiaZkREpjWE5NzarwM8M70LsgwBSDBwxnyKQMhadDXzGTGre4QUcVpxVDyWQzlpo18hoID2fhVWS3SJa3lfavE5H6jkIsotdVAI3e3tBlYmwa8ig6PdB4XubcZ+QbebVfi32luzyX1dvJCX6H7w9mHc+P6AaahG+zz/YS1CeihFbiVO6/DeAbk0dhfZT9xsITrCjPAbhNz2LscW1CXUrlbdyZJP5TtwG8fJPOqrp/bsF7HsL3Zgj48BdWagE7CW86EtxF0TQXcW+WWrvnusQ5Mb4bZb3StoTdRipxUde2bgJiY1gNT6d9iMsl/r8T0LbQXpaDrKmTck32/azAvSLPAEmZRkkofUJTDQApKFAl2RWicMmQkcI/Fc5YzAACy3IT3GJLSx5AHz08c7u04GjO5c3O8CPXsHp5XVmI86W9k4g9Yhfy3iYqFXZypJEikmi7EmMbODA46Y9dU/tnMZaj2p1oU7UiUkDd2zBnsA+7FbywzM8Y+nwIPMhdLdPUH5/5QyePKEzxw0hUJ9qNbWtMyqXI6xqyIVXl4fkP4M0ygtOA5JJwbbg+/66Ivkvwe18Ng2BGWo+ii0vfux17ko0Of9QBck8Hvc2LvuxJNDy7xKxPL06VnaynInaG89IMB+WiMswjg1U3Bi6cy81Jebs1xViHkhdC+50hEpPHtONbKn6w1jpEJ+damVGM/2CBCAhyx1ioKIYh20DaD28yZZx3FeQ3h5z87zZKPt24D7MsG/w/bL+lGT3P+XWg4bNcePtUMAJsi1fKiVNVTr+dbQbEHoyRE6CJk8Jnf5HPpU0IzZJYOLpI6/seNmRC+lrHlWF+3kDvsH5W1xRiPJadyqkHEA59ooYR3sNGaWyuSfc7eUIOXlEQ2a2VZHkMK4IgDIx5GoQ4G5NDhD8p+4OfgniAAS4D+D0DcJCyy+EuEmPNkyehfcCzz7hGrcusXLF9kQ4RtrSjM8U5yZTYH4bF7/NB+mBQVjYR2U+a2sM6Bdu5e4K7NLJCZDQBTGiavJ/ccbY0mHHnWgMbEFqDVbJjvpj4luL+bY+ljxp5QY8/kyN6kXkBASBfnqY2+JEpSubZnY7P6Ls+OPc2MfwBJ4EJfDDxbUq7wUCL7ZyN38zv3t/+Gm3GDSUbICW6VLGc73xWLnoqZg8DlobJMgUNdFSQi/pxVpmqvSr2jRkB3FoayPvzA2M9ARnySkiBDVk9TKiBlh62U2So3J8BDOwkfEaACtN82xmZVRi1e52hTc9T3Tsq4XmVGoadOjbE3GDP3LrFQZjQ76u8fJ3DoLFezlHFlaRFXxXqsf+4hnKB+SmBqPTCz15iiHbyBQ00hgwKB2vRKpw4WuK/qiBEkKlf3bbnCvlcsFcR0Rh/sy/F6pgfBoOXDTHgWC4UXpygy9FHtbBaTCYGi02JeWNFQocHVZ3GSNeXqvxiFMGJx8H/4BaW2yQdnDXNlEQknb88GafROoGJnLRvCH7/0755dZMIlT1VaCgGi/5DW62BK251cj+gqvTLfw1S6/0O6w/mct3J8l4VMAGvCXSlC0XfOfCsyUrtUN9w+Vohdthr/VBwYjdTbcBwMXyEOcNi4qhz/Wrmi/fNBpt7+SO/f2HsfEg6x8SHO09LX8rvKcYw2AWS2IstlCMWcauNDy+Pzx+UJEOaiQAUCfDwuKySy+iWQrnV143Vpz6yB5Eiv+bdNo2KJcONRcKiUV09OQ6HSDsjHqXriqlNQZolbozHaMN9sZWDdisBTqAyK3EZVz0CnL5/09+FGow00VakwnL1vE6Ghs7CrOz7rSHDDdVBOGlK0albgk/U38fjxVFxAZWf8t6vaOwB15k0JLCKPyGlqSKrrEAikLN5Ly1idlfE0Rfa913NsdcdAsLXbneV3K6Nd7fgRUDLL4I7k74DASTn7lCQEa/cvBEBwoawxelFk2db0XvfEJRSjZEl3FW3JcAOtTy95+xJ9Iz7u3aPPuHraz5uL0SVhXF/Nc4T1oECUSD3Ba7lFxCPBQ338LOYWKTLeygihdtMctKEzjVWscNVF3PGvKsz/xuXH9n0eyr0njFLg3TixYRkXFmnoclY69PAFKGVgoHQLQArfcnN796zFjd4k01Z1ctok3fijDduTXS/ddMElEsrUF66XXICuMlWgA/zmalz0NnL5zZqiJYP/5HI2nxRxvMGQiqak4EKs12rj6y9Dq2slkgjjUiDKvhYeVM8hdl83tIX3KnZXHBK/43AQaKgyD3N64hsQujs28xgIyYs4MvfrAgJ/oFJ/4D0uoeolNQY6Ea1xulthMpUGKFKNTCZtRTBhdzAx/UR3n6rXD5NcngHCsBUS8hu7XPxL+/CAp6ZhEjzd7V7B6vej4FnVNTrvgswpvJCOKtNSlHi2avNYH64bR452Ln09htFytJH+dNlw8Y9tVf4EAkRy+pcNMaFUA+fdNzSLUqI2o8ERG3RoXuzWHcsLgpSIcBtDYc33XLxSTZOjyxUSfqFnntg0MhRcYrFIq0rZ8Eg9rVf3kPld7jCO5fMg+N84m3ulShZrDvtdipJN2PtavgLH/R575dpFudGbo8XOzI1xJIAAPcIq/fK7rM+sWA91NNnulHypcWSoQtXwJkEshWsUL1uVZRfHfSBIEZIJh1jqf+d2MdttAkUb0q804/qqiL63xlSgz6F81WMXqEW/6D1kasoIk/22q2VrowTjIqfLr1kYRRw/pNs6QdFjbtCXQ3u66BXJTwMEOtEJFtFKwfHBg587P4RM7Z2QfqvLwCiFO+JceNMFgZ4XAxwKzELG1kAJ7fq65avJGgrSwi9pofTtNusd2rokK2xY/cORoWH4sG5f8AUciGdYfnEA+lde9o5J9obyrbfG5TRjS1XlBrN48LBPvDPBovOquP/bQGpICQylx40jM194/qEjSPKZCuqIjw6MODMLr6cDWPBmCm3aLBCSwpHICuxJuF0m/5ycsj+Nwy1eLqOWt0w+LhU1VmBA92eZ+ZVPnbrIbOuwj8tNPsrhTfT8sltxoDA6s9sEXdzImu6NVf1wC2w8Uy9edCYUJLbMuIS3OkOZZhRBSkzbKavZXmyxpUCHQS2swlmW9Y5bi1UHr7W8Iz5i0f6PL2PH76yIqmrcOHgAx4jxsucb/YOUbjEAhSSqrZg4bQg+nUp3iERuAttVX0epyJBGAKYJwXbtXplovnT4OHLodkibV6DUcFwN9cjjJ1MH3znZURUli4n6Bhpgh0zlFs/ERF1mMyxppGrPPm6gtbUb7+SL7MCDEWT7gD3g+YjwXvSdpclryKFybNIJ/bC5ve25vfOw3G1/M3DnjlPqmxwcOl+0OM/YAbd7eGkUV6zQs8W9KfbpCpcZFgkkO2XrUKVN68FTG9+dowaKRYbqTHsF2GsnpqwwJWrj9MDTGhAa3CQuECyYuiu2NG93WMEWMcs4S6o2SQGnjYUudeQ6Lp9EPCl1Sc125CsvPwz4Xrx0bRPFMZZVHMJlTxYkZJjbtguAGD3jFG8n4lV6yD51+TUqf24agh8cR77hrABVbX86YeXLVzUB3AJrAqOJXu/GStj/F2DzEtOFEFsxQlTAg3w51225bpnT71erHOJffViS3aE2j4oUxFdb78MrbsA6t6WzZKr+IyGDqv6DbHxVf8ajZP5k7OSmT5yY0c8oag5de7wz9JKbyIp0yxn+MNpD9+BmgG8M695JNzy2/KwSsfJQfnCZNrW6WY/InlMQGE9LqOgMvpmgLXl3Me42Z/qbIdv5VMkX2w0kGkeWaiUthu2+1/p6McbucsKLaesajD9RLJOj89FWenrO8O+LvMZfamacjs6zLklKezRU5DGeXOu6RLfSsqaMABCGSGtdq++xrkhEC7sRF18I6tWXd5T0q3yTCWSWITgTuZO8mrPUp4vsXluOf5Jrn187lTgIdA3fw7vKXxNOyRorty8VpahsfHzrLUQt47OsWRkHeuxz3ha8HI08o2jo6gXhRZBffwyL3EwBN30Sia2YMohXNdgQB5SPm5m0Q9XGWn0S49zZhiFwU/5wKagsJYd+GjzvhBQ58rWOiDNUqZK7akTHX5blcIrld6ldoUzgFenepL5aihzqYA0KepKWezm5Sr4pJLh6lkYoSAxybtVqmK8KZJYBWZMYevpR6YlfZvLXntly9tXBEmrFvLCTWIFz/n0GStfrCyKpT4eKURvez0yfjfwRPTDaWx7yiI0ps3yILIdZrlBT8SIqc7u8zQJbx452LHHN5cEQBjLy/swmaeU+UmXWy6OIEy1AEcWVTetFh07eLD2qD8NfdzY2kRsYFtPoqh2NsXW7JMbvyMQmrPjcmY4YSKdKT4VtTso8SHD4NBcKlP04LN/khAUXTPHVoTpD9DUwSHArs7Dp6l0OXjL0HBv15OGxU+APjxA0t5g+IWJbN6q50HaNYIbr3bueihCi8KjdDDONNHmq61xmlDq4oSUBXDWSxP5+6bNL6CslL4s2EfvNZRKVXkyJmq52apuOGja+Zz3rAdqk57vprghb47lwzXN7Y/oi3dz3cuGReDWptU2RuSBDt48CXTSDrYp3+chIunXdSqqpP69qFJ4Gpb9YXE2C0DjJdMxfY4+Zgk3YNvEMijwLw77KZlYO1NXwzLbo8fd4cDuwANfn7y73yY917vqyOnspJWmn4Z1z9rEb+DWoznlAaiRwpllzsB/MN/R9HbW4tnAmYhDFuV7Bpu2e6Jms8xmVDYbqj5ddb92N8ICfcwq5y+sW36RpJZwDrEhsHbOrvnCQwKhNRcSWzKsA1PPfEsL6uPf1kRDkSRhkOuTGdOFbXIYDcJd0mafo+9E+PiKLk3YMh53hW/AcOLdZf8MO/RmEBsDkX0W8iit1sbxHOiK/n4Gen6bbz1nsHE6b6lOGlniZnxJB5S1S+Jnjf8BOGsHUXQZVtJZ5SbqdjRT0E37cLF03U7wP4zsqSE++e2U1cm29O6vHO0OV8ltSy0+4U1GMguaFL/5oyLyg0hcJAjshW+ib8C1LubteaUPdFTAxa+8CbH5vR+UR9Fx+J/JfZC6tNYyjBYyTcRfakKRbNmsJY1VbyZFiLipETYIlBpoLTNBrA2eOPAce0jPOAtkmdiZ95GW7N5j2vxgB",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"workers employed in month 1\",\"kind\":\"integer\",\"quote\":\"has 40 workers\"},{\"name\":\"workers employed in month 2\",\"kind\":\"integer\",\"quote\":\"has 40 workers\"},{\"name\":\"workers employed in month 3\",\"kind\":\"integer\",\"quote\":\"has 40 workers\"},{\"name\":\"workers employed in month 4\",\"kind\":\"integer\",\"quote\":\"has 40 workers\"},{\"name\":\"workers employed in month 5\",\"kind\":\"integer\",\"quote\":\"has 40 workers\"},{\"name\":\"workers employed in month 6\",\"kind\":\"integer\",\"quote\":\"has 40 workers\"},{\"name\":\"hires in month 1\",\"kind\":\"integer\",\"quote\":\"hiring cost of 500 euros per person\"},{\"name\":\"hires in month 2\",\"kind\":\"integer\",\"quote\":\"hiring cost of 500 euros per person\"},{\"name\":\"hires in month 3\",\"kind\":\"integer\",\"quote\":\"hiring cost of 500 euros per person\"},{\"name\":\"hires in month 4\",\"kind\":\"integer\",\"quote\":\"hiring cost of 500 euros per person\"},{\"name\":\"hires in month 5\",\"kind\":\"integer\",\"quote\":\"hiring cost of 500 euros per person\"},{\"name\":\"hires in month 6\",\"kind\":\"integer\",\"quote\":\"hiring cost of 500 euros per person\"},{\"name\":\"layoffs in month 1\",\"kind\":\"integer\",\"quote\":\"layoff cost of 700 euros per person\"},{\"name\":\"layoffs in month 2\",\"kind\":\"integer\",\"quote\":\"layoff cost of 700 euros per person\"},{\"name\":\"layoffs in month 3\",\"kind\":\"integer\",\"quote\":\"layoff cost of 700 euros per person\"},{\"name\":\"layoffs in month 4\",\"kind\":\"integer\",\"quote\":\"layoff cost of 700 euros per person\"},{\"name\":\"layoffs in month 5\",\"kind\":\"integer\",\"quote\":\"layoff cost of 700 euros per person\"},{\"name\":\"layoffs in month 6\",\"kind\":\"integer\",\"quote\":\"layoff cost of 700 euros per person\"},{\"name\":\"overtime units produced in month 1\",\"kind\":\"integer\",\"quote\":\"each worker can produce a maximum of 6 extra units per month\"},{\"name\":\"overtime units produced in month 2\",\"kind\":\"integer\",\"quote\":\"each worker can produce a maximum of 6 extra units per month\"},{\"name\":\"overtime units produced in month 3\",\"kind\":\"integer\",\"quote\":\"each worker can produce a maximum of 6 extra units per month\"},{\"name\":\"overtime units produced in month 4\",\"kind\":\"integer\",\"quote\":\"each worker can produce a maximum of 6 extra units per month\"},{\"name\":\"overtime units produced in month 5\",\"kind\":\"integer\",\"quote\":\"each worker can produce a maximum of 6 extra units per month\"},{\"name\":\"overtime units produced in month 6\",\"kind\":\"integer\",\"quote\":\"each worker can produce a maximum of 6 extra units per month\"},{\"name\":\"units in warehouse at end of month 1\",\"kind\":\"unclear\",\"quote\":\"use warehouse space (10 euros per unit per month)\"},{\"name\":\"units in warehouse at end of month 2\",\"kind\":\"unclear\",\"quote\":\"use warehouse space (10 euros per unit per month)\"},{\"name\":\"units in warehouse at end of month 3\",\"kind\":\"unclear\",\"quote\":\"use warehouse space (10 euros per unit per month)\"},{\"name\":\"units in warehouse at end of month 4\",\"kind\":\"unclear\",\"quote\":\"use warehouse space (10 euros per unit per month)\"},{\"name\":\"units in warehouse at end of month 5\",\"kind\":\"unclear\",\"quote\":\"use warehouse space (10 euros per unit per month)\"},{\"name\":\"units in warehouse at end of month 6\",\"kind\":\"unclear\",\"quote\":\"use warehouse space (10 euros per unit per month)\"}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"overtime units produced in month 1\",\"coef\":5},{\"var\":\"overtime units produced in month 2\",\"coef\":5},{\"var\":\"overtime units produced in month 3\",\"coef\":5},{\"var\":\"overtime units produced in month 4\",\"coef\":5},{\"var\":\"overtime units produced in month 5\",\"coef\":5},{\"var\":\"overtime units produced in month 6\",\"coef\":5},{\"var\":\"units in warehouse at end of month 1\",\"coef\":10},{\"var\":\"units in warehouse at end of month 2\",\"coef\":10},{\"var\":\"units in warehouse at end of month 3\",\"coef\":10},{\"var\":\"units in warehouse at end of month 4\",\"coef\":10},{\"var\":\"units in warehouse at end of month 5\",\"coef\":10},{\"var\":\"units in warehouse at end of month 6\",\"coef\":10},{\"var\":\"hires in month 1\",\"coef\":500},{\"var\":\"hires in month 2\",\"coef\":500},{\"var\":\"hires in month 3\",\"coef\":500},{\"var\":\"hires in month 4\",\"coef\":500},{\"var\":\"hires in month 5\",\"coef\":500},{\"var\":\"hires in month 6\",\"coef\":500},{\"var\":\"layoffs in month 1\",\"coef\":700},{\"var\":\"layoffs in month 2\",\"coef\":700},{\"var\":\"layoffs in month 3\",\"coef\":700},{\"var\":\"layoffs in month 4\",\"coef\":700},{\"var\":\"layoffs in month 5\",\"coef\":700},{\"var\":\"layoffs in month 6\",\"coef\":700}],\"quote\":\"unit cost of 5 euros; 10 euros per unit per month; hiring cost of 500 euros per person and a layoff cost of 700 euros per person\"},\"requirements\":[{\"quote\":\"has 40 workers\",\"terms\":[{\"var\":\"workers employed in month 1\",\"coef\":1},{\"var\":\"hires in month 1\",\"coef\":-1},{\"var\":\"layoffs in month 1\",\"coef\":1}],\"sense\":\"==\",\"rhs\":40,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"hire or lay off employees\",\"terms\":[{\"var\":\"workers employed in month 2\",\"coef\":1},{\"var\":\"workers employed in month 1\",\"coef\":-1},{\"var\":\"hires in month 2\",\"coef\":-1},{\"var\":\"layoffs in month 2\",\"coef\":1}],\"sense\":\"==\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"hire or lay off employees\",\"terms\":[{\"var\":\"workers employed in month 3\",\"coef\":1},{\"var\":\"workers employed in month 2\",\"coef\":-1},{\"var\":\"hires in month 3\",\"coef\":-1},{\"var\":\"layoffs in month 3\",\"coef\":1}],\"sense\":\"==\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"hire or lay off employees\",\"terms\":[{\"var\":\"workers employed in month 4\",\"coef\":1},{\"var\":\"workers employed in month 3\",\"coef\":-1},{\"var\":\"hires in month 4\",\"coef\":-1},{\"var\":\"layoffs in month 4\",\"coef\":1}],\"sense\":\"==\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"hire or lay off employees\",\"terms\":[{\"var\":\"workers employed in month 5\",\"coef\":1},{\"var\":\"workers employed in month 4\",\"coef\":-1},{\"var\":\"hires in month 5\",\"coef\":-1},{\"var\":\"layoffs in month 5\",\"coef\":1}],\"sense\":\"==\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"hire or lay off employees\",\"terms\":[{\"var\":\"workers employed in month 6\",\"coef\":1},{\"var\":\"workers employed in month 5\",\"coef\":-1},{\"var\":\"hires in month 6\",\"coef\":-1},{\"var\":\"layoffs in month 6\",\"coef\":1}],\"sense\":\"==\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"Each worker produces 20 units per month; Demand (units) | 700\",\"terms\":[{\"var\":\"workers employed in month 1\",\"coef\":20},{\"var\":\"overtime units produced in month 1\",\"coef\":1},{\"var\":\"units in warehouse at end of month 1\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":700,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"Each worker produces 20 units per month; Demand (units) | 600\",\"terms\":[{\"var\":\"units in warehouse at end of month 1\",\"coef\":1},{\"var\":\"workers employed in month 2\",\"coef\":20},{\"var\":\"overtime units produced in month 2\",\"coef\":1},{\"var\":\"units in warehouse at end of month 2\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":600,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"Each worker produces 20 units per month; Demand (units) | 500\",\"terms\":[{\"var\":\"units in warehouse at end of month 2\",\"coef\":1},{\"var\":\"workers employed in month 3\",\"coef\":20},{\"var\":\"overtime units produced in month 3\",\"coef\":1},{\"var\":\"units in warehouse at end of month 3\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":500,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"Each worker produces 20 units per month; Demand (units) | 800\",\"terms\":[{\"var\":\"units in warehouse at end of month 3\",\"coef\":1},{\"var\":\"workers employed in month 4\",\"coef\":20},{\"var\":\"overtime units produced in month 4\",\"coef\":1},{\"var\":\"units in warehouse at end of month 4\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":800,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"Each worker produces 20 units per month; Demand (units) | 900\",\"terms\":[{\"var\":\"units in warehouse at end of month 4\",\"coef\":1},{\"var\":\"workers employed in month 5\",\"coef\":20},{\"var\":\"overtime units produced in month 5\",\"coef\":1},{\"var\":\"units in warehouse at end of month 5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":900,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"Each worker produces 20 units per month; Demand (units) | 800\",\"terms\":[{\"var\":\"units in warehouse at end of month 5\",\"coef\":1},{\"var\":\"workers employed in month 6\",\"coef\":20},{\"var\":\"overtime units produced in month 6\",\"coef\":1},{\"var\":\"units in warehouse at end of month 6\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":800,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"we require it to be empty at the end of the semester\",\"terms\":[{\"var\":\"units in warehouse at end of month 6\",\"coef\":1}],\"sense\":\"==\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"each worker can produce a maximum of 6 extra units per month (month 1)\",\"terms\":[{\"var\":\"overtime units produced in month 1\",\"coef\":1},{\"var\":\"workers employed in month 1\",\"coef\":-6}],\"sense\":\"<=\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"per item\"},{\"quote\":\"each worker can produce a maximum of 6 extra units per month (month 2)\",\"terms\":[{\"var\":\"overtime units produced in month 2\",\"coef\":1},{\"var\":\"workers employed in month 2\",\"coef\":-6}],\"sense\":\"<=\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"per item\"},{\"quote\":\"each worker can produce a maximum of 6 extra units per month (month 3)\",\"terms\":[{\"var\":\"overtime units produced in month 3\",\"coef\":1},{\"var\":\"workers employed in month 3\",\"coef\":-6}],\"sense\":\"<=\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"per item\"},{\"quote\":\"each worker can produce a maximum of 6 extra units per month (month 4)\",\"terms\":[{\"var\":\"overtime units produced in month 4\",\"coef\":1},{\"var\":\"workers employed in month 4\",\"coef\":-6}],\"sense\":\"<=\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"per item\"},{\"quote\":\"each worker can produce a maximum of 6 extra units per month (month 5)\",\"terms\":[{\"var\":\"overtime units produced in month 5\",\"coef\":1},{\"var\":\"workers employed in month 5\",\"coef\":-6}],\"sense\":\"<=\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"per item\"},{\"quote\":\"each worker can produce a maximum of 6 extra units per month (month 6)\",\"terms\":[{\"var\":\"overtime units produced in month 6\",\"coef\":1},{\"var\":\"workers employed in month 6\",\"coef\":-6}],\"sense\":\"<=\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"per item\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 1, upper)\",\"terms\":[{\"var\":\"workers employed in month 1\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":45,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 1, lower)\",\"terms\":[{\"var\":\"workers employed in month 1\",\"coef\":1}],\"sense\":\">=\",\"rhs\":35,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 2, upper)\",\"terms\":[{\"var\":\"workers employed in month 2\",\"coef\":1},{\"var\":\"workers employed in month 1\",\"coef\":-1}],\"sense\":\"<=\",\"rhs\":5,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 2, lower)\",\"terms\":[{\"var\":\"workers employed in month 2\",\"coef\":1},{\"var\":\"workers employed in month 1\",\"coef\":-1}],\"sense\":\">=\",\"rhs\":-5,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 3, upper)\",\"terms\":[{\"var\":\"workers employed in month 3\",\"coef\":1},{\"var\":\"workers employed in month 2\",\"coef\":-1}],\"sense\":\"<=\",\"rhs\":5,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 3, lower)\",\"terms\":[{\"var\":\"workers employed in month 3\",\"coef\":1},{\"var\":\"workers employed in month 2\",\"coef\":-1}],\"sense\":\">=\",\"rhs\":-5,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 4, upper)\",\"terms\":[{\"var\":\"workers employed in month 4\",\"coef\":1},{\"var\":\"workers employed in month 3\",\"coef\":-1}],\"sense\":\"<=\",\"rhs\":5,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 4, lower)\",\"terms\":[{\"var\":\"workers employed in month 4\",\"coef\":1},{\"var\":\"workers employed in month 3\",\"coef\":-1}],\"sense\":\">=\",\"rhs\":-5,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 5, upper)\",\"terms\":[{\"var\":\"workers employed in month 5\",\"coef\":1},{\"var\":\"workers employed in month 4\",\"coef\":-1}],\"sense\":\"<=\",\"rhs\":5,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 5, lower)\",\"terms\":[{\"var\":\"workers employed in month 5\",\"coef\":1},{\"var\":\"workers employed in month 4\",\"coef\":-1}],\"sense\":\">=\",\"rhs\":-5,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 6, upper)\",\"terms\":[{\"var\":\"workers employed in month 6\",\"coef\":1},{\"var\":\"workers employed in month 5\",\"coef\":-1}],\"sense\":\"<=\",\"rhs\":5,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"can vary by a maximum of ±5 per month (month 6, lower)\",\"terms\":[{\"var\":\"workers employed in month 6\",\"coef\":1},{\"var\":\"workers employed in month 5\",\"coef\":-1}],\"sense\":\">=\",\"rhs\":-5,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"}],\"not_requirements\":[],\"cannot_express\":[{\"quote\":\"maximize revenue\",\"needs\":\"selling price per unit (revenue), which the text does not give; the objective above is therefore modeled on the stated costs\"}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 3276,
+   "output_tokens": 10896,
+   "output_tokens_details": {
+    "thinking_tokens": 5219
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "855abe17dec8b4974980db9058bbedfcdc9654bb39240c180a69d7d6284e0be5",
+  "tries": 1,
+  "latency_s": 40.58228375000181,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 1
+}

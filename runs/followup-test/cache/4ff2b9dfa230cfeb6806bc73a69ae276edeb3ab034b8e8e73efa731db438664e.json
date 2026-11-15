@@ -1,0 +1,234 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA restaurant needs to order tables from three different suppliers, A, B, and C. The cost of ordering each table from supplier A is $120, from supplier B is $110, and from supplier C is $100. The restaurant wants to minimize the total cost of the orders.\n\nIn addition, each order from supplier A will include 20 tables, while orders from suppliers B and C will include 15 tables each. The quantity of orders can only be whole numbers. The restaurant needs to order at least 150 tables.\n\nEach order from supplier A will include 20 tables, while orders from suppliers B and C will include 15 tables each. The restaurant needs to order a maximum of 600 tables.\n\nIf the restaurant decides to order tables from supplier A, it must also order at least 30 tables from supplier B.\n\nFurthermore, if the restaurant decides to order tables from supplier B, it must also order tables from supplier C.\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"supplier A orders\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"supplier B orders\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"supplier C orders\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"supplier A used indicator\",\"lower\":0,\"upper\":1,\"integer\":true},{\"name\":\"supplier B used indicator\",\"lower\":0,\"upper\":1,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"supplier A orders\",\"coef\":2400},{\"var\":\"supplier B orders\",\"coef\":1650},{\"var\":\"supplier C orders\",\"coef\":1500}]},\"constraints\":[{\"name\":\"minimum tables\",\"terms\":[{\"var\":\"supplier A orders\",\"coef\":20},{\"var\":\"supplier B orders\",\"coef\":15},{\"var\":\"supplier C orders\",\"coef\":15}],\"sense\":\">=\",\"rhs\":150},{\"name\":\"maximum tables\",\"terms\":[{\"var\":\"supplier A orders\",\"coef\":20},{\"var\":\"supplier B orders\",\"coef\":15},{\"var\":\"supplier C orders\",\"coef\":15}],\"sense\":\"<=\",\"rhs\":600},{\"name\":\"A requires 30 B tables\",\"terms\":[{\"var\":\"supplier B orders\",\"coef\":15},{\"var\":\"supplier A used indicator\",\"coef\":-30}],\"sense\":\">=\",\"rhs\":0},{\"name\":\"A order link\",\"terms\":[{\"var\":\"supplier A orders\",\"coef\":1},{\"var\":\"supplier A used indicator\",\"coef\":-30}],\"sense\":\"<=\",\"rhs\":0},{\"name\":\"B order link\",\"terms\":[{\"var\":\"supplier B orders\",\"coef\":1},{\"var\":\"supplier B used indicator\",\"coef\":-40}],\"sense\":\"<=\",\"rhs\":0},{\"name\":\"B requires C\",\"terms\":[{\"var\":\"supplier C orders\",\"coef\":1},{\"var\":\"supplier B used indicator\",\"coef\":-1}],\"sense\":\">=\",\"rhs\":0}]}\n</previous_model>\n\n<feedback>\nA separate check of your model against the problem text found these possible differences:\n- extra: the model's constraint 'A order link' (1*supplier A orders - 30*supplier A used indicator <= 0) is not among the requirements (your row: constraint 'A order link')\n- extra: the model's constraint 'B order link' (1*supplier B orders - 40*supplier B used indicator <= 0) is not among the requirements (your row: constraint 'B order link')\nFix each one that is a real error in your model. A flag can be wrong: keep anything the problem text supports, and don't add a requirement the text doesn't state.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3ycHBehUDCNR8u8AwmS",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"supplier A orders\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"supplier B orders\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"supplier C orders\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"supplier A used indicator\",\"lower\":0,\"upper\":1,\"integer\":true},{\"name\":\"supplier B used indicator\",\"lower\":0,\"upper\":1,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"supplier A orders\",\"coef\":2400},{\"var\":\"supplier B orders\",\"coef\":1650},{\"var\":\"supplier C orders\",\"coef\":1500}]},\"constraints\":[{\"name\":\"minimum tables\",\"terms\":[{\"var\":\"supplier A orders\",\"coef\":20},{\"var\":\"supplier B orders\",\"coef\":15},{\"var\":\"supplier C orders\",\"coef\":15}],\"sense\":\">=\",\"rhs\":150},{\"name\":\"maximum tables\",\"terms\":[{\"var\":\"supplier A orders\",\"coef\":20},{\"var\":\"supplier B orders\",\"coef\":15},{\"var\":\"supplier C orders\",\"coef\":15}],\"sense\":\"<=\",\"rhs\":600},{\"name\":\"A requires 30 B tables\",\"terms\":[{\"var\":\"supplier B orders\",\"coef\":15},{\"var\":\"supplier A used indicator\",\"coef\":-30}],\"sense\":\">=\",\"rhs\":0},{\"name\":\"A order link\",\"terms\":[{\"var\":\"supplier A orders\",\"coef\":1},{\"var\":\"supplier A used indicator\",\"coef\":-30}],\"sense\":\"<=\",\"rhs\":0},{\"name\":\"B order link\",\"terms\":[{\"var\":\"supplier B orders\",\"coef\":1},{\"var\":\"supplier B used indicator\",\"coef\":-40}],\"sense\":\"<=\",\"rhs\":0},{\"name\":\"B requires C\",\"terms\":[{\"var\":\"supplier C orders\",\"coef\":1},{\"var\":\"supplier B used indicator\",\"coef\":-1}],\"sense\":\">=\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2770,
+   "output_tokens": 1929,
+   "output_tokens_details": {
+    "thinking_tokens": 1265
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "f957bdbd629cf34dd2bdbca15ca3c93e65068b44baea135a516842a830980209",
+  "tries": 1,
+  "latency_s": 8.283131124975625,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 1
+}

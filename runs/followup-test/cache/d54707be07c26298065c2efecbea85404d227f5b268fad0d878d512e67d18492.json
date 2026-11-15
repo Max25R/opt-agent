@@ -1,0 +1,234 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nHaus Toys can manufacture and sell toy trucks, toy planes, toy boats, and toy trains. The profit from selling one truck is $5, from one plane is $10, from one boat is $8, and from one train is $7. How many types of toys should Haus Toys manufacture to maximize profit?\n\nThere are 890 units of wood available. Manufacturing one truck requires 12 units of wood, one plane requires 20 units of wood, one boat requires 15 units of wood, and one train requires 10 units of wood.\n\nThere are 500 units of steel available. Manufacturing one plane requires 3 units of steel, one boat requires 5 units of steel, one train requires 4 units of steel, and one truck requires 6 units of steel.\n\nIf Haus Toys manufactures trucks, then they will not manufacture trains.\n\nHowever, if they manufacture boats, they will also manufacture planes.\n\nThe number of toy boats manufactured cannot exceed the number of toy trains manufactured.\n</problem>\n\n<previous_model>\n{\"variables\":[{\"name\":\"trucks\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"planes\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"boats\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"trains\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"truck_indicator\",\"lower\":0,\"upper\":1,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"trucks\",\"coef\":5},{\"var\":\"planes\",\"coef\":10},{\"var\":\"boats\",\"coef\":8},{\"var\":\"trains\",\"coef\":7}]},\"constraints\":[{\"name\":\"wood\",\"terms\":[{\"var\":\"trucks\",\"coef\":12},{\"var\":\"planes\",\"coef\":20},{\"var\":\"boats\",\"coef\":15},{\"var\":\"trains\",\"coef\":10}],\"sense\":\"<=\",\"rhs\":890},{\"name\":\"steel\",\"terms\":[{\"var\":\"trucks\",\"coef\":6},{\"var\":\"planes\",\"coef\":3},{\"var\":\"boats\",\"coef\":5},{\"var\":\"trains\",\"coef\":4}],\"sense\":\"<=\",\"rhs\":500},{\"name\":\"trucks_imply_indicator\",\"terms\":[{\"var\":\"trucks\",\"coef\":1},{\"var\":\"truck_indicator\",\"coef\":-890}],\"sense\":\"<=\",\"rhs\":0},{\"name\":\"indicator_forbids_trains_when_trucks\",\"terms\":[{\"var\":\"trains\",\"coef\":1},{\"var\":\"truck_indicator\",\"coef\":890}],\"sense\":\"<=\",\"rhs\":890},{\"name\":\"boats_require_planes\",\"terms\":[{\"var\":\"boats\",\"coef\":1},{\"var\":\"planes\",\"coef\":-890}],\"sense\":\"<=\",\"rhs\":0},{\"name\":\"boats_not_exceed_trains\",\"terms\":[{\"var\":\"boats\",\"coef\":1},{\"var\":\"trains\",\"coef\":-1}],\"sense\":\"<=\",\"rhs\":0}]}\n</previous_model>\n\n<feedback>\nA separate check of your model against the problem text found these possible differences:\n- extra: the model's constraint 'boats_require_planes' (1*boats - 890*planes <= 0) is not among the requirements (your row: constraint 'boats_require_planes')\nFix each one that is a real error in your model. A flag can be wrong: keep anything the problem text supports, and don't add a requirement the text doesn't state.\n</feedback>\n\nReturn a corrected model. If you're sure the previous model already says what the problem says, return it unchanged."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3o5h3KTv6rLkjCXArtx",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"trucks\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"planes\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"boats\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"trains\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"truck_indicator\",\"lower\":0,\"upper\":1,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"trucks\",\"coef\":5},{\"var\":\"planes\",\"coef\":10},{\"var\":\"boats\",\"coef\":8},{\"var\":\"trains\",\"coef\":7}]},\"constraints\":[{\"name\":\"wood\",\"terms\":[{\"var\":\"trucks\",\"coef\":12},{\"var\":\"planes\",\"coef\":20},{\"var\":\"boats\",\"coef\":15},{\"var\":\"trains\",\"coef\":10}],\"sense\":\"<=\",\"rhs\":890},{\"name\":\"steel\",\"terms\":[{\"var\":\"trucks\",\"coef\":6},{\"var\":\"planes\",\"coef\":3},{\"var\":\"boats\",\"coef\":5},{\"var\":\"trains\",\"coef\":4}],\"sense\":\"<=\",\"rhs\":500},{\"name\":\"trucks_imply_indicator\",\"terms\":[{\"var\":\"trucks\",\"coef\":1},{\"var\":\"truck_indicator\",\"coef\":-890}],\"sense\":\"<=\",\"rhs\":0},{\"name\":\"indicator_forbids_trains_when_trucks\",\"terms\":[{\"var\":\"trains\",\"coef\":1},{\"var\":\"truck_indicator\",\"coef\":890}],\"sense\":\"<=\",\"rhs\":890},{\"name\":\"boats_require_planes\",\"terms\":[{\"var\":\"boats\",\"coef\":1},{\"var\":\"planes\",\"coef\":-890}],\"sense\":\"<=\",\"rhs\":0},{\"name\":\"boats_not_exceed_trains\",\"terms\":[{\"var\":\"boats\",\"coef\":1},{\"var\":\"trains\",\"coef\":-1}],\"sense\":\"<=\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2709,
+   "output_tokens": 1605,
+   "output_tokens_details": {
+    "thinking_tokens": 967
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "1730e3be00e73a3209d5450be37ead352b659c0a931390c9b53266dae205b0e6",
+  "tries": 1,
+  "latency_s": 6.954220500017982,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 2
+}

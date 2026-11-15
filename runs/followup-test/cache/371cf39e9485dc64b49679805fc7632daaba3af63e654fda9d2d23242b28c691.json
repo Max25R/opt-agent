@@ -1,0 +1,234 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine a futuristic transportation network connecting 9 major hubs across a sprawling metropolis, each designed to swiftly move resources from the main distribution center to a critical operations base. This network is meticulously engineered with roads of varying capacities, ensuring the smooth flow of essential supplies.\n\nThe city's network is as follows, with each road's capacity measured in thousands of units of resources that can be transported per hour:\n\n- From Hub 0 (Source): Roads lead to Hub 1 (4 units), Hub 2 (7 units), Hub 3 (15 units), Hub 4 (4 units), Hub 5 (7 units), Hub 6 (2 units), Hub 7 (10 units), and Hub 8 (12 units).\n- From Hub 1: Roads lead to Hub 2 (17 units), Hub 3 (2 units), Hub 4 (5 units), Hub 5 (1 unit), Hub 6 (10 units), Hub 7 (14 units), and Hub 8 (5 units).\n- From Hub 2: Roads lead to Hub 1 (7 units), Hub 3 (17 units), Hub 4 (9 units), Hub 5 (13 units), Hub 6 (10 units), Hub 7 (7 units), and Hub 8 (5 units).\n- From Hub 3: Roads lead to Hub 1 (16 units), Hub 2 (4 units), Hub 4 (11 units), Hub 5 (9 units), Hub 6 (12 units), Hub 7 (18 units), and Hub 8 (12 units).\n- From Hub 4: Roads lead to Hub 1 (3 units), Hub 2 (0 units), Hub 3 (18 units), Hub 5 (5 units), Hub 6 (2 units), and Hub 8 (19 units).\n- From Hub 5: Roads lead to Hub 1 (15 units), Hub 2 (7 units), Hub 3 (20 units), Hub 4 (20 units), Hub 6 (20 units), Hub 7 (12 units), and Hub 8 (9 units).\n- From Hub 6: Roads lead to Hub 1 (8 units), Hub 2 (14 units), Hub 3 (13 units), Hub 4 (1 unit), Hub 5 (17 units), Hub 7 (10 units), and Hub 8 (19 units).\n- From Hub 7: Roads lead to Hub 1 (5 units), Hub 2 (5 units), Hub 3 (16 units), Hub 4 (5 units), Hub 5 (7 units), Hub 6 (3 units), and Hub 8 (19 units).\n- From Hub 8 (Destination): Roads lead back to Hub 1 (19 units), Hub 2 (18 units), Hub 3 (0 units), Hub 4 (4 units), Hub 5 (7 units), Hub 6 (1 unit), and Hub 7 (20 units).\n\nA capacity of \"0\" indicates that there is no direct road connecting those two hubs.\n\nThis complex system has been designed with an aim to maximize the resources transported from Hub 0, the primary distribution center, to Hub 8, the critical operations base, without exceeding the capacity of the roads connecting these hubs.\n\nThe challenge: What is the maximum amount of resources, in thousands of units, that can be transported from the primary distribution center (Hub 0) to the critical operations base (Hub 8) per hour?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3mb6zoe2zmqMT29cKdM",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"hub0_to_hub1\",\"upper\":4},{\"name\":\"hub0_to_hub2\",\"upper\":7},{\"name\":\"hub0_to_hub3\",\"upper\":15},{\"name\":\"hub0_to_hub4\",\"upper\":4},{\"name\":\"hub0_to_hub5\",\"upper\":7},{\"name\":\"hub0_to_hub6\",\"upper\":2},{\"name\":\"hub0_to_hub7\",\"upper\":10},{\"name\":\"hub0_to_hub8\",\"upper\":12},{\"name\":\"hub1_to_hub2\",\"upper\":17},{\"name\":\"hub1_to_hub3\",\"upper\":2},{\"name\":\"hub1_to_hub4\",\"upper\":5},{\"name\":\"hub1_to_hub5\",\"upper\":1},{\"name\":\"hub1_to_hub6\",\"upper\":10},{\"name\":\"hub1_to_hub7\",\"upper\":14},{\"name\":\"hub1_to_hub8\",\"upper\":5},{\"name\":\"hub2_to_hub1\",\"upper\":7},{\"name\":\"hub2_to_hub3\",\"upper\":17},{\"name\":\"hub2_to_hub4\",\"upper\":9},{\"name\":\"hub2_to_hub5\",\"upper\":13},{\"name\":\"hub2_to_hub6\",\"upper\":10},{\"name\":\"hub2_to_hub7\",\"upper\":7},{\"name\":\"hub2_to_hub8\",\"upper\":5},{\"name\":\"hub3_to_hub1\",\"upper\":16},{\"name\":\"hub3_to_hub2\",\"upper\":4},{\"name\":\"hub3_to_hub4\",\"upper\":11},{\"name\":\"hub3_to_hub5\",\"upper\":9},{\"name\":\"hub3_to_hub6\",\"upper\":12},{\"name\":\"hub3_to_hub7\",\"upper\":18},{\"name\":\"hub3_to_hub8\",\"upper\":12},{\"name\":\"hub4_to_hub1\",\"upper\":3},{\"name\":\"hub4_to_hub3\",\"upper\":18},{\"name\":\"hub4_to_hub5\",\"upper\":5},{\"name\":\"hub4_to_hub6\",\"upper\":2},{\"name\":\"hub4_to_hub8\",\"upper\":19},{\"name\":\"hub5_to_hub1\",\"upper\":15},{\"name\":\"hub5_to_hub2\",\"upper\":7},{\"name\":\"hub5_to_hub3\",\"upper\":20},{\"name\":\"hub5_to_hub4\",\"upper\":20},{\"name\":\"hub5_to_hub6\",\"upper\":20},{\"name\":\"hub5_to_hub7\",\"upper\":12},{\"name\":\"hub5_to_hub8\",\"upper\":9},{\"name\":\"hub6_to_hub1\",\"upper\":8},{\"name\":\"hub6_to_hub2\",\"upper\":14},{\"name\":\"hub6_to_hub3\",\"upper\":13},{\"name\":\"hub6_to_hub4\",\"upper\":1},{\"name\":\"hub6_to_hub5\",\"upper\":17},{\"name\":\"hub6_to_hub7\",\"upper\":10},{\"name\":\"hub6_to_hub8\",\"upper\":19},{\"name\":\"hub7_to_hub1\",\"upper\":5},{\"name\":\"hub7_to_hub2\",\"upper\":5},{\"name\":\"hub7_to_hub3\",\"upper\":16},{\"name\":\"hub7_to_hub4\",\"upper\":5},{\"name\":\"hub7_to_hub5\",\"upper\":7},{\"name\":\"hub7_to_hub6\",\"upper\":3},{\"name\":\"hub7_to_hub8\",\"upper\":19}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"hub0_to_hub8\",\"coef\":1},{\"var\":\"hub1_to_hub8\",\"coef\":1},{\"var\":\"hub2_to_hub8\",\"coef\":1},{\"var\":\"hub3_to_hub8\",\"coef\":1},{\"var\":\"hub4_to_hub8\",\"coef\":1},{\"var\":\"hub5_to_hub8\",\"coef\":1},{\"var\":\"hub6_to_hub8\",\"coef\":1},{\"var\":\"hub7_to_hub8\",\"coef\":1}]},\"constraints\":[{\"name\":\"conservation_hub1\",\"terms\":[{\"var\":\"hub0_to_hub1\",\"coef\":1},{\"var\":\"hub2_to_hub1\",\"coef\":1},{\"var\":\"hub3_to_hub1\",\"coef\":1},{\"var\":\"hub4_to_hub1\",\"coef\":1},{\"var\":\"hub5_to_hub1\",\"coef\":1},{\"var\":\"hub6_to_hub1\",\"coef\":1},{\"var\":\"hub7_to_hub1\",\"coef\":1},{\"var\":\"hub1_to_hub2\",\"coef\":-1},{\"var\":\"hub1_to_hub3\",\"coef\":-1},{\"var\":\"hub1_to_hub4\",\"coef\":-1},{\"var\":\"hub1_to_hub5\",\"coef\":-1},{\"var\":\"hub1_to_hub6\",\"coef\":-1},{\"var\":\"hub1_to_hub7\",\"coef\":-1},{\"var\":\"hub1_to_hub8\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation_hub2\",\"terms\":[{\"var\":\"hub0_to_hub2\",\"coef\":1},{\"var\":\"hub1_to_hub2\",\"coef\":1},{\"var\":\"hub3_to_hub2\",\"coef\":1},{\"var\":\"hub5_to_hub2\",\"coef\":1},{\"var\":\"hub6_to_hub2\",\"coef\":1},{\"var\":\"hub7_to_hub2\",\"coef\":1},{\"var\":\"hub2_to_hub1\",\"coef\":-1},{\"var\":\"hub2_to_hub3\",\"coef\":-1},{\"var\":\"hub2_to_hub4\",\"coef\":-1},{\"var\":\"hub2_to_hub5\",\"coef\":-1},{\"var\":\"hub2_to_hub6\",\"coef\":-1},{\"var\":\"hub2_to_hub7\",\"coef\":-1},{\"var\":\"hub2_to_hub8\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation_hub3\",\"terms\":[{\"var\":\"hub0_to_hub3\",\"coef\":1},{\"var\":\"hub1_to_hub3\",\"coef\":1},{\"var\":\"hub2_to_hub3\",\"coef\":1},{\"var\":\"hub4_to_hub3\",\"coef\":1},{\"var\":\"hub5_to_hub3\",\"coef\":1},{\"var\":\"hub6_to_hub3\",\"coef\":1},{\"var\":\"hub7_to_hub3\",\"coef\":1},{\"var\":\"hub3_to_hub1\",\"coef\":-1},{\"var\":\"hub3_to_hub2\",\"coef\":-1},{\"var\":\"hub3_to_hub4\",\"coef\":-1},{\"var\":\"hub3_to_hub5\",\"coef\":-1},{\"var\":\"hub3_to_hub6\",\"coef\":-1},{\"var\":\"hub3_to_hub7\",\"coef\":-1},{\"var\":\"hub3_to_hub8\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation_hub4\",\"terms\":[{\"var\":\"hub0_to_hub4\",\"coef\":1},{\"var\":\"hub1_to_hub4\",\"coef\":1},{\"var\":\"hub2_to_hub4\",\"coef\":1},{\"var\":\"hub3_to_hub4\",\"coef\":1},{\"var\":\"hub5_to_hub4\",\"coef\":1},{\"var\":\"hub6_to_hub4\",\"coef\":1},{\"var\":\"hub7_to_hub4\",\"coef\":1},{\"var\":\"hub4_to_hub1\",\"coef\":-1},{\"var\":\"hub4_to_hub3\",\"coef\":-1},{\"var\":\"hub4_to_hub5\",\"coef\":-1},{\"var\":\"hub4_to_hub6\",\"coef\":-1},{\"var\":\"hub4_to_hub8\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation_hub5\",\"terms\":[{\"var\":\"hub0_to_hub5\",\"coef\":1},{\"var\":\"hub1_to_hub5\",\"coef\":1},{\"var\":\"hub2_to_hub5\",\"coef\":1},{\"var\":\"hub3_to_hub5\",\"coef\":1},{\"var\":\"hub4_to_hub5\",\"coef\":1},{\"var\":\"hub6_to_hub5\",\"coef\":1},{\"var\":\"hub7_to_hub5\",\"coef\":1},{\"var\":\"hub5_to_hub1\",\"coef\":-1},{\"var\":\"hub5_to_hub2\",\"coef\":-1},{\"var\":\"hub5_to_hub3\",\"coef\":-1},{\"var\":\"hub5_to_hub4\",\"coef\":-1},{\"var\":\"hub5_to_hub6\",\"coef\":-1},{\"var\":\"hub5_to_hub7\",\"coef\":-1},{\"var\":\"hub5_to_hub8\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation_hub6\",\"terms\":[{\"var\":\"hub0_to_hub6\",\"coef\":1},{\"var\":\"hub1_to_hub6\",\"coef\":1},{\"var\":\"hub2_to_hub6\",\"coef\":1},{\"var\":\"hub3_to_hub6\",\"coef\":1},{\"var\":\"hub4_to_hub6\",\"coef\":1},{\"var\":\"hub5_to_hub6\",\"coef\":1},{\"var\":\"hub7_to_hub6\",\"coef\":1},{\"var\":\"hub6_to_hub1\",\"coef\":-1},{\"var\":\"hub6_to_hub2\",\"coef\":-1},{\"var\":\"hub6_to_hub3\",\"coef\":-1},{\"var\":\"hub6_to_hub4\",\"coef\":-1},{\"var\":\"hub6_to_hub5\",\"coef\":-1},{\"var\":\"hub6_to_hub7\",\"coef\":-1},{\"var\":\"hub6_to_hub8\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation_hub7\",\"terms\":[{\"var\":\"hub0_to_hub7\",\"coef\":1},{\"var\":\"hub1_to_hub7\",\"coef\":1},{\"var\":\"hub2_to_hub7\",\"coef\":1},{\"var\":\"hub3_to_hub7\",\"coef\":1},{\"var\":\"hub5_to_hub7\",\"coef\":1},{\"var\":\"hub6_to_hub7\",\"coef\":1},{\"var\":\"hub7_to_hub1\",\"coef\":-1},{\"var\":\"hub7_to_hub2\",\"coef\":-1},{\"var\":\"hub7_to_hub3\",\"coef\":-1},{\"var\":\"hub7_to_hub4\",\"coef\":-1},{\"var\":\"hub7_to_hub5\",\"coef\":-1},{\"var\":\"hub7_to_hub6\",\"coef\":-1},{\"var\":\"hub7_to_hub8\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2702,
+   "output_tokens": 6962,
+   "output_tokens_details": {
+    "thinking_tokens": 3523
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "d0a29879abdc777de7d114dc45e9bde328733f94f7dd80db35ad2d006e2f1462",
+  "tries": 1,
+  "latency_s": 23.140097375027835,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 1
+}

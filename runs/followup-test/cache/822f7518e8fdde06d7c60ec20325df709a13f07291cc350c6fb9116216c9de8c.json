@@ -1,0 +1,234 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "A factory produces three products, I, II, and III. Each product goes through two processing procedures, A and B. The factory has two types of equipment, A1 and A2, to complete procedure A, and three types of equipment, B1, B2, and B3, to complete procedure B. Product I can be processed on either type of A equipment or any type of B equipment. Product II can be processed on any type of A equipment, but when completing procedure B, it can only be processed on B1 equipment. Product III can only be processed on A2 and B2 equipment. Given the processing time, raw material cost, product selling price, available equipment operating time, and equipment cost at full load for each type of equipment, as shown in Table 1-4, determine the optimal production plan to maximize profit.\n\nTable 1-4\n\\begin{tabular}{|c|c|c|c|c|c|}\n\\hline \\multirow{2}{*}{ Equipment } & \\multicolumn{3}{|c|}{ Product } & \\multirow{2}{*}{ Available Equipment Operating Time } & \\multirow{2}{*}{ Equipment Cost at Full Load (in yuan) } \\\\\n\\cline { 2 - 4 } & I & II & III & & \\\\\n\\hline$A_1$ & 5 & 10 & & 6000 & 300 \\\\\n\\hline$A_2$ & 7 & 9 & 12 & 10000 & 321 \\\\\n\\hline$B_1$ & 6 & 8 & & 4000 & 250 \\\\\n\\hline$B_2$ & 4 & & 11 & 7000 & 783 \\\\\n\\hline$B_3$ & 7 & & & 4000 & 200 \\\\\n\\hline Raw Material Cost (in yuan per unit) & 0.25 & 0.35 & 0.50 & & \\\\\n\\hline Unit Price (in yuan per unit) & 1.25 & 2.00 & 2.80 & & \\\\\n\\hline\n\\end{tabular}"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3xMLJPgrhp5SXnmsNRm",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"product I units processed on A1 then B1\",\"lower\":0,\"integer\":true},{\"name\":\"product I units processed on A1 then B2\",\"lower\":0,\"integer\":true},{\"name\":\"product I units processed on A1 then B3\",\"lower\":0,\"integer\":true},{\"name\":\"product I units processed on A2 then B1\",\"lower\":0,\"integer\":true},{\"name\":\"product I units processed on A2 then B2\",\"lower\":0,\"integer\":true},{\"name\":\"product I units processed on A2 then B3\",\"lower\":0,\"integer\":true},{\"name\":\"product II units processed on A1 then B1\",\"lower\":0,\"integer\":true},{\"name\":\"product II units processed on A2 then B1\",\"lower\":0,\"integer\":true},{\"name\":\"product III units processed on A2 then B2\",\"lower\":0,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"product I units processed on A1 then B1\",\"coef\":0.375},{\"var\":\"product I units processed on A1 then B2\",\"coef\":0.3025714285714286},{\"var\":\"product I units processed on A1 then B3\",\"coef\":0.4},{\"var\":\"product I units processed on A2 then B1\",\"coef\":0.4003},{\"var\":\"product I units processed on A2 then B2\",\"coef\":0.3278714285714286},{\"var\":\"product I units processed on A2 then B3\",\"coef\":0.4253},{\"var\":\"product II units processed on A1 then B1\",\"coef\":0.65},{\"var\":\"product II units processed on A2 then B1\",\"coef\":0.8611},{\"var\":\"product III units processed on A2 then B2\",\"coef\":0.6843714285714286}]},\"constraints\":[{\"name\":\"A1 operating time\",\"terms\":[{\"var\":\"product I units processed on A1 then B1\",\"coef\":5},{\"var\":\"product I units processed on A1 then B2\",\"coef\":5},{\"var\":\"product I units processed on A1 then B3\",\"coef\":5},{\"var\":\"product II units processed on A1 then B1\",\"coef\":10}],\"sense\":\"<=\",\"rhs\":6000},{\"name\":\"A2 operating time\",\"terms\":[{\"var\":\"product I units processed on A2 then B1\",\"coef\":7},{\"var\":\"product I units processed on A2 then B2\",\"coef\":7},{\"var\":\"product I units processed on A2 then B3\",\"coef\":7},{\"var\":\"product II units processed on A2 then B1\",\"coef\":9},{\"var\":\"product III units processed on A2 then B2\",\"coef\":12}],\"sense\":\"<=\",\"rhs\":10000},{\"name\":\"B1 operating time\",\"terms\":[{\"var\":\"product I units processed on A1 then B1\",\"coef\":6},{\"var\":\"product I units processed on A2 then B1\",\"coef\":6},{\"var\":\"product II units processed on A1 then B1\",\"coef\":8},{\"var\":\"product II units processed on A2 then B1\",\"coef\":8}],\"sense\":\"<=\",\"rhs\":4000},{\"name\":\"B2 operating time\",\"terms\":[{\"var\":\"product I units processed on A1 then B2\",\"coef\":4},{\"var\":\"product I units processed on A2 then B2\",\"coef\":4},{\"var\":\"product III units processed on A2 then B2\",\"coef\":11}],\"sense\":\"<=\",\"rhs\":7000},{\"name\":\"B3 operating time\",\"terms\":[{\"var\":\"product I units processed on A1 then B3\",\"coef\":7},{\"var\":\"product I units processed on A2 then B3\",\"coef\":7}],\"sense\":\"<=\",\"rhs\":4000}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2191,
+   "output_tokens": 3941,
+   "output_tokens_details": {
+    "thinking_tokens": 2828
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "9de6b9b884716e1ed24b047134b6fc900442c74f24c2142a0089641027f7282b",
+  "tries": 1,
+  "latency_s": 16.791279707977083,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 1
+}

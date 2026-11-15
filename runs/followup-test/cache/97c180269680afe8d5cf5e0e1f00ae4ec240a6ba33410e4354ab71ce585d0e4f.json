@@ -1,0 +1,316 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are checking an operations research model before it is solved. Read the word problem and list what any correct formulation of it must contain. Don't write the model, and don't solve the problem.\n\nThe model's decision variables are listed by name in <variables>. Use exactly those names and no others. If a requirement needs a quantity that isn't one of them, put it in cannot_express instead.\n\n- variables: for each listed name, say whether it counts whole things (\"integer\": vehicles, trips, people, products, servings), measures a divisible quantity (\"continuous\": kilograms, acres, hours, money), or the text supports both (\"unclear\"). Quote the words that decide it.\n- objective: its direction (min or max) and its terms over the listed names, with the numbers exactly as given. Quote the words it comes from.\n- requirements: every requirement the text states, as a linear inequality or equation over the listed names. Use the numbers exactly as given, and write percentages as fractions (30% as 0.3). Quote the exact words each one comes from.\n  - strict: true if the wording is strict (\"more than\", \"must exceed\", \"fewer than\"); still write it with >= or <=.\n  - could_be_equal: true if the wording names no inequality at all (\"twice as many as\", \"three times the number of\"), so \"=\" would be a fair reading too.\n  - scope: \"combined\" if one limit covers several items together, \"per item\" if it applies to each item separately, \"single\" if it involves one quantity. Decide this from the text: \"at most 50 cakes of either type\" may be one total or one limit per type, so quote why.\n  - Leave out non-negativity, unless the text says a quantity can be negative.\n- not_requirements: every sentence that states a preference, a motivation, popularity, or background rather than a requirement (\"prefers\", \"is more popular\", \"would like\", \"sells better\"), with its quote, why it isn't a requirement, and the inequality someone might wrongly make of it (empty terms if there's none). Never turn one of these into a requirement.\n- cannot_express: each requirement that needs a quantity not among the listed names, with its quote and the quantity it needs.\n- Don't add anything the text doesn't state.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nA toy company manufactures three types of tabletop golf toy, each requiring different manufacturing techniques. The advanced type requires 17 hours of processing and assembly labor, 8 hours of inspection, and a profit of 300 yuan per unit. The intermediate type requires 10 hours of labor, 4 hours of inspection, and a profit of 200 yuan. The basic type requires 2 hours of labor, 2 hours of inspection, and a profit of 100 yuan. There are 1000 hours of processing labor and 500 hours of inspection available. Furthermore, market forecasts indicate that the demand for the advanced type does not exceed 50 units, for the intermediate type does not exceed 80 units, and for the basic type does not exceed 150 units. Determine the company's production plan to maximize profit.\n</problem>\n\n<variables>\nadvanced_toys_produced\nintermediate_toys_produced\nbasic_toys_produced\n</variables>"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "CannotExpress": {
+       "type": "object",
+       "title": "CannotExpress",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "needs": {
+         "type": "string",
+         "title": "Needs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "needs"
+       ]
+      },
+      "ChecklistObjective": {
+       "type": "object",
+       "title": "ChecklistObjective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms",
+        "quote"
+       ]
+      },
+      "ChecklistTerm": {
+       "type": "object",
+       "title": "ChecklistTerm",
+       "properties": {
+        "var": {
+         "type": "string",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "ChecklistVariable": {
+       "type": "object",
+       "title": "ChecklistVariable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "title": "Name"
+        },
+        "kind": {
+         "type": "string",
+         "enum": [
+          "integer",
+          "continuous",
+          "unclear"
+         ],
+         "title": "Kind"
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "kind",
+        "quote"
+       ]
+      },
+      "NotARequirement": {
+       "type": "object",
+       "title": "NotARequirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "why": {
+         "type": "string",
+         "title": "Why"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "why",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Requirement": {
+       "type": "object",
+       "title": "Requirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        },
+        "strict": {
+         "type": "boolean",
+         "title": "Strict"
+        },
+        "could_be_equal": {
+         "type": "boolean",
+         "title": "Could Be Equal"
+        },
+        "scope": {
+         "type": "string",
+         "enum": [
+          "single",
+          "combined",
+          "per item"
+         ],
+         "title": "Scope"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "terms",
+        "sense",
+        "rhs",
+        "strict",
+        "could_be_equal",
+        "scope"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "Checklist",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/ChecklistVariable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/ChecklistObjective"
+      },
+      "requirements": {
+       "type": "array",
+       "title": "Requirements",
+       "items": {
+        "$ref": "#/$defs/Requirement"
+       }
+      },
+      "not_requirements": {
+       "type": "array",
+       "title": "Not Requirements",
+       "items": {
+        "$ref": "#/$defs/NotARequirement"
+       }
+      },
+      "cannot_express": {
+       "type": "array",
+       "title": "Cannot Express",
+       "items": {
+        "$ref": "#/$defs/CannotExpress"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "requirements",
+      "not_requirements",
+      "cannot_express"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3H7v9RhGRHqDkMigSqw",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"advanced_toys_produced\",\"kind\":\"integer\",\"quote\":\"demand for the advanced type does not exceed 50 units\"},{\"name\":\"intermediate_toys_produced\",\"kind\":\"integer\",\"quote\":\"demand for the intermediate type does not exceed 80 units\"},{\"name\":\"basic_toys_produced\",\"kind\":\"integer\",\"quote\":\"demand for the basic type does not exceed 150 units\"}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"advanced_toys_produced\",\"coef\":300},{\"var\":\"intermediate_toys_produced\",\"coef\":200},{\"var\":\"basic_toys_produced\",\"coef\":100}],\"quote\":\"a profit of 300 yuan per unit ... a profit of 200 yuan ... a profit of 100 yuan ... Determine the company's production plan to maximize profit\"},\"requirements\":[{\"quote\":\"The advanced type requires 17 hours of processing and assembly labor ... intermediate type requires 10 hours of labor ... basic type requires 2 hours of labor ... There are 1000 hours of processing labor\",\"terms\":[{\"var\":\"advanced_toys_produced\",\"coef\":17},{\"var\":\"intermediate_toys_produced\",\"coef\":10},{\"var\":\"basic_toys_produced\",\"coef\":2}],\"sense\":\"<=\",\"rhs\":1000,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"The advanced type requires ... 8 hours of inspection ... intermediate type requires ... 4 hours of inspection ... basic type requires 2 hours of inspection ... 500 hours of inspection available\",\"terms\":[{\"var\":\"advanced_toys_produced\",\"coef\":8},{\"var\":\"intermediate_toys_produced\",\"coef\":4},{\"var\":\"basic_toys_produced\",\"coef\":2}],\"sense\":\"<=\",\"rhs\":500,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"the demand for the advanced type does not exceed 50 units\",\"terms\":[{\"var\":\"advanced_toys_produced\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":50,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"the demand for the intermediate type does not exceed 80 units\",\"terms\":[{\"var\":\"intermediate_toys_produced\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":80,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"the demand for the basic type does not exceed 150 units\",\"terms\":[{\"var\":\"basic_toys_produced\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":150,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"}],\"not_requirements\":[],\"cannot_express\":[]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2917,
+   "output_tokens": 2215,
+   "output_tokens_details": {
+    "thinking_tokens": 1286
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "227b887897a16c0a3ae69c8083cb54538b168de2a970dc4bf84d643507f579e6",
+  "tries": 1,
+  "latency_s": 8.88136666599894,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 2
+}

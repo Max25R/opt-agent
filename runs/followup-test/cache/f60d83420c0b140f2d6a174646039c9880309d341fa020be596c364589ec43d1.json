@@ -1,0 +1,316 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are checking an operations research model before it is solved. Read the word problem and list what any correct formulation of it must contain. Don't write the model, and don't solve the problem.\n\nThe model's decision variables are listed by name in <variables>. Use exactly those names and no others. If a requirement needs a quantity that isn't one of them, put it in cannot_express instead.\n\n- variables: for each listed name, say whether it counts whole things (\"integer\": vehicles, trips, people, products, servings), measures a divisible quantity (\"continuous\": kilograms, acres, hours, money), or the text supports both (\"unclear\"). Quote the words that decide it.\n- objective: its direction (min or max) and its terms over the listed names, with the numbers exactly as given. Quote the words it comes from.\n- requirements: every requirement the text states, as a linear inequality or equation over the listed names. Use the numbers exactly as given, and write percentages as fractions (30% as 0.3). Quote the exact words each one comes from.\n  - strict: true if the wording is strict (\"more than\", \"must exceed\", \"fewer than\"); still write it with >= or <=.\n  - could_be_equal: true if the wording names no inequality at all (\"twice as many as\", \"three times the number of\"), so \"=\" would be a fair reading too.\n  - scope: \"combined\" if one limit covers several items together, \"per item\" if it applies to each item separately, \"single\" if it involves one quantity. Decide this from the text: \"at most 50 cakes of either type\" may be one total or one limit per type, so quote why.\n  - Leave out non-negativity, unless the text says a quantity can be negative.\n- not_requirements: every sentence that states a preference, a motivation, popularity, or background rather than a requirement (\"prefers\", \"is more popular\", \"would like\", \"sells better\"), with its quote, why it isn't a requirement, and the inequality someone might wrongly make of it (empty terms if there's none). Never turn one of these into a requirement.\n- cannot_express: each requirement that needs a quantity not among the listed names, with its quote and the quantity it needs.\n- Don't add anything the text doesn't state.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nHaus Toys can manufacture and sell toy trucks, toy planes, toy boats, and toy trains. The profit from selling one truck is $5, from one plane is $10, from one boat is $8, and from one train is $7. How many types of toys should Haus Toys manufacture to maximize profit?\n\nThere are 890 units of wood available. Manufacturing one truck requires 12 units of wood, one plane requires 20 units of wood, one boat requires 15 units of wood, and one train requires 10 units of wood.\n\nThere are 500 units of steel available. Manufacturing one plane requires 3 units of steel, one boat requires 5 units of steel, one train requires 4 units of steel, and one truck requires 6 units of steel.\n\nIf Haus Toys manufactures trucks, then they will not manufacture trains.\n\nHowever, if they manufacture boats, they will also manufacture planes.\n\nThe number of toy boats manufactured cannot exceed the number of toy trains manufactured.\n</problem>\n\n<variables>\ntrucks\nplanes\nboats\ntrains\ntruck_indicator\n</variables>"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "CannotExpress": {
+       "type": "object",
+       "title": "CannotExpress",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "needs": {
+         "type": "string",
+         "title": "Needs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "needs"
+       ]
+      },
+      "ChecklistObjective": {
+       "type": "object",
+       "title": "ChecklistObjective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms",
+        "quote"
+       ]
+      },
+      "ChecklistTerm": {
+       "type": "object",
+       "title": "ChecklistTerm",
+       "properties": {
+        "var": {
+         "type": "string",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "ChecklistVariable": {
+       "type": "object",
+       "title": "ChecklistVariable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "title": "Name"
+        },
+        "kind": {
+         "type": "string",
+         "enum": [
+          "integer",
+          "continuous",
+          "unclear"
+         ],
+         "title": "Kind"
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "kind",
+        "quote"
+       ]
+      },
+      "NotARequirement": {
+       "type": "object",
+       "title": "NotARequirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "why": {
+         "type": "string",
+         "title": "Why"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "why",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Requirement": {
+       "type": "object",
+       "title": "Requirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        },
+        "strict": {
+         "type": "boolean",
+         "title": "Strict"
+        },
+        "could_be_equal": {
+         "type": "boolean",
+         "title": "Could Be Equal"
+        },
+        "scope": {
+         "type": "string",
+         "enum": [
+          "single",
+          "combined",
+          "per item"
+         ],
+         "title": "Scope"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "terms",
+        "sense",
+        "rhs",
+        "strict",
+        "could_be_equal",
+        "scope"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "Checklist",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/ChecklistVariable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/ChecklistObjective"
+      },
+      "requirements": {
+       "type": "array",
+       "title": "Requirements",
+       "items": {
+        "$ref": "#/$defs/Requirement"
+       }
+      },
+      "not_requirements": {
+       "type": "array",
+       "title": "Not Requirements",
+       "items": {
+        "$ref": "#/$defs/NotARequirement"
+       }
+      },
+      "cannot_express": {
+       "type": "array",
+       "title": "Cannot Express",
+       "items": {
+        "$ref": "#/$defs/CannotExpress"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "requirements",
+      "not_requirements",
+      "cannot_express"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3o4u2NCPrW4gxQdR6W7",
+  "container": null,
+  "content": [
+   {
+    "signature": "CAQS1SEKEAgTGAI4AUIIdGhpbmtpbmcSDLNiMQeuajfEHq95wRoMp9t0F7ubT71z2dkhIjCioxQmM9eXzIOcUT733c/NLA+28ifHTanVMuPPnHbzLeIfFRgQRbW4ygA8dPtJRT0q8iAUL5p8u+BP4Yupe8HBzoMaPFOubTbfE+3o0AdW3CBg3RME5Kt0cRi4C9pEZPmmHFC1A5pNL38VpiSh+Rexn0txYFcUcq0CcquqPBlCxfMMK837ie/55qwZzCTUS1F6R0Of/fiYM//xpZwYzmGbTuKYQtjzCBt2Lvt0PskOGKV8gp+z+g2uXl+p6w1kIgc4ySp+WB68IRBdbnnj762PdL0w+Yj02VyY5hZ3TFZk8518bkwFKb0fjJXcWLNBDFgA9JGMAfIXQKODtQZYoYtxsAAB6U26zoD4+Z+NW2qzayHSO+y28kptvabZnmr00VzMnPuzSyqEUARNRQoOj32VEAT9E+v01VGGXTIjEZCp3RIzlUYSifAx6Vt2n1ukLlr4Bgf3FnxfwMc+Rs7F9P54BIS6gRbP6KLIdTn8cF9HVcWFwYthwjb2gh9X8hzabcKMR0JtBYEF1/LwpajHJMik2NbRT9B/ebGOkB3yX/kVlR0xhelsnJxq5reYP+EODabYEp5iuQNmzzgy9Tau2nw7k75TjS0zpv9Y7rwM156OH6vhpuKhGcs/05ieCyzpDtAOurtWXFeNDNSlb0L9h3X3fZwLUJOgM/fBtVJfWEo450N+Wk9S3iGF893efsGavjDUGNlM4kc/q1Bzw8tDWp5v4FqNcWkzo3fNswvN+9bHgLdmNpmH3cm8oAoCa3MtIOdS74pUeS7X1PCfl18TqgsQcB7V6ABikY3ILJZPR5i944idTsrBdHJ9GgfXkXWDlD7KDAXNOiuQLmdJ/DN1F8TnbgMuTjWDM00ZdUj8SjrUnjvs5kjypRqe0LpuU59DTdWEY+OalN2bO4kukCn8JTHSk4KX3NwxE63FbgYviXbEP1UrSCXrR9DNuuRsM2D/rbdZ05nwzfky6v7Jes6c5/1BADr63rf7/vWuQ37WJUCHL4yawyrl8q1pR2GwlyKRLBw+vkDq+9+KcQEwckPKXFdJvK0f+aGwIn2350m0hTPt5TWw0H0FbCo4/yZtOc4zt/Ok+iI8Z0njgd+v+JQLdDMo9x6HSyTwUuXiQ1ub8FOxjuLkEoL7Mdn0cngdaHExQ9fkXBoLLuQyH8kai9oLbTlMMnZlDegXf/iG0AeuqwlxeywDsIlp9cCE1Vw8e+ynifMGvE7oSWawBfcipQsCM7AgNgtJ+OJgSi2jljF9Xr57DyJz90wtGS74qM9ZSPK+9vrPv3sj/HS0/bGZvSCGARxon1Ibd+UT2dSADufGxBwuwS+IDUYIkx74vFJoejCdWTyUKlGRpFjm09AjaKJkBJQ6X0WhqMohso52KQOhjcNdA5obq5sXx7gVrZGwqwI4XJ7EZF2g5fwy7QovCtbbwMICplV5I1NF/aZZFUIaBeXizCuaYeMPkl1apRr1DWnwCY5xGDc1Mk6f2M8RGpPO6dVLUgL3xp/H1vR4YZm3Pjzn+ku7DVbhewu4yuCOtecUUF83lYb8N+6u9UqWJgeBWmjBlqL9W7GO4/xC57CXjQ+rAptUuWb1+z26S8uGJLGy6A4H5/Zc7//imYRSfk8NdY0lxhPzW3HqiPgJdXeuFAmbndfdyNBDhTHHCmcpYZ60KL6WZY8JSIq1hMXeq+3UoI5onpfd6alkMcpvTCKSYiZaGWNtqCPmaodV3wZvr4Gp0byLwV1jgoBYE1UZ2Gaz5BV1Jmflb+BwkGOvBOnX0QKo4PcOi3U0c/F/iwMvpq+XVcdxF6DraN7BdVyRh6sL7lzfQTIfxCtOmczF1TfqPUbGt3dWGQZ/EkeYZdwXGtWSIgNjoe/5cSBgCjV4q/H7a1j5ZXncaNK6/9twuQZSILjb2BBJK2lNini1MLhVvc7aSdj8F/xX2V46FKPIJnSIMV/B8L5dwJpVt6NI6NnoQqCS5sq8GXv8EiJK8rXsQL9GwFU37amOBvaMONTyEmLBVgSs9AmAEtsNZYeWnvNXN1CLwR8CwmcJcSrTEh90zI9VGha/tmnJK8AlnwgjfyYj9L+GXWrC0pkCkToSu8bHtUfuRrmZVrFraXR6RLai0jggj5NZEkdgw1sRGjXK/CoJuGEY4MlMlJxTWiPe0K28rwBYUY/XN6OKdZnbO5KSvCa2kq0WT3zjVnsFklAEcHOFp17YGJ7PEwBcIAMezOoEixC9hvNyusCYXUjJFCBRNZ9dCaOUYfus6/8cK7wo5aWa+aQI5DYIanr2zAFs4k/ysvX+MlAJUn0EG1lADUeLu/gKcOLlveP7uTiMeoOR21/I3Xyc3k0hs/w4ybdqA4gYgqHElJampNL35Ar9eO9n1+FrPUvmtkhItv6z+pvGRNeENf9UaXo8YF0lNbh7rLWTEJcpTvncahyBvzPgV1PxRsbLNkTjNfcDfKeLZJAH6601HAIAlucJqPpmUm3C5O8+aCpdzWz909YrxR9k0n8kDN1nynpj5ZaW2zh8KGgVSdLAN5JZIrAW9r/+HnO1cKYvgmW5PfO2KyKfq0MfRBbxyUAjGcNvW/ZIq+qA9/vmBQmtGs/M/vms2apKM/Cv9gnnRHCoqVgGoPmV6vzotD9ckncPDlxJvQ6FUczQV9ywF6GQunOlMpkGMkD1t6vlKDZNLTvIIkyPiw+HLo+oZoiOxs0LZHCAhb6GNynnhq183xOvrqUfXfZcTpPCA/x+L+WPS6iS/9oayYL6WRM9danHY0uyXOmXNANJy8z1YgqD4BoyHQhNCNtbmxFYPFzDe4SExQQO9vaF5lzNyEG2UYeFd5bWnWJbI91zmxnrFuAUddYISH8pd4MKrDNVKOyeCY+iC+x2GDt/XqHZEqKuHs5Zw2w1CDFpW2d0LCxCXCQCRBxHV7ZyjAUojw/O4kuJHcoqdX+YI9+5RTXuX5Xgca2SwNOE+HiU+ItoF3nZekR+FmWeOFWo2YKJ6qeZCKRkD5VPLOvS8g7+/sfR/hDb9gHvvRsVkNGdYT8fECwEC6eRBG++6SP3nCgEiwwtq07yppiRcAV3ClnwUQ7HX9RiCdYgl3IQqG5A6891YuvX2P6QhfhE28cfzz9q8amgJ/srgD38aArt59VrbbPX3x2BWrVn9LG2qsZbPyZfnWHSk5ZDthuMgWv146yGBAqWFU1dagn0Zd+SFqmJKf4iovEpz0w4st9UL7YtxrCNSRX1thlnlRtihEsME/XiCs9ypnpVrwfuP0WpN6B5BIf47lJWwJdHC2BKReB8QfqVUSnjEYq3WqgRsMtQvYwy1gBcZCN6j7x4I3G1ZrrC5cZm5oMTZZ9l3CGOpO2n3H7yMlo7P4wHh6Zp8gMcP5OylHDpE1CoFkzeOAJAN6zJOEZ2M61v/h65/uLD4fsp3oEhZ2Ja3Dli56VNAUug1RvZhEKNuXL858lNZSuRW3mrWCd48q/R4f0YI1LXPl/yLr35JAjoWNRi0y1QyYGWWEFMJnXREqe9ZZXBoN7fKSGRXEMJ0eEYU2CXw3/8kFOJ0x0CPjG/8NMR0GS/6iOT3iH3cXm1GhNH70H1h7WjDHqpI6Nj8JdTVI30W2qyf4J3adAo/+sHUfEFZqFlufwHgyItBsvrhvRtAQdcOjtF3kP9Hksm3lw6PGQIfhGyvnwVKXEy4hy1Otvkm9ckO/wbWsPQ3qfa4/lehum5vsnaIp+w+G5MtXVwz5qBdTChJAgv/8J42tY7v5+WqoUqfuKp2nGjflOSf7lPBOtIKXjRjeTVxMza1orXaFgK/GLnbH4oSZcVFjypsmqok+t97UQYr1Sp7XyHTCaVndtO2tLEQhnXEP1iqrm2Iy3C34bA6mlIXe6UKAcof1i3wqeXAgjLFReOWbmL28lblcwXdAeB5o/NrTqgN6563g3CAmBvnsQ9iGqH9M3/c2bScaH2bD6cMyo1IxFVdm01hoEdAUf793KFKyo5gS04NAqiIxcJ8XWqKbE0jDFn6tw5CCxzpGptA5f/XU/C9b1kS/K/ccv+jdXL9Lb+kJAHMqAd8NOw/twlD0rW195Ro9fKEZOVJwqOxGOTDHcikUB2fhK4bBcrFBASHjZ4hlQt2fvQZ+Yl+GQX+4ufhypZjLvYz1eEPcD4+m/BG5bGWNGlszPhnXGtHKYJadViCQ6pUBS8MMyLSAlHFXYl9VNN9Dkqtal9kP39r0QqwO6Q6tUpZkirhHbK15LHe1fgPGRL1CyZveRG4DlaMYdw9oc3qSbGU8b1eiDxxZAIh7mZAsa7Omo4nWcJOecZPqZ6W7hHsdOxiDh7Sba3qFrB20O+oQJxIF99a9JoQNd8VFA+vNoSPG0oA8phNOP4CmpDmumtXFB/WNv6ONUPYxEkk29zaKDb/hXOnl/cbY8wtqWDSSpobGnjxoTzOPsbKyFAVD97dZdd9IaaN3sldhTExJ4G85p4K4bFFowjf6Mm+l3g8Iui/hsE2mjDyMFHvxXbRB/HulwWWJvDBrl1H8ar7bwL7UNQEqc6en/6xpJbc7+AbmniHKcGabmnEzh9Jvu/qM2pysF8HgRB2S2E1vYrhprh2gF3D2hxqBH7o8nHV81DECcqEcLtOVBPVj6q+0kOOYTssAAeaxrEThZ53YD4V+oP/ZYUv1BqjRCOGOA4arFu9tUUgIS8rG91Nkc3JJjoNg3oaI88NRByrZnzNaZvairLm8If2Ke+4CfSTW+Bu9CBUJiJ+ahWtR8iFx/LMPAXvZ0kI8/JCMaHWCiaOkbTqu1opxgVLkwThOm4+I6zVMtnHSYjpw+tmrjV8BSVQWqML1kE262ogu7hJyThUt9Wlfch2a9QJSnR3xZhGramtGHdsg+AoQqNCB2Et5HSmfosXc2gL+ipU9N7oilt/np+5oMeUKzMpggWYyVH8Ntlctp4ZfdKWy0smcZ5HiHgEPqVPJxVvo/vYM8iwsXeqawYH1CkuvYJklI/+K2Jhded+Tso4balTPSlFYyghXee8wyqcjoJA3egs1JZGBhfHniO3wSWIP1rEPv3pmzxmtCkiN9l0qL8E70Jb6eiQ6Oe1j+KV5MBY1VlOV3ETnHIYOGR/WwwsFeNSlpt39fChUE5CnP0/XjXi5yS9dgNb4JLKz5AnsIPq+vzwQxwJPCohN7dE9nfrPLnz+1TlBq0u9rPkM+3mRe2MzJLpyzoNTjLojDkyB3IY2b30lYADMIQPG8dsN6O+zkuhsuznBEKCiRPNMzQ9tVWZKjllQXXV5vk600wWkSPr5ua61iHfx+uvK3oE8NIKsgOuGpsqdQj+UOS6TDIOcgaBiUSAS5kSHIGXIUHeoXH7Ask8cj2L2FjqOfv3tVPhpTNL7ymzyOro0YDBBQUKlA/JOSawaFshUgBsgLHaQRjADb2qJihty1HW3L8cTHL0V8PYMrfY5VKptUs/nsPsfHwgs/xWlhKAIXRZRCML6xnu+NmJvyjRygEyjo8+ldGpLSJ5/LWIEQLQe4q08a0ufGKRhIVGR0vcpXC39bRSimwxy/wj7Pva4TaKMe/VDXCin7xhk+x9gaXGIFAY7tbHmzU9khCBQ3dsBtcenb45bK/7n1HI1XrgChFcEZsgVYuApvGQiuSBzxS1/So8IQRb3zCEMF0TIIkZN5zKnIhrZg/HeCWMs5RVKDNopPNRApDDHksAZYuy67JrlFDMPOpeYhjHFzSJYGzV9lBezH/GAE=",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"trucks\",\"kind\":\"integer\",\"quote\":\"Haus Toys can manufacture and sell toy trucks, toy planes, toy boats, and toy trains.\"},{\"name\":\"planes\",\"kind\":\"integer\",\"quote\":\"Haus Toys can manufacture and sell toy trucks, toy planes, toy boats, and toy trains.\"},{\"name\":\"boats\",\"kind\":\"integer\",\"quote\":\"The number of toy boats manufactured cannot exceed the number of toy trains manufactured.\"},{\"name\":\"trains\",\"kind\":\"integer\",\"quote\":\"The number of toy boats manufactured cannot exceed the number of toy trains manufactured.\"},{\"name\":\"truck_indicator\",\"kind\":\"integer\",\"quote\":\"If Haus Toys manufactures trucks, then they will not manufacture trains.\"}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"trucks\",\"coef\":5},{\"var\":\"planes\",\"coef\":10},{\"var\":\"boats\",\"coef\":8},{\"var\":\"trains\",\"coef\":7}],\"quote\":\"The profit from selling one truck is $5, from one plane is $10, from one boat is $8, and from one train is $7. How many types of toys should Haus Toys manufacture to maximize profit?\"},\"requirements\":[{\"quote\":\"There are 890 units of wood available. Manufacturing one truck requires 12 units of wood, one plane requires 20 units of wood, one boat requires 15 units of wood, and one train requires 10 units of wood.\",\"terms\":[{\"var\":\"trucks\",\"coef\":12},{\"var\":\"planes\",\"coef\":20},{\"var\":\"boats\",\"coef\":15},{\"var\":\"trains\",\"coef\":10}],\"sense\":\"<=\",\"rhs\":890,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"There are 500 units of steel available. Manufacturing one plane requires 3 units of steel, one boat requires 5 units of steel, one train requires 4 units of steel, and one truck requires 6 units of steel.\",\"terms\":[{\"var\":\"trucks\",\"coef\":6},{\"var\":\"planes\",\"coef\":3},{\"var\":\"boats\",\"coef\":5},{\"var\":\"trains\",\"coef\":4}],\"sense\":\"<=\",\"rhs\":500,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"The number of toy boats manufactured cannot exceed the number of toy trains manufactured.\",\"terms\":[{\"var\":\"boats\",\"coef\":1},{\"var\":\"trains\",\"coef\":-1}],\"sense\":\"<=\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"}],\"not_requirements\":[],\"cannot_express\":[{\"quote\":\"If Haus Toys manufactures trucks, then they will not manufacture trains.\",\"needs\":\"A large-M bound linking trucks and trains through truck_indicator; the text gives no such constant.\"},{\"quote\":\"However, if they manufacture boats, they will also manufacture planes.\",\"needs\":\"A conditional link (planes at least 1 whenever boats are made) requiring an indicator for boats, which is not among the listed variables.\"}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2958,
+   "output_tokens": 2440,
+   "output_tokens_details": {
+    "thinking_tokens": 1410
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "daf5af9438316ab348b775dee749c704c1f2810fe7ac5213436409963dcc616a",
+  "tries": 1,
+  "latency_s": 10.762602165981662,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 2
+}

@@ -1,0 +1,315 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are checking an operations research model before it is solved. Read the word problem and list what any correct formulation of it must contain. Don't write the model, and don't solve the problem.\n\nThe model's decision variables are listed by name in <variables>. Use exactly those names and no others. If a requirement needs a quantity that isn't one of them, put it in cannot_express instead.\n\n- variables: for each listed name, say whether it counts whole things (\"integer\": vehicles, trips, people, products, servings), measures a divisible quantity (\"continuous\": kilograms, acres, hours, money), or the text supports both (\"unclear\"). Quote the words that decide it.\n- objective: its direction (min or max) and its terms over the listed names, with the numbers exactly as given. Quote the words it comes from.\n- requirements: every requirement the text states, as a linear inequality or equation over the listed names. Use the numbers exactly as given, and write percentages as fractions (30% as 0.3). Quote the exact words each one comes from.\n  - strict: true if the wording is strict (\"more than\", \"must exceed\", \"fewer than\"); still write it with >= or <=.\n  - could_be_equal: true if the wording names no inequality at all (\"twice as many as\", \"three times the number of\"), so \"=\" would be a fair reading too.\n  - scope: \"combined\" if one limit covers several items together, \"per item\" if it applies to each item separately, \"single\" if it involves one quantity. Decide this from the text: \"at most 50 cakes of either type\" may be one total or one limit per type, so quote why.\n  - Leave out non-negativity, unless the text says a quantity can be negative.\n- not_requirements: every sentence that states a preference, a motivation, popularity, or background rather than a requirement (\"prefers\", \"is more popular\", \"would like\", \"sells better\"), with its quote, why it isn't a requirement, and the inequality someone might wrongly make of it (empty terms if there's none). Never turn one of these into a requirement.\n- cannot_express: each requirement that needs a quantity not among the listed names, with its quote and the quantity it needs.\n- Don't add anything the text doesn't state.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nImagine you're creating a meal plan for yourself and want to ensure you're getting the right amount of nutrients, but you also want to keep your budget in check. You're considering four different food items: Steak, Eggs, Pasta, and Chicken. Each of these food items has a different nutritional content and cost.\n\nHere's a brief overview of what each food item provides and how much it costs:\n\n- Steak: Provides you with 20 grams of protein, 2 grams of carbohydrates, and 68 calories for $4.\n- Eggs: Offer 7 grams of protein, 3 grams of carbohydrates, and 143 calories for just $1.\n- Pasta: Gives you 1 gram of protein, a large 26 grams of carbohydrates, and 52 calories for $9.\n- Chicken: Packs 10 grams of protein, 1 gram of carbohydrate, and 69 calories for $4.\n\nYou need to ensure that you consume at least 71 grams of protein, 141 grams of carbohydrates, and 1839 calories from the food combination you choose. The challenge is to determine the least expensive way to meet these nutritional requirements using these four food options. What is the least amount of money you can spend to meet your nutritional needs? Note that your response should only include the optimal cost value.\n</problem>\n\n<variables>\nsteak servings\negg servings\npasta servings\nchicken servings\n</variables>"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "CannotExpress": {
+       "type": "object",
+       "title": "CannotExpress",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "needs": {
+         "type": "string",
+         "title": "Needs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "needs"
+       ]
+      },
+      "ChecklistObjective": {
+       "type": "object",
+       "title": "ChecklistObjective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms",
+        "quote"
+       ]
+      },
+      "ChecklistTerm": {
+       "type": "object",
+       "title": "ChecklistTerm",
+       "properties": {
+        "var": {
+         "type": "string",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "ChecklistVariable": {
+       "type": "object",
+       "title": "ChecklistVariable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "title": "Name"
+        },
+        "kind": {
+         "type": "string",
+         "enum": [
+          "integer",
+          "continuous",
+          "unclear"
+         ],
+         "title": "Kind"
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "kind",
+        "quote"
+       ]
+      },
+      "NotARequirement": {
+       "type": "object",
+       "title": "NotARequirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "why": {
+         "type": "string",
+         "title": "Why"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "why",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Requirement": {
+       "type": "object",
+       "title": "Requirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        },
+        "strict": {
+         "type": "boolean",
+         "title": "Strict"
+        },
+        "could_be_equal": {
+         "type": "boolean",
+         "title": "Could Be Equal"
+        },
+        "scope": {
+         "type": "string",
+         "enum": [
+          "single",
+          "combined",
+          "per item"
+         ],
+         "title": "Scope"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "terms",
+        "sense",
+        "rhs",
+        "strict",
+        "could_be_equal",
+        "scope"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "Checklist",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/ChecklistVariable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/ChecklistObjective"
+      },
+      "requirements": {
+       "type": "array",
+       "title": "Requirements",
+       "items": {
+        "$ref": "#/$defs/Requirement"
+       }
+      },
+      "not_requirements": {
+       "type": "array",
+       "title": "Not Requirements",
+       "items": {
+        "$ref": "#/$defs/NotARequirement"
+       }
+      },
+      "cannot_express": {
+       "type": "array",
+       "title": "Cannot Express",
+       "items": {
+        "$ref": "#/$defs/CannotExpress"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "requirements",
+      "not_requirements",
+      "cannot_express"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3mKNJrpH9UXsL7Mvx3b",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"steak servings\",\"kind\":\"integer\",\"quote\":\"Steak: Provides you with 20 grams of protein, 2 grams of carbohydrates, and 68 calories for $4.\"},{\"name\":\"egg servings\",\"kind\":\"integer\",\"quote\":\"Eggs: Offer 7 grams of protein, 3 grams of carbohydrates, and 143 calories for just $1.\"},{\"name\":\"pasta servings\",\"kind\":\"integer\",\"quote\":\"Pasta: Gives you 1 gram of protein, a large 26 grams of carbohydrates, and 52 calories for $9.\"},{\"name\":\"chicken servings\",\"kind\":\"integer\",\"quote\":\"Chicken: Packs 10 grams of protein, 1 gram of carbohydrate, and 69 calories for $4.\"}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"steak servings\",\"coef\":4},{\"var\":\"egg servings\",\"coef\":1},{\"var\":\"pasta servings\",\"coef\":9},{\"var\":\"chicken servings\",\"coef\":4}],\"quote\":\"determine the least expensive way to meet these nutritional requirements ... What is the least amount of money you can spend\"},\"requirements\":[{\"quote\":\"You need to ensure that you consume at least 71 grams of protein\",\"terms\":[{\"var\":\"steak servings\",\"coef\":20},{\"var\":\"egg servings\",\"coef\":7},{\"var\":\"pasta servings\",\"coef\":1},{\"var\":\"chicken servings\",\"coef\":10}],\"sense\":\">=\",\"rhs\":71,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"at least 141 grams of carbohydrates\",\"terms\":[{\"var\":\"steak servings\",\"coef\":2},{\"var\":\"egg servings\",\"coef\":3},{\"var\":\"pasta servings\",\"coef\":26},{\"var\":\"chicken servings\",\"coef\":1}],\"sense\":\">=\",\"rhs\":141,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"and 1839 calories from the food combination you choose\",\"terms\":[{\"var\":\"steak servings\",\"coef\":68},{\"var\":\"egg servings\",\"coef\":143},{\"var\":\"pasta servings\",\"coef\":52},{\"var\":\"chicken servings\",\"coef\":69}],\"sense\":\">=\",\"rhs\":1839,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"}],\"not_requirements\":[{\"quote\":\"but you also want to keep your budget in check\",\"why\":\"Background motivation; it states no budget amount, so it is not a limit on total spending.\",\"terms\":[],\"sense\":\"<=\",\"rhs\":0}],\"cannot_express\":[]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 3058,
+   "output_tokens": 2225,
+   "output_tokens_details": {
+    "thinking_tokens": 1362
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "f831d62ceb89aefddf7a6a1a80999ad53ea9dd90ea8170426a9485dd2098e791",
+  "tries": 1,
+  "latency_s": 9.534305375011172,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

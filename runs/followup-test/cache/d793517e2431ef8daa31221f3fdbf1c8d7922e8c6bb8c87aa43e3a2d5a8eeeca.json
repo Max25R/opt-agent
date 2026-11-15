@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine a futuristic transportation network that connects 9 major cities across a vast region, designed to maximize the efficiency of cargo transport from the central hub to a key distribution center. Each city in this network is connected by high-capacity routes, with the ability to transport a significant volume of goods measured in thousands of tons.\n\nHere's a detailed layout of the transportation capacities between each pair of cities:\n\n- From City 0 (Central Hub): Cargo can be sent to City 1 (1 ton), City 2 (16 tons), City 3 (8 tons), City 4 (18 tons), City 5 (4 tons), City 6 (0 tons, indicating no direct route), City 7 (8 tons), and City 8 (5 tons).\n- From City 1: Cargo can be dispatched to City 0 (15 tons), City 2 (11 tons), City 3 (8 tons), City 4 (13 tons), City 5 (2 tons), City 6 (1 ton), City 7 (7 tons), and City 8 (6 tons).\n- From City 2: Shipments can go to City 0 (15 tons), City 1 (4 tons), City 3 (3 tons), City 4 (1 ton), City 5 (13 tons), City 6 (13 tons), City 7 (11 tons), and City 8 (9 tons).\n- From City 3: Goods can be transported to City 0 (4 tons), City 1 (16 tons), City 2 (8 tons), City 4 (12 tons), City 5 (18 tons), City 6 (19 tons), City 7 (8 tons), and City 8 (11 tons).\n- From City 4: Cargo movement is possible to City 0 (4 tons), City 1 (19 tons), City 2 (3 tons), City 3 (2 tons), City 5 (6 tons), City 6 (1 ton), City 7 (13 tons), and City 8 (14 tons).\n- From City 5: Shipments can be directed to City 0 (6 tons), City 1 (19 tons), City 2 (15 tons), City 3 (10 tons), City 4 (16 tons), City 6 (17 tons), City 7 (15 tons), and City 8 (17 tons).\n- From City 6: Cargo can be routed to City 0 (13 tons), City 1 (7 tons), City 2 (13 tons), City 3 (4 tons), City 4 (14 tons), City 5 (3 tons), City 7 (8 tons), and City 8 (8 tons).\n- From City 7: Goods can be moved to City 0 (10 tons), City 1 (6 tons), City 2 (19 tons), City 3 (1 ton), City 4 (12 tons), City 5 (6 tons), City 6 (9 tons), and City 8 (14 tons).\n- From City 8 (Key Distribution Center): This city receives and dispatches goods but primarily serves as the endpoint for cargo coming from the Central Hub.\n\nA capacity of \"0\" in this context indicates that there is no established route for direct cargo transport between those two cities.\n\nThe challenge is to determine the maximum amount of cargo, in thousands of tons, that can be transported from the Central Hub (City 0) to the Key Distribution Center (City 8), ensuring that the flow of goods through each route does not surpass its highest capacity. What is the optimal value of cargo that can be moved from the Central Hub to the Key Distribution Center?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3FxDjT989LMcEfNKhqr",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"x_0_1 cargo sent 0 to 1 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_0_2 cargo sent 0 to 2 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_0_3 cargo sent 0 to 3 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_0_4 cargo sent 0 to 4 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_0_5 cargo sent 0 to 5 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_0_7 cargo sent 0 to 7 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_0_8 cargo sent 0 to 8 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_1_0 cargo sent 1 to 0 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_1_2 cargo sent 1 to 2 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_1_3 cargo sent 1 to 3 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_1_4 cargo sent 1 to 4 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_1_5 cargo sent 1 to 5 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_1_6 cargo sent 1 to 6 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_1_7 cargo sent 1 to 7 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_1_8 cargo sent 1 to 8 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_2_0 cargo sent 2 to 0 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_2_1 cargo sent 2 to 1 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_2_3 cargo sent 2 to 3 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_2_4 cargo sent 2 to 4 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_2_5 cargo sent 2 to 5 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_2_6 cargo sent 2 to 6 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_2_7 cargo sent 2 to 7 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_2_8 cargo sent 2 to 8 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_3_0 cargo sent 3 to 0 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_3_1 cargo sent 3 to 1 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_3_2 cargo sent 3 to 2 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_3_4 cargo sent 3 to 4 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_3_5 cargo sent 3 to 5 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_3_6 cargo sent 3 to 6 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_3_7 cargo sent 3 to 7 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_3_8 cargo sent 3 to 8 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_4_0 cargo sent 4 to 0 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_4_1 cargo sent 4 to 1 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_4_2 cargo sent 4 to 2 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_4_3 cargo sent 4 to 3 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_4_5 cargo sent 4 to 5 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_4_6 cargo sent 4 to 6 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_4_7 cargo sent 4 to 7 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_4_8 cargo sent 4 to 8 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_5_0 cargo sent 5 to 0 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_5_1 cargo sent 5 to 1 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_5_2 cargo sent 5 to 2 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_5_3 cargo sent 5 to 3 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_5_4 cargo sent 5 to 4 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_5_6 cargo sent 5 to 6 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_5_7 cargo sent 5 to 7 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_5_8 cargo sent 5 to 8 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_6_0 cargo sent 6 to 0 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_6_1 cargo sent 6 to 1 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_6_2 cargo sent 6 to 2 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_6_3 cargo sent 6 to 3 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_6_4 cargo sent 6 to 4 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_6_5 cargo sent 6 to 5 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_6_7 cargo sent 6 to 7 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_6_8 cargo sent 6 to 8 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_7_0 cargo sent 7 to 0 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_7_1 cargo sent 7 to 1 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_7_2 cargo sent 7 to 2 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_7_3 cargo sent 7 to 3 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_7_4 cargo sent 7 to 4 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_7_5 cargo sent 7 to 5 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_7_6 cargo sent 7 to 6 (kt)\",\"lower\":0,\"integer\":false},{\"name\":\"x_7_8 cargo sent 7 to 8 (kt)\",\"lower\":0,\"integer\":false}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"x_0_8 cargo sent 0 to 8 (kt)\",\"coef\":1},{\"var\":\"x_1_8 cargo sent 1 to 8 (kt)\",\"coef\":1},{\"var\":\"x_2_8 cargo sent 2 to 8 (kt)\",\"coef\":1},{\"var\":\"x_3_8 cargo sent 3 to 8 (kt)\",\"coef\":1},{\"var\":\"x_4_8 cargo sent 4 to 8 (kt)\",\"coef\":1},{\"var\":\"x_5_8 cargo sent 5 to 8 (kt)\",\"coef\":1},{\"var\":\"x_6_8 cargo sent 6 to 8 (kt)\",\"coef\":1},{\"var\":\"x_7_8 cargo sent 7 to 8 (kt)\",\"coef\":1}]},\"constraints\":[{\"name\":\"cap_0_1\",\"terms\":[{\"var\":\"x_0_1 cargo sent 0 to 1 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":1},{\"name\":\"cap_0_2\",\"terms\":[{\"var\":\"x_0_2 cargo sent 0 to 2 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":16},{\"name\":\"cap_0_3\",\"terms\":[{\"var\":\"x_0_3 cargo sent 0 to 3 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":8},{\"name\":\"cap_0_4\",\"terms\":[{\"var\":\"x_0_4 cargo sent 0 to 4 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":18},{\"name\":\"cap_0_5\",\"terms\":[{\"var\":\"x_0_5 cargo sent 0 to 5 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":4},{\"name\":\"cap_0_7\",\"terms\":[{\"var\":\"x_0_7 cargo sent 0 to 7 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":8},{\"name\":\"cap_0_8\",\"terms\":[{\"var\":\"x_0_8 cargo sent 0 to 8 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":5},{\"name\":\"cap_1_0\",\"terms\":[{\"var\":\"x_1_0 cargo sent 1 to 0 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":15},{\"name\":\"cap_1_2\",\"terms\":[{\"var\":\"x_1_2 cargo sent 1 to 2 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":11},{\"name\":\"cap_1_3\",\"terms\":[{\"var\":\"x_1_3 cargo sent 1 to 3 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":8},{\"name\":\"cap_1_4\",\"terms\":[{\"var\":\"x_1_4 cargo sent 1 to 4 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":13},{\"name\":\"cap_1_5\",\"terms\":[{\"var\":\"x_1_5 cargo sent 1 to 5 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":2},{\"name\":\"cap_1_6\",\"terms\":[{\"var\":\"x_1_6 cargo sent 1 to 6 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":1},{\"name\":\"cap_1_7\",\"terms\":[{\"var\":\"x_1_7 cargo sent 1 to 7 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":7},{\"name\":\"cap_1_8\",\"terms\":[{\"var\":\"x_1_8 cargo sent 1 to 8 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":6},{\"name\":\"cap_2_0\",\"terms\":[{\"var\":\"x_2_0 cargo sent 2 to 0 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":15},{\"name\":\"cap_2_1\",\"terms\":[{\"var\":\"x_2_1 cargo sent 2 to 1 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":4},{\"name\":\"cap_2_3\",\"terms\":[{\"var\":\"x_2_3 cargo sent 2 to 3 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":3},{\"name\":\"cap_2_4\",\"terms\":[{\"var\":\"x_2_4 cargo sent 2 to 4 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":1},{\"name\":\"cap_2_5\",\"terms\":[{\"var\":\"x_2_5 cargo sent 2 to 5 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":13},{\"name\":\"cap_2_6\",\"terms\":[{\"var\":\"x_2_6 cargo sent 2 to 6 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":13},{\"name\":\"cap_2_7\",\"terms\":[{\"var\":\"x_2_7 cargo sent 2 to 7 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":11},{\"name\":\"cap_2_8\",\"terms\":[{\"var\":\"x_2_8 cargo sent 2 to 8 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":9},{\"name\":\"cap_3_0\",\"terms\":[{\"var\":\"x_3_0 cargo sent 3 to 0 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":4},{\"name\":\"cap_3_1\",\"terms\":[{\"var\":\"x_3_1 cargo sent 3 to 1 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":16},{\"name\":\"cap_3_2\",\"terms\":[{\"var\":\"x_3_2 cargo sent 3 to 2 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":8},{\"name\":\"cap_3_4\",\"terms\":[{\"var\":\"x_3_4 cargo sent 3 to 4 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":12},{\"name\":\"cap_3_5\",\"terms\":[{\"var\":\"x_3_5 cargo sent 3 to 5 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":18},{\"name\":\"cap_3_6\",\"terms\":[{\"var\":\"x_3_6 cargo sent 3 to 6 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":19},{\"name\":\"cap_3_7\",\"terms\":[{\"var\":\"x_3_7 cargo sent 3 to 7 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":8},{\"name\":\"cap_3_8\",\"terms\":[{\"var\":\"x_3_8 cargo sent 3 to 8 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":11},{\"name\":\"cap_4_0\",\"terms\":[{\"var\":\"x_4_0 cargo sent 4 to 0 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":4},{\"name\":\"cap_4_1\",\"terms\":[{\"var\":\"x_4_1 cargo sent 4 to 1 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":19},{\"name\":\"cap_4_2\",\"terms\":[{\"var\":\"x_4_2 cargo sent 4 to 2 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":3},{\"name\":\"cap_4_3\",\"terms\":[{\"var\":\"x_4_3 cargo sent 4 to 3 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":2},{\"name\":\"cap_4_5\",\"terms\":[{\"var\":\"x_4_5 cargo sent 4 to 5 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":6},{\"name\":\"cap_4_6\",\"terms\":[{\"var\":\"x_4_6 cargo sent 4 to 6 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":1},{\"name\":\"cap_4_7\",\"terms\":[{\"var\":\"x_4_7 cargo sent 4 to 7 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":13},{\"name\":\"cap_4_8\",\"terms\":[{\"var\":\"x_4_8 cargo sent 4 to 8 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":14},{\"name\":\"cap_5_0\",\"terms\":[{\"var\":\"x_5_0 cargo sent 5 to 0 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":6},{\"name\":\"cap_5_1\",\"terms\":[{\"var\":\"x_5_1 cargo sent 5 to 1 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":19},{\"name\":\"cap_5_2\",\"terms\":[{\"var\":\"x_5_2 cargo sent 5 to 2 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":15},{\"name\":\"cap_5_3\",\"terms\":[{\"var\":\"x_5_3 cargo sent 5 to 3 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":10},{\"name\":\"cap_5_4\",\"terms\":[{\"var\":\"x_5_4 cargo sent 5 to 4 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":16},{\"name\":\"cap_5_6\",\"terms\":[{\"var\":\"x_5_6 cargo sent 5 to 6 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":17},{\"name\":\"cap_5_7\",\"terms\":[{\"var\":\"x_5_7 cargo sent 5 to 7 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":15},{\"name\":\"cap_5_8\",\"terms\":[{\"var\":\"x_5_8 cargo sent 5 to 8 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":17},{\"name\":\"cap_6_0\",\"terms\":[{\"var\":\"x_6_0 cargo sent 6 to 0 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":13},{\"name\":\"cap_6_1\",\"terms\":[{\"var\":\"x_6_1 cargo sent 6 to 1 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":7},{\"name\":\"cap_6_2\",\"terms\":[{\"var\":\"x_6_2 cargo sent 6 to 2 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":13},{\"name\":\"cap_6_3\",\"terms\":[{\"var\":\"x_6_3 cargo sent 6 to 3 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":4},{\"name\":\"cap_6_4\",\"terms\":[{\"var\":\"x_6_4 cargo sent 6 to 4 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":14},{\"name\":\"cap_6_5\",\"terms\":[{\"var\":\"x_6_5 cargo sent 6 to 5 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":3},{\"name\":\"cap_6_7\",\"terms\":[{\"var\":\"x_6_7 cargo sent 6 to 7 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":8},{\"name\":\"cap_6_8\",\"terms\":[{\"var\":\"x_6_8 cargo sent 6 to 8 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":8},{\"name\":\"cap_7_0\",\"terms\":[{\"var\":\"x_7_0 cargo sent 7 to 0 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":10},{\"name\":\"cap_7_1\",\"terms\":[{\"var\":\"x_7_1 cargo sent 7 to 1 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":6},{\"name\":\"cap_7_2\",\"terms\":[{\"var\":\"x_7_2 cargo sent 7 to 2 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":19},{\"name\":\"cap_7_3\",\"terms\":[{\"var\":\"x_7_3 cargo sent 7 to 3 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":1},{\"name\":\"cap_7_4\",\"terms\":[{\"var\":\"x_7_4 cargo sent 7 to 4 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":12},{\"name\":\"cap_7_5\",\"terms\":[{\"var\":\"x_7_5 cargo sent 7 to 5 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":6},{\"name\":\"cap_7_6\",\"terms\":[{\"var\":\"x_7_6 cargo sent 7 to 6 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":9},{\"name\":\"cap_7_8\",\"terms\":[{\"var\":\"x_7_8 cargo sent 7 to 8 (kt)\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":14},{\"name\":\"conserve_1\",\"terms\":[{\"var\":\"x_0_1 cargo sent 0 to 1 (kt)\",\"coef\":1},{\"var\":\"x_2_1 cargo sent 2 to 1 (kt)\",\"coef\":1},{\"var\":\"x_3_1 cargo sent 3 to 1 (kt)\",\"coef\":1},{\"var\":\"x_4_1 cargo sent 4 to 1 (kt)\",\"coef\":1},{\"var\":\"x_5_1 cargo sent 5 to 1 (kt)\",\"coef\":1},{\"var\":\"x_6_1 cargo sent 6 to 1 (kt)\",\"coef\":1},{\"var\":\"x_7_1 cargo sent 7 to 1 (kt)\",\"coef\":1},{\"var\":\"x_1_0 cargo sent 1 to 0 (kt)\",\"coef\":-1},{\"var\":\"x_1_2 cargo sent 1 to 2 (kt)\",\"coef\":-1},{\"var\":\"x_1_3 cargo sent 1 to 3 (kt)\",\"coef\":-1},{\"var\":\"x_1_4 cargo sent 1 to 4 (kt)\",\"coef\":-1},{\"var\":\"x_1_5 cargo sent 1 to 5 (kt)\",\"coef\":-1},{\"var\":\"x_1_6 cargo sent 1 to 6 (kt)\",\"coef\":-1},{\"var\":\"x_1_7 cargo sent 1 to 7 (kt)\",\"coef\":-1},{\"var\":\"x_1_8 cargo sent 1 to 8 (kt)\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conserve_2\",\"terms\":[{\"var\":\"x_0_2 cargo sent 0 to 2 (kt)\",\"coef\":1},{\"var\":\"x_1_2 cargo sent 1 to 2 (kt)\",\"coef\":1},{\"var\":\"x_3_2 cargo sent 3 to 2 (kt)\",\"coef\":1},{\"var\":\"x_4_2 cargo sent 4 to 2 (kt)\",\"coef\":1},{\"var\":\"x_5_2 cargo sent 5 to 2 (kt)\",\"coef\":1},{\"var\":\"x_6_2 cargo sent 6 to 2 (kt)\",\"coef\":1},{\"var\":\"x_7_2 cargo sent 7 to 2 (kt)\",\"coef\":1},{\"var\":\"x_2_0 cargo sent 2 to 0 (kt)\",\"coef\":-1},{\"var\":\"x_2_1 cargo sent 2 to 1 (kt)\",\"coef\":-1},{\"var\":\"x_2_3 cargo sent 2 to 3 (kt)\",\"coef\":-1},{\"var\":\"x_2_4 cargo sent 2 to 4 (kt)\",\"coef\":-1},{\"var\":\"x_2_5 cargo sent 2 to 5 (kt)\",\"coef\":-1},{\"var\":\"x_2_6 cargo sent 2 to 6 (kt)\",\"coef\":-1},{\"var\":\"x_2_7 cargo sent 2 to 7 (kt)\",\"coef\":-1},{\"var\":\"x_2_8 cargo sent 2 to 8 (kt)\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conserve_3\",\"terms\":[{\"var\":\"x_0_3 cargo sent 0 to 3 (kt)\",\"coef\":1},{\"var\":\"x_1_3 cargo sent 1 to 3 (kt)\",\"coef\":1},{\"var\":\"x_2_3 cargo sent 2 to 3 (kt)\",\"coef\":1},{\"var\":\"x_4_3 cargo sent 4 to 3 (kt)\",\"coef\":1},{\"var\":\"x_5_3 cargo sent 5 to 3 (kt)\",\"coef\":1},{\"var\":\"x_6_3 cargo sent 6 to 3 (kt)\",\"coef\":1},{\"var\":\"x_7_3 cargo sent 7 to 3 (kt)\",\"coef\":1},{\"var\":\"x_3_0 cargo sent 3 to 0 (kt)\",\"coef\":-1},{\"var\":\"x_3_1 cargo sent 3 to 1 (kt)\",\"coef\":-1},{\"var\":\"x_3_2 cargo sent 3 to 2 (kt)\",\"coef\":-1},{\"var\":\"x_3_4 cargo sent 3 to 4 (kt)\",\"coef\":-1},{\"var\":\"x_3_5 cargo sent 3 to 5 (kt)\",\"coef\":-1},{\"var\":\"x_3_6 cargo sent 3 to 6 (kt)\",\"coef\":-1},{\"var\":\"x_3_7 cargo sent 3 to 7 (kt)\",\"coef\":-1},{\"var\":\"x_3_8 cargo sent 3 to 8 (kt)\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conserve_4\",\"terms\":[{\"var\":\"x_0_4 cargo sent 0 to 4 (kt)\",\"coef\":1},{\"var\":\"x_1_4 cargo sent 1 to 4 (kt)\",\"coef\":1},{\"var\":\"x_2_4 cargo sent 2 to 4 (kt)\",\"coef\":1},{\"var\":\"x_3_4 cargo sent 3 to 4 (kt)\",\"coef\":1},{\"var\":\"x_5_4 cargo sent 5 to 4 (kt)\",\"coef\":1},{\"var\":\"x_6_4 cargo sent 6 to 4 (kt)\",\"coef\":1},{\"var\":\"x_7_4 cargo sent 7 to 4 (kt)\",\"coef\":1},{\"var\":\"x_4_0 cargo sent 4 to 0 (kt)\",\"coef\":-1},{\"var\":\"x_4_1 cargo sent 4 to 1 (kt)\",\"coef\":-1},{\"var\":\"x_4_2 cargo sent 4 to 2 (kt)\",\"coef\":-1},{\"var\":\"x_4_3 cargo sent 4 to 3 (kt)\",\"coef\":-1},{\"var\":\"x_4_5 cargo sent 4 to 5 (kt)\",\"coef\":-1},{\"var\":\"x_4_6 cargo sent 4 to 6 (kt)\",\"coef\":-1},{\"var\":\"x_4_7 cargo sent 4 to 7 (kt)\",\"coef\":-1},{\"var\":\"x_4_8 cargo sent 4 to 8 (kt)\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conserve_5\",\"terms\":[{\"var\":\"x_0_5 cargo sent 0 to 5 (kt)\",\"coef\":1},{\"var\":\"x_1_5 cargo sent 1 to 5 (kt)\",\"coef\":1},{\"var\":\"x_2_5 cargo sent 2 to 5 (kt)\",\"coef\":1},{\"var\":\"x_3_5 cargo sent 3 to 5 (kt)\",\"coef\":1},{\"var\":\"x_4_5 cargo sent 4 to 5 (kt)\",\"coef\":1},{\"var\":\"x_6_5 cargo sent 6 to 5 (kt)\",\"coef\":1},{\"var\":\"x_7_5 cargo sent 7 to 5 (kt)\",\"coef\":1},{\"var\":\"x_5_0 cargo sent 5 to 0 (kt)\",\"coef\":-1},{\"var\":\"x_5_1 cargo sent 5 to 1 (kt)\",\"coef\":-1},{\"var\":\"x_5_2 cargo sent 5 to 2 (kt)\",\"coef\":-1},{\"var\":\"x_5_3 cargo sent 5 to 3 (kt)\",\"coef\":-1},{\"var\":\"x_5_4 cargo sent 5 to 4 (kt)\",\"coef\":-1},{\"var\":\"x_5_6 cargo sent 5 to 6 (kt)\",\"coef\":-1},{\"var\":\"x_5_7 cargo sent 5 to 7 (kt)\",\"coef\":-1},{\"var\":\"x_5_8 cargo sent 5 to 8 (kt)\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conserve_6\",\"terms\":[{\"var\":\"x_1_6 cargo sent 1 to 6 (kt)\",\"coef\":1},{\"var\":\"x_2_6 cargo sent 2 to 6 (kt)\",\"coef\":1},{\"var\":\"x_3_6 cargo sent 3 to 6 (kt)\",\"coef\":1},{\"var\":\"x_4_6 cargo sent 4 to 6 (kt)\",\"coef\":1},{\"var\":\"x_5_6 cargo sent 5 to 6 (kt)\",\"coef\":1},{\"var\":\"x_7_6 cargo sent 7 to 6 (kt)\",\"coef\":1},{\"var\":\"x_6_0 cargo sent 6 to 0 (kt)\",\"coef\":-1},{\"var\":\"x_6_1 cargo sent 6 to 1 (kt)\",\"coef\":-1},{\"var\":\"x_6_2 cargo sent 6 to 2 (kt)\",\"coef\":-1},{\"var\":\"x_6_3 cargo sent 6 to 3 (kt)\",\"coef\":-1},{\"var\":\"x_6_4 cargo sent 6 to 4 (kt)\",\"coef\":-1},{\"var\":\"x_6_5 cargo sent 6 to 5 (kt)\",\"coef\":-1},{\"var\":\"x_6_7 cargo sent 6 to 7 (kt)\",\"coef\":-1},{\"var\":\"x_6_8 cargo sent 6 to 8 (kt)\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conserve_7\",\"terms\":[{\"var\":\"x_0_7 cargo sent 0 to 7 (kt)\",\"coef\":1},{\"var\":\"x_1_7 cargo sent 1 to 7 (kt)\",\"coef\":1},{\"var\":\"x_2_7 cargo sent 2 to 7 (kt)\",\"coef\":1},{\"var\":\"x_3_7 cargo sent 3 to 7 (kt)\",\"coef\":1},{\"var\":\"x_4_7 cargo sent 4 to 7 (kt)\",\"coef\":1},{\"var\":\"x_5_7 cargo sent 5 to 7 (kt)\",\"coef\":1},{\"var\":\"x_6_7 cargo sent 6 to 7 (kt)\",\"coef\":1},{\"var\":\"x_7_0 cargo sent 7 to 0 (kt)\",\"coef\":-1},{\"var\":\"x_7_1 cargo sent 7 to 1 (kt)\",\"coef\":-1},{\"var\":\"x_7_2 cargo sent 7 to 2 (kt)\",\"coef\":-1},{\"var\":\"x_7_3 cargo sent 7 to 3 (kt)\",\"coef\":-1},{\"var\":\"x_7_4 cargo sent 7 to 4 (kt)\",\"coef\":-1},{\"var\":\"x_7_5 cargo sent 7 to 5 (kt)\",\"coef\":-1},{\"var\":\"x_7_6 cargo sent 7 to 6 (kt)\",\"coef\":-1},{\"var\":\"x_7_8 cargo sent 7 to 8 (kt)\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2681,
+   "output_tokens": 14478,
+   "output_tokens_details": {
+    "thinking_tokens": 3999
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "46868ef097e1712b23ecd19e6e623f3ccf20526ed1b04e5585da178e3cc583a5",
+  "tries": 1,
+  "latency_s": 44.537072583974805,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

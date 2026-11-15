@@ -1,0 +1,316 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are checking an operations research model before it is solved. Read the word problem and list what any correct formulation of it must contain. Don't write the model, and don't solve the problem.\n\nThe model's decision variables are listed by name in <variables>. Use exactly those names and no others. If a requirement needs a quantity that isn't one of them, put it in cannot_express instead.\n\n- variables: for each listed name, say whether it counts whole things (\"integer\": vehicles, trips, people, products, servings), measures a divisible quantity (\"continuous\": kilograms, acres, hours, money), or the text supports both (\"unclear\"). Quote the words that decide it.\n- objective: its direction (min or max) and its terms over the listed names, with the numbers exactly as given. Quote the words it comes from.\n- requirements: every requirement the text states, as a linear inequality or equation over the listed names. Use the numbers exactly as given, and write percentages as fractions (30% as 0.3). Quote the exact words each one comes from.\n  - strict: true if the wording is strict (\"more than\", \"must exceed\", \"fewer than\"); still write it with >= or <=.\n  - could_be_equal: true if the wording names no inequality at all (\"twice as many as\", \"three times the number of\"), so \"=\" would be a fair reading too.\n  - scope: \"combined\" if one limit covers several items together, \"per item\" if it applies to each item separately, \"single\" if it involves one quantity. Decide this from the text: \"at most 50 cakes of either type\" may be one total or one limit per type, so quote why.\n  - Leave out non-negativity, unless the text says a quantity can be negative.\n- not_requirements: every sentence that states a preference, a motivation, popularity, or background rather than a requirement (\"prefers\", \"is more popular\", \"would like\", \"sells better\"), with its quote, why it isn't a requirement, and the inequality someone might wrongly make of it (empty terms if there's none). Never turn one of these into a requirement.\n- cannot_express: each requirement that needs a quantity not among the listed names, with its quote and the quantity it needs.\n- Don't add anything the text doesn't state.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nThe Zhang family has 6 children, Harry, Hermione, Ron, Fred, George, and Ginny. The cost of taking Harry is $1200, Hermione is $1650, Ron is $750, Fred is $800, George is $800, and Ginny is $1500. Which children should the couple take to minimize the total cost of taking the children?\n\nThey can take a maximum of 4 children on the upcoming trip.\n\nGinny is the youngest, so the Zhang family will definitely take her.\n\nIf the couple takes Harry, they will not take Fred because Harry doesn't get along with him.\n\nIf the couple takes Harry, they will not take George because Harry doesn't get along with him.\n\nIf they take George, they must also take Fred.\n\nIf they take George, they must also take Hermione.\n\nAlthough this will cost them a lot of money, the Zhang family has decided to take at least three children.\n</problem>\n\n<variables>\nHarry taken\nHermione taken\nRon taken\nFred taken\nGeorge taken\nGinny taken\n</variables>"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "CannotExpress": {
+       "type": "object",
+       "title": "CannotExpress",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "needs": {
+         "type": "string",
+         "title": "Needs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "needs"
+       ]
+      },
+      "ChecklistObjective": {
+       "type": "object",
+       "title": "ChecklistObjective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms",
+        "quote"
+       ]
+      },
+      "ChecklistTerm": {
+       "type": "object",
+       "title": "ChecklistTerm",
+       "properties": {
+        "var": {
+         "type": "string",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "ChecklistVariable": {
+       "type": "object",
+       "title": "ChecklistVariable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "title": "Name"
+        },
+        "kind": {
+         "type": "string",
+         "enum": [
+          "integer",
+          "continuous",
+          "unclear"
+         ],
+         "title": "Kind"
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "kind",
+        "quote"
+       ]
+      },
+      "NotARequirement": {
+       "type": "object",
+       "title": "NotARequirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "why": {
+         "type": "string",
+         "title": "Why"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "why",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Requirement": {
+       "type": "object",
+       "title": "Requirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        },
+        "strict": {
+         "type": "boolean",
+         "title": "Strict"
+        },
+        "could_be_equal": {
+         "type": "boolean",
+         "title": "Could Be Equal"
+        },
+        "scope": {
+         "type": "string",
+         "enum": [
+          "single",
+          "combined",
+          "per item"
+         ],
+         "title": "Scope"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "terms",
+        "sense",
+        "rhs",
+        "strict",
+        "could_be_equal",
+        "scope"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "Checklist",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/ChecklistVariable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/ChecklistObjective"
+      },
+      "requirements": {
+       "type": "array",
+       "title": "Requirements",
+       "items": {
+        "$ref": "#/$defs/Requirement"
+       }
+      },
+      "not_requirements": {
+       "type": "array",
+       "title": "Not Requirements",
+       "items": {
+        "$ref": "#/$defs/NotARequirement"
+       }
+      },
+      "cannot_express": {
+       "type": "array",
+       "title": "Cannot Express",
+       "items": {
+        "$ref": "#/$defs/CannotExpress"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "requirements",
+      "not_requirements",
+      "cannot_express"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3E9vxkdc26X7X6S9awJ",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"Harry taken\",\"kind\":\"integer\",\"quote\":\"The Zhang family has 6 children, Harry, Hermione, Ron, Fred, George, and Ginny.\"},{\"name\":\"Hermione taken\",\"kind\":\"integer\",\"quote\":\"Which children should the couple take to minimize the total cost of taking the children?\"},{\"name\":\"Ron taken\",\"kind\":\"integer\",\"quote\":\"The cost of taking Harry is $1200, Hermione is $1650, Ron is $750, Fred is $800, George is $800, and Ginny is $1500.\"},{\"name\":\"Fred taken\",\"kind\":\"integer\",\"quote\":\"They can take a maximum of 4 children on the upcoming trip.\"},{\"name\":\"George taken\",\"kind\":\"integer\",\"quote\":\"If they take George, they must also take Fred.\"},{\"name\":\"Ginny taken\",\"kind\":\"integer\",\"quote\":\"Ginny is the youngest, so the Zhang family will definitely take her.\"}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"Harry taken\",\"coef\":1200},{\"var\":\"Hermione taken\",\"coef\":1650},{\"var\":\"Ron taken\",\"coef\":750},{\"var\":\"Fred taken\",\"coef\":800},{\"var\":\"George taken\",\"coef\":800},{\"var\":\"Ginny taken\",\"coef\":1500}],\"quote\":\"The cost of taking Harry is $1200, Hermione is $1650, Ron is $750, Fred is $800, George is $800, and Ginny is $1500. Which children should the couple take to minimize the total cost of taking the children?\"},\"requirements\":[{\"quote\":\"They can take a maximum of 4 children on the upcoming trip.\",\"terms\":[{\"var\":\"Harry taken\",\"coef\":1},{\"var\":\"Hermione taken\",\"coef\":1},{\"var\":\"Ron taken\",\"coef\":1},{\"var\":\"Fred taken\",\"coef\":1},{\"var\":\"George taken\",\"coef\":1},{\"var\":\"Ginny taken\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":4,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"Ginny is the youngest, so the Zhang family will definitely take her.\",\"terms\":[{\"var\":\"Ginny taken\",\"coef\":1}],\"sense\":\"==\",\"rhs\":1,\"strict\":false,\"could_be_equal\":false,\"scope\":\"single\"},{\"quote\":\"If the couple takes Harry, they will not take Fred because Harry doesn't get along with him.\",\"terms\":[{\"var\":\"Harry taken\",\"coef\":1},{\"var\":\"Fred taken\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":1,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"If the couple takes Harry, they will not take George because Harry doesn't get along with him.\",\"terms\":[{\"var\":\"Harry taken\",\"coef\":1},{\"var\":\"George taken\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":1,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"If they take George, they must also take Fred.\",\"terms\":[{\"var\":\"George taken\",\"coef\":1},{\"var\":\"Fred taken\",\"coef\":-1}],\"sense\":\"<=\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"If they take George, they must also take Hermione.\",\"terms\":[{\"var\":\"George taken\",\"coef\":1},{\"var\":\"Hermione taken\",\"coef\":-1}],\"sense\":\"<=\",\"rhs\":0,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"Although this will cost them a lot of money, the Zhang family has decided to take at least three children.\",\"terms\":[{\"var\":\"Harry taken\",\"coef\":1},{\"var\":\"Hermione taken\",\"coef\":1},{\"var\":\"Ron taken\",\"coef\":1},{\"var\":\"Fred taken\",\"coef\":1},{\"var\":\"George taken\",\"coef\":1},{\"var\":\"Ginny taken\",\"coef\":1}],\"sense\":\">=\",\"rhs\":3,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"}],\"not_requirements\":[{\"quote\":\"Ginny is the youngest\",\"why\":\"This is background explaining why Ginny is taken; it states no limit on any quantity.\",\"terms\":[],\"sense\":\"==\",\"rhs\":0},{\"quote\":\"Although this will cost them a lot of money\",\"why\":\"This is a motivation/background remark about cost, not a limit on how many children can be taken.\",\"terms\":[],\"sense\":\"<=\",\"rhs\":0}],\"cannot_express\":[]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2935,
+   "output_tokens": 2596,
+   "output_tokens_details": {
+    "thinking_tokens": 1076
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "1fbd81221fa7cb74a1b4fdd6f645a5744ed0954a092d7dd14590ce78de6328e1",
+  "tries": 1,
+  "latency_s": 10.15830658300547,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 2
+}

@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine you're a dietitian, tasked with crafting a healthy and balanced meal plan for a client on a budget. The tricky part is that you must choose from a list of nine food items, each with their own cost and nutritional values for protein, carbohydrates, and calories.\n\nHere's the rundown of what each food item provides and its cost:\n\n- Chicken Breast: Delivers 17 grams of protein, 28 grams of carbohydrates, and 136 calories for $3.\n- Tofu: Yields 15 grams of protein, 11 grams of carbohydrates, and 198 calories for $2.\n- Brown Rice: Offers just 1 gram of protein, 11 grams of carbohydrates, and 93 calories for $2.\n- Salmon: Gives you 11 grams of protein, 3 grams of carbohydrates, and a hefty 269 calories for $6.\n- Greek Yogurt: Provides 15 grams of protein, 27 grams of carbohydrates, and 121 calories for $6.\n- Steak: Comes with 12 grams of protein, 3 grams of carbohydrates, and 80 calories for a steeper price of $10.\n- Avocado: Provides 4 grams of protein, 8 grams of carbohydrates, and a whopping 300 calories for $7.\n- Eggs: Offer 16 grams of protein, 25 grams of carbohydrates, and 99 calories for $5.\n- Quinoa: Comes with 11 grams of protein, 20 grams of carbohydrates, and 87 calories for just $2.\n\nYour goal is to make sure your client gets at least 72 grams of protein, 158 grams of carbohydrates, and 1896 calories from the combination of foods you choose. But you also need to keep costs to a minimum. What is the least amount of money you would need to spend to meet all of these nutritional targets from these nine food options?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3p8FTtLA9y5KTiyXyXh",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"chicken breast servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"tofu servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"brown rice servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"salmon servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"greek yogurt servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"steak servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"avocado servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"eggs servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"quinoa servings\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":3},{\"var\":\"tofu servings\",\"coef\":2},{\"var\":\"brown rice servings\",\"coef\":2},{\"var\":\"salmon servings\",\"coef\":6},{\"var\":\"greek yogurt servings\",\"coef\":6},{\"var\":\"steak servings\",\"coef\":10},{\"var\":\"avocado servings\",\"coef\":7},{\"var\":\"eggs servings\",\"coef\":5},{\"var\":\"quinoa servings\",\"coef\":2}]},\"constraints\":[{\"name\":\"protein\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":17},{\"var\":\"tofu servings\",\"coef\":15},{\"var\":\"brown rice servings\",\"coef\":1},{\"var\":\"salmon servings\",\"coef\":11},{\"var\":\"greek yogurt servings\",\"coef\":15},{\"var\":\"steak servings\",\"coef\":12},{\"var\":\"avocado servings\",\"coef\":4},{\"var\":\"eggs servings\",\"coef\":16},{\"var\":\"quinoa servings\",\"coef\":11}],\"sense\":\">=\",\"rhs\":72},{\"name\":\"carbohydrates\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":28},{\"var\":\"tofu servings\",\"coef\":11},{\"var\":\"brown rice servings\",\"coef\":11},{\"var\":\"salmon servings\",\"coef\":3},{\"var\":\"greek yogurt servings\",\"coef\":27},{\"var\":\"steak servings\",\"coef\":3},{\"var\":\"avocado servings\",\"coef\":8},{\"var\":\"eggs servings\",\"coef\":25},{\"var\":\"quinoa servings\",\"coef\":20}],\"sense\":\">=\",\"rhs\":158},{\"name\":\"calories\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":136},{\"var\":\"tofu servings\",\"coef\":198},{\"var\":\"brown rice servings\",\"coef\":93},{\"var\":\"salmon servings\",\"coef\":269},{\"var\":\"greek yogurt servings\",\"coef\":121},{\"var\":\"steak servings\",\"coef\":80},{\"var\":\"avocado servings\",\"coef\":300},{\"var\":\"eggs servings\",\"coef\":99},{\"var\":\"quinoa servings\",\"coef\":87}],\"sense\":\">=\",\"rhs\":1896}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2172,
+   "output_tokens": 4666,
+   "output_tokens_details": {
+    "thinking_tokens": 3690
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "976e7af3a14d2d619e3dce1e9b6f58d76974c75e69f4ee18e92aef12c46529e8",
+  "tries": 1,
+  "latency_s": 19.820260833017528,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

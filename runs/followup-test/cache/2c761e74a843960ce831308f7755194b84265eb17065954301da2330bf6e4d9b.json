@@ -1,0 +1,234 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine an intricate and bustling transportation network connecting six major cities in a region. Goods are transported from City 0 (the source) to City 5 (the destination) through numerous highways, each with varying capacities to handle the flow of goods. \n\nHere is a rundown of the maximum amount of goods (in thousands of tons) that can be transferred between cities per day:\n\n- From City 0 (Source): Can send goods to City 1 (6 tons), City 2 (8 tons), City 3 (1 ton), City 4 (9 tons), and City 5 (8 tons).\n- From City 1: Can send goods to City 0 (16 tons), City 2 (6 tons), City 4 (12 tons), and City 5 (16 tons). It has no connection to City 3.\n- From City 2: Can send goods to City 0 (7 tons), City 1 (16 tons), City 3 (20 tons), City 4 (17 tons), and City 5 (9 tons).\n- From City 3: Can send goods to City 0 (3 tons), City 1 (11 tons), City 2 (14 tons), and City 4 (7 tons). It has no connection to City 5.\n- From City 4: Can send goods to City 0 (6 tons), City 1 (19 tons), City 2 (19 tons), City 3 (3 tons), and City 5 (20 tons).\n- From City 5 (Destination): Can send goods back to City 0 (20 tons), City 1 (5 tons), City 2 (16 tons), City 3 (12 tons), and City 4 (2 tons).\n\nIn this scenario, a capacity of \"0\" means there is no direct highway connection between those two cities.\n\nThe question at hand is to calculate the maximum amount of goods that can be transported from City 0 (the source) to City 5 (the destination) per day while ensuring that the flow of goods on each highway doesn't exceed its capacity. \n\nSo what's the maximum amount of goods that can be transported from the source to the destination per day in thousands of tons?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch2X4MoYTaUzRERYGpVhh",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"flow 0->1\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 0->2\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 0->3\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 0->4\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 0->5\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 1->0\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 1->2\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 1->4\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 1->5\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 2->0\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 2->1\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 2->3\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 2->4\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 2->5\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 3->0\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 3->1\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 3->2\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 3->4\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 4->0\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 4->1\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 4->2\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 4->3\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 4->5\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 5->0\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 5->1\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 5->2\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 5->3\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"flow 5->4\",\"lower\":0,\"upper\":null,\"integer\":false}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"flow 0->1\",\"coef\":1},{\"var\":\"flow 0->2\",\"coef\":1},{\"var\":\"flow 0->3\",\"coef\":1},{\"var\":\"flow 0->4\",\"coef\":1},{\"var\":\"flow 0->5\",\"coef\":1}]},\"constraints\":[{\"name\":\"cap 0->1\",\"terms\":[{\"var\":\"flow 0->1\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":6},{\"name\":\"cap 0->2\",\"terms\":[{\"var\":\"flow 0->2\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":8},{\"name\":\"cap 0->3\",\"terms\":[{\"var\":\"flow 0->3\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":1},{\"name\":\"cap 0->4\",\"terms\":[{\"var\":\"flow 0->4\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":9},{\"name\":\"cap 0->5\",\"terms\":[{\"var\":\"flow 0->5\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":8},{\"name\":\"cap 1->0\",\"terms\":[{\"var\":\"flow 1->0\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":16},{\"name\":\"cap 1->2\",\"terms\":[{\"var\":\"flow 1->2\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":6},{\"name\":\"cap 1->4\",\"terms\":[{\"var\":\"flow 1->4\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":12},{\"name\":\"cap 1->5\",\"terms\":[{\"var\":\"flow 1->5\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":16},{\"name\":\"cap 2->0\",\"terms\":[{\"var\":\"flow 2->0\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":7},{\"name\":\"cap 2->1\",\"terms\":[{\"var\":\"flow 2->1\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":16},{\"name\":\"cap 2->3\",\"terms\":[{\"var\":\"flow 2->3\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":20},{\"name\":\"cap 2->4\",\"terms\":[{\"var\":\"flow 2->4\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":17},{\"name\":\"cap 2->5\",\"terms\":[{\"var\":\"flow 2->5\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":9},{\"name\":\"cap 3->0\",\"terms\":[{\"var\":\"flow 3->0\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":3},{\"name\":\"cap 3->1\",\"terms\":[{\"var\":\"flow 3->1\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":11},{\"name\":\"cap 3->2\",\"terms\":[{\"var\":\"flow 3->2\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":14},{\"name\":\"cap 3->4\",\"terms\":[{\"var\":\"flow 3->4\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":7},{\"name\":\"cap 4->0\",\"terms\":[{\"var\":\"flow 4->0\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":6},{\"name\":\"cap 4->1\",\"terms\":[{\"var\":\"flow 4->1\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":19},{\"name\":\"cap 4->2\",\"terms\":[{\"var\":\"flow 4->2\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":19},{\"name\":\"cap 4->3\",\"terms\":[{\"var\":\"flow 4->3\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":3},{\"name\":\"cap 4->5\",\"terms\":[{\"var\":\"flow 4->5\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":20},{\"name\":\"cap 5->0\",\"terms\":[{\"var\":\"flow 5->0\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":20},{\"name\":\"cap 5->1\",\"terms\":[{\"var\":\"flow 5->1\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":5},{\"name\":\"cap 5->2\",\"terms\":[{\"var\":\"flow 5->2\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":16},{\"name\":\"cap 5->3\",\"terms\":[{\"var\":\"flow 5->3\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":12},{\"name\":\"cap 5->4\",\"terms\":[{\"var\":\"flow 5->4\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":2},{\"name\":\"conservation City 1\",\"terms\":[{\"var\":\"flow 0->1\",\"coef\":1},{\"var\":\"flow 2->1\",\"coef\":1},{\"var\":\"flow 3->1\",\"coef\":1},{\"var\":\"flow 4->1\",\"coef\":1},{\"var\":\"flow 5->1\",\"coef\":1},{\"var\":\"flow 1->0\",\"coef\":-1},{\"var\":\"flow 1->2\",\"coef\":-1},{\"var\":\"flow 1->4\",\"coef\":-1},{\"var\":\"flow 1->5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation City 2\",\"terms\":[{\"var\":\"flow 0->2\",\"coef\":1},{\"var\":\"flow 1->2\",\"coef\":1},{\"var\":\"flow 3->2\",\"coef\":1},{\"var\":\"flow 4->2\",\"coef\":1},{\"var\":\"flow 5->2\",\"coef\":1},{\"var\":\"flow 2->0\",\"coef\":-1},{\"var\":\"flow 2->1\",\"coef\":-1},{\"var\":\"flow 2->3\",\"coef\":-1},{\"var\":\"flow 2->4\",\"coef\":-1},{\"var\":\"flow 2->5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation City 3\",\"terms\":[{\"var\":\"flow 0->3\",\"coef\":1},{\"var\":\"flow 2->3\",\"coef\":1},{\"var\":\"flow 4->3\",\"coef\":1},{\"var\":\"flow 5->3\",\"coef\":1},{\"var\":\"flow 3->0\",\"coef\":-1},{\"var\":\"flow 3->1\",\"coef\":-1},{\"var\":\"flow 3->2\",\"coef\":-1},{\"var\":\"flow 3->4\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation City 4\",\"terms\":[{\"var\":\"flow 0->4\",\"coef\":1},{\"var\":\"flow 1->4\",\"coef\":1},{\"var\":\"flow 2->4\",\"coef\":1},{\"var\":\"flow 3->4\",\"coef\":1},{\"var\":\"flow 5->4\",\"coef\":1},{\"var\":\"flow 4->0\",\"coef\":-1},{\"var\":\"flow 4->1\",\"coef\":-1},{\"var\":\"flow 4->2\",\"coef\":-1},{\"var\":\"flow 4->3\",\"coef\":-1},{\"var\":\"flow 4->5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2206,
+   "output_tokens": 5000,
+   "output_tokens_details": {
+    "thinking_tokens": 1957
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "9b0320a60a404f77cd6251758d126e9b869f6857aff7286a4498ba41da10fc27",
+  "tries": 1,
+  "latency_s": 26.528429624973796,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 2
+}

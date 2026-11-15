@@ -1,0 +1,316 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are checking an operations research model before it is solved. Read the word problem and list what any correct formulation of it must contain. Don't write the model, and don't solve the problem.\n\nThe model's decision variables are listed by name in <variables>. Use exactly those names and no others. If a requirement needs a quantity that isn't one of them, put it in cannot_express instead.\n\n- variables: for each listed name, say whether it counts whole things (\"integer\": vehicles, trips, people, products, servings), measures a divisible quantity (\"continuous\": kilograms, acres, hours, money), or the text supports both (\"unclear\"). Quote the words that decide it.\n- objective: its direction (min or max) and its terms over the listed names, with the numbers exactly as given. Quote the words it comes from.\n- requirements: every requirement the text states, as a linear inequality or equation over the listed names. Use the numbers exactly as given, and write percentages as fractions (30% as 0.3). Quote the exact words each one comes from.\n  - strict: true if the wording is strict (\"more than\", \"must exceed\", \"fewer than\"); still write it with >= or <=.\n  - could_be_equal: true if the wording names no inequality at all (\"twice as many as\", \"three times the number of\"), so \"=\" would be a fair reading too.\n  - scope: \"combined\" if one limit covers several items together, \"per item\" if it applies to each item separately, \"single\" if it involves one quantity. Decide this from the text: \"at most 50 cakes of either type\" may be one total or one limit per type, so quote why.\n  - Leave out non-negativity, unless the text says a quantity can be negative.\n- not_requirements: every sentence that states a preference, a motivation, popularity, or background rather than a requirement (\"prefers\", \"is more popular\", \"would like\", \"sells better\"), with its quote, why it isn't a requirement, and the inequality someone might wrongly make of it (empty terms if there's none). Never turn one of these into a requirement.\n- cannot_express: each requirement that needs a quantity not among the listed names, with its quote and the quantity it needs.\n- Don't add anything the text doesn't state.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "<problem>\nImagine you're a dietitian, tasked with planning a nutritious and balanced meal for an athlete. The athlete needs to maintain a high protein, moderate carb diet, with enough calories to sustain their intense training regimen. The goal is to meet these dietary requirements at the lowest cost possible. You have five different food items to choose from: Steak, Rice, Chicken, Iceberg Lettuce, and Almonds. Each of these foods contains varying amounts of protein, carbohydrates, and calories, and each comes with a specific cost.\n\nHere's a detailed breakdown of the nutritional value of each food item and its cost:\n\n- Steak: Offers a whopping 20 grams of protein, 12 grams of carbohydrates, and 167 calories for $7.\n- Rice: Provides 6 grams of protein, an impressive 29 grams of carbohydrates, and a hefty 275 calories for $8.\n- Chicken: Packs 17 grams of protein, 26 grams of carbohydrates, and 112 calories for only $2.\n- Iceberg Lettuce: Contains only 1 gram of protein, 8 grams of carbohydrates, and 148 calories for $8.\n- Almonds: Provide 10 grams of protein, 2 grams of carbohydrates, and a high 286 calories for just $2.\n\nThe athlete's daily dietary requirements are as follows: at least 83 grams of protein, 128 grams of carbohydrates, and 1686 calories.\n\nYour challenge is to select a combination of these foods that meets the athletes' nutritional needs, while keeping the costs as low as possible. So, what is the lowest possible cost to meet these dietary requirements? Note: your response should be a single answer question, asking for the optimal value.\n</problem>\n\n<variables>\nsteak servings\nrice servings\nchicken servings\niceberg lettuce servings\nalmond servings\n</variables>"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "CannotExpress": {
+       "type": "object",
+       "title": "CannotExpress",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "needs": {
+         "type": "string",
+         "title": "Needs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "needs"
+       ]
+      },
+      "ChecklistObjective": {
+       "type": "object",
+       "title": "ChecklistObjective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms",
+        "quote"
+       ]
+      },
+      "ChecklistTerm": {
+       "type": "object",
+       "title": "ChecklistTerm",
+       "properties": {
+        "var": {
+         "type": "string",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "ChecklistVariable": {
+       "type": "object",
+       "title": "ChecklistVariable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "title": "Name"
+        },
+        "kind": {
+         "type": "string",
+         "enum": [
+          "integer",
+          "continuous",
+          "unclear"
+         ],
+         "title": "Kind"
+        },
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "kind",
+        "quote"
+       ]
+      },
+      "NotARequirement": {
+       "type": "object",
+       "title": "NotARequirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "why": {
+         "type": "string",
+         "title": "Why"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "why",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Requirement": {
+       "type": "object",
+       "title": "Requirement",
+       "properties": {
+        "quote": {
+         "type": "string",
+         "title": "Quote"
+        },
+        "terms": {
+         "type": "array",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/ChecklistTerm"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "title": "Rhs"
+        },
+        "strict": {
+         "type": "boolean",
+         "title": "Strict"
+        },
+        "could_be_equal": {
+         "type": "boolean",
+         "title": "Could Be Equal"
+        },
+        "scope": {
+         "type": "string",
+         "enum": [
+          "single",
+          "combined",
+          "per item"
+         ],
+         "title": "Scope"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "quote",
+        "terms",
+        "sense",
+        "rhs",
+        "strict",
+        "could_be_equal",
+        "scope"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "Checklist",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/ChecklistVariable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/ChecklistObjective"
+      },
+      "requirements": {
+       "type": "array",
+       "title": "Requirements",
+       "items": {
+        "$ref": "#/$defs/Requirement"
+       }
+      },
+      "not_requirements": {
+       "type": "array",
+       "title": "Not Requirements",
+       "items": {
+        "$ref": "#/$defs/NotARequirement"
+       }
+      },
+      "cannot_express": {
+       "type": "array",
+       "title": "Cannot Express",
+       "items": {
+        "$ref": "#/$defs/CannotExpress"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "requirements",
+      "not_requirements",
+      "cannot_express"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011Ch3HqAv5qJgvDdn71Tkn9",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"steak servings\",\"kind\":\"integer\",\"quote\":\"select a combination of these foods\"},{\"name\":\"rice servings\",\"kind\":\"integer\",\"quote\":\"select a combination of these foods\"},{\"name\":\"chicken servings\",\"kind\":\"integer\",\"quote\":\"select a combination of these foods\"},{\"name\":\"iceberg lettuce servings\",\"kind\":\"integer\",\"quote\":\"select a combination of these foods\"},{\"name\":\"almond servings\",\"kind\":\"integer\",\"quote\":\"select a combination of these foods\"}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"steak servings\",\"coef\":7},{\"var\":\"rice servings\",\"coef\":8},{\"var\":\"chicken servings\",\"coef\":2},{\"var\":\"iceberg lettuce servings\",\"coef\":8},{\"var\":\"almond servings\",\"coef\":2}],\"quote\":\"keeping the costs as low as possible\"},\"requirements\":[{\"quote\":\"at least 83 grams of protein\",\"terms\":[{\"var\":\"steak servings\",\"coef\":20},{\"var\":\"rice servings\",\"coef\":6},{\"var\":\"chicken servings\",\"coef\":17},{\"var\":\"iceberg lettuce servings\",\"coef\":1},{\"var\":\"almond servings\",\"coef\":10}],\"sense\":\">=\",\"rhs\":83,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"128 grams of carbohydrates\",\"terms\":[{\"var\":\"steak servings\",\"coef\":12},{\"var\":\"rice servings\",\"coef\":29},{\"var\":\"chicken servings\",\"coef\":26},{\"var\":\"iceberg lettuce servings\",\"coef\":8},{\"var\":\"almond servings\",\"coef\":2}],\"sense\":\">=\",\"rhs\":128,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"},{\"quote\":\"1686 calories\",\"terms\":[{\"var\":\"steak servings\",\"coef\":167},{\"var\":\"rice servings\",\"coef\":275},{\"var\":\"chicken servings\",\"coef\":112},{\"var\":\"iceberg lettuce servings\",\"coef\":148},{\"var\":\"almond servings\",\"coef\":286}],\"sense\":\">=\",\"rhs\":1686,\"strict\":false,\"could_be_equal\":false,\"scope\":\"combined\"}],\"not_requirements\":[],\"cannot_express\":[{\"quote\":\"maintain a high protein, moderate carb diet\",\"needs\":\"an upper limit on total carbohydrates; the text gives no number for it\"}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 3232,
+   "output_tokens": 2011,
+   "output_tokens_details": {
+    "thinking_tokens": 1224
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "d18b1eae02cc1e0f6a66074b6778bd705bfd4785e92c54366055c223f8931b22",
+  "tries": 1,
+  "latency_s": 8.88548900000751,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 2
+}
