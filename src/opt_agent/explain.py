@@ -84,7 +84,7 @@ def build_request(problem: str, model: LPModel, facts: Facts, model_id: str) -> 
     )
     return {
         "model": model_id,
-        "max_tokens": api.MAX_TOKENS,
+        "max_tokens": api.max_tokens(),
         "system": SYSTEM_PROMPT,
         "messages": [
             {"role": "user", "content": f"Problem:\n{problem}\n\nModel and facts:\n{payload}"}

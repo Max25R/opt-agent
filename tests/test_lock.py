@@ -18,7 +18,8 @@ def test_every_installed_version_is_the_locked_one():
 
 def test_every_declared_dependency_is_locked():
     project = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())["project"]
-    declared = project["dependencies"] + project["optional-dependencies"]["dev"]
+    extras = project["optional-dependencies"]  # dev, and demo (fastapi, uvicorn)
+    declared = project["dependencies"] + [r for group in extras.values() for r in group]
     for requirement in map(Requirement, declared):
         name = requirement.name.lower()
         assert name in LOCK, f"{name} is declared in pyproject.toml but not locked"

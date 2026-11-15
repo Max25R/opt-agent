@@ -30,6 +30,9 @@ import hashlib
 import json
 import os
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 import anthropic
@@ -37,6 +40,8 @@ from anthropic.types import Message
 from pydantic import BaseModel
 
 MAX_TOKENS = 16_000  # leaves room for thinking, which counts toward max_tokens
+# A lower cap for the requests built in one context (the demo's; see max_tokens_cap).
+_MAX_TOKENS_CAP: ContextVar[int | None] = ContextVar("max_tokens_cap", default=None)
 THINKING = {"type": "adaptive", "display": "omitted"}
 EFFORT = "medium"
 
@@ -48,11 +53,30 @@ FIRST_WAIT_S, MAX_WAIT_S = 0.5, 60.0
 # Why a reply is unfinished, for every stop_reason other than end_turn and stop_sequence.
 UNFINISHED = {
     "refusal": "Claude declined to answer",
-    "max_tokens": f"the reply was cut off at {MAX_TOKENS} tokens",
+    "max_tokens": "the reply was cut off at its max_tokens limit",
     "model_context_window_exceeded": "the reply was cut off at the context window's limit",
     "pause_turn": "the API paused the turn before the reply was finished",
     "tool_use": "Claude asked for a tool, but none was offered",
 }
+
+
+def max_tokens() -> int:
+    """max_tokens for a request being built: MAX_TOKENS (both studies), or a lower cap set
+    with max_tokens_cap. Read when each request is built, so the cap is in the request dict
+    that's sent, hashed, cached and logged."""
+    cap = _MAX_TOKENS_CAP.get()
+    return MAX_TOKENS if cap is None else min(cap, MAX_TOKENS)
+
+
+@contextmanager
+def max_tokens_cap(cap: int) -> Iterator[None]:
+    """Every request built inside the block asks for at most `cap` tokens. A ContextVar, so
+    the cap stays in this thread (one web request) and can't leak into anything else."""
+    token = _MAX_TOKENS_CAP.set(cap)
+    try:
+        yield
+    finally:
+        _MAX_TOKENS_CAP.reset(token)
 
 
 class TokenUsage(BaseModel):
@@ -70,6 +94,26 @@ class RunStopped(Exception):
 
 class SpendLimitReached(RunStopped):
     """The account has hit a monthly spend limit; every call fails until it resets."""
+
+
+class NotCached(Exception):
+    """A replay-only client was asked to send a request: its reply isn't in the cache.
+    Deliberately not an anthropic.APIError, so call() can't turn it into a failed call."""
+
+
+class ReplayOnlyClient:
+    """Stands in for anthropic.Anthropic where every reply must come from the cache (the
+    demo's examples mode): it has no key and sends nothing. call() answers a cached request
+    before it reaches the client, so only a miss gets here, and it raises NotCached."""
+
+    def __init__(self):
+        self.messages = self  # so that client.messages.create(...) works
+
+    def with_options(self, **options) -> "ReplayOnlyClient":
+        return self
+
+    def create(self, **request):
+        raise NotCached(f"no cached reply for request {request_sha256(request)[:12]}")
 
 
 class CallInfo(BaseModel):

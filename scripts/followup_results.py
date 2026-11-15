@@ -42,7 +42,7 @@ NAMES = {
     "checklist-revision": "checklist revision",
 }
 ROWS = {"primary": "primary (unexposed)", "sensitivity": "sensitivity (all)"}
-CUT_OFF = "the reply was cut off at 16000 tokens"  # api.UNFINISHED["max_tokens"]
+CUT_OFF = "the reply was cut off at 16000 tokens"  # the frozen api.UNFINISHED["max_tokens"]
 
 
 # ---- building ---------------------------------------------------------------------------

@@ -44,3 +44,30 @@ jobs:
         run: pytest
         env:
           HYPOTHESIS_PROFILE: ci
+
+  demo-image:
+    # The demo's Docker image, built and started with no key (examples mode): /health, the
+    # examples, and one example solved through the replay path. Then live mode without a
+    # key must refuse to start. Nothing in this job has a key, so nothing can spend.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build the image
+        run: docker build -t opt-agent-demo .
+
+      - name: Start it in examples mode
+        run: docker run -d --name demo -p 8000:8000 opt-agent-demo
+
+      - name: Smoke test
+        run: python3 scripts/demo_smoke.py http://localhost:8000 --example paint
+
+      - name: Live mode without a key refuses to start
+        run: |
+          if docker run --rm -e OPT_AGENT_LIVE=1 opt-agent-demo; then
+            echo "live mode started without a key"; exit 1
+          fi
+
+      - name: Server log
+        if: always()
+        run: docker logs demo

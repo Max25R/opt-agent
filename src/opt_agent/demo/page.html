@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>opt-agent demo</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --text: #1c1d1f; --muted: #5d6066; --line: #e2e2de;
+    --accent: #2f5bd3; --accent-text: #ffffff; --ok: #1f7a46; --ok-bg: #e7f4ec;
+    --bad: #a3321f; --bad-bg: #fbeae6; --warn: #8a5a00; --warn-bg: #fdf3dc;
+    --code-bg: #f1f1ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141517; --card: #1d1f22; --text: #e9e9e7; --muted: #a2a5ab; --line: #303338;
+      --accent: #7d9cf0; --accent-text: #0e1220; --ok: #6fd39b; --ok-bg: #16301f;
+      --bad: #f19a86; --bad-bg: #3a1d17; --warn: #f0c46a; --warn-bg: #352a12;
+      --code-bg: #25282c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; padding: 28px 16px 48px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+       margin: 0 0 10px; font-weight: 600; }
+  .lede { color: var(--muted); margin: 0 0 14px; max-width: 760px; }
+  .badge { display: inline-block; font-size: 12px; padding: 2px 10px; border-radius: 999px;
+           border: 1px solid var(--line); color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+          padding: 16px 18px; margin-top: 14px; }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .examples button { background: var(--card); color: var(--text); border: 1px solid var(--line);
+                     border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+  .examples button:hover { border-color: var(--accent); }
+  .examples small { color: var(--muted); margin-left: 6px; }
+  textarea { width: 100%; min-height: 130px; resize: vertical; padding: 10px 12px;
+             border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+             color: var(--text); font: inherit; }
+  .row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px;
+         gap: 12px; flex-wrap: wrap; }
+  .muted { color: var(--muted); font-size: 13px; }
+  #solve { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 8px;
+           padding: 8px 22px; font: inherit; font-weight: 600; cursor: pointer; }
+  #solve:disabled { opacity: 0.6; cursor: progress; }
+  .verdict { border-radius: 10px; padding: 12px 16px; margin-top: 14px; font-weight: 600; }
+  .verdict.ok { background: var(--ok-bg); color: var(--ok); }
+  .verdict.bad { background: var(--bad-bg); color: var(--bad); }
+  .verdict span { display: block; font-weight: 400; color: var(--text); margin-top: 2px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid .card { margin-top: 14px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  .big { font-size: 30px; font-weight: 650; letter-spacing: -0.01em; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  td { padding: 4px 0; border-bottom: 1px solid var(--line); }
+  td:last-child { text-align: right; }
+  pre { background: var(--code-bg); border-radius: 8px; padding: 12px; overflow-x: auto;
+        margin: 0; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  ul.checks { list-style: none; padding: 0; margin: 0; }
+  ul.checks li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+  ul.checks li:last-child { border-bottom: 0; }
+  .pass { color: var(--ok); font-weight: 600; }
+  .fail { color: var(--bad); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .note { background: var(--warn-bg); color: var(--text); border-radius: 8px; padding: 8px 12px;
+          margin-top: 8px; font-size: 14px; }
+  #error { background: var(--bad-bg); color: var(--bad); border-radius: 10px; padding: 12px 16px;
+           margin-top: 14px; }
+  footer { margin-top: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>opt-agent</h1>
+  <p class="lede">A plain-English operations problem goes in. Claude writes it as a linear
+    program, CBC solves it, HiGHS and plain arithmetic check the answer independently, and
+    Claude explains it using only the solver's numbers. Nothing unverified is presented as an
+    answer.</p>
+  <span class="badge" id="mode">connecting…</span>
+
+  <div class="card">
+    <h2>Problem</h2>
+    <div class="examples" id="examples"></div>
+    <textarea id="problem" placeholder="Pick an example above, or type a problem."></textarea>
+    <div class="row">
+      <span class="muted" id="count"></span>
+      <button id="solve">Solve</button>
+    </div>
+  </div>
+
+  <div id="error" hidden></div>
+
+  <section id="result" hidden>
+    <div class="verdict" id="verdict"></div>
+    <div class="grid">
+      <div class="card">
+        <h2>Answer</h2>
+        <div id="answer"></div>
+      </div>
+      <div class="card">
+        <h2>Verification</h2>
+        <ul class="checks" id="checks"></ul>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Claude's model</h2>
+      <pre id="model"></pre>
+    </div>
+    <div class="card" id="explanation-card">
+      <h2>Explanation</h2>
+      <div id="explanation"></div>
+    </div>
+    <div class="card">
+      <h2>Flags (report-only: they never change the answer)</h2>
+      <ul class="checks" id="flags"></ul>
+    </div>
+    <div class="card">
+      <h2>Attempts</h2>
+      <ul class="checks" id="attempts"></ul>
+      <footer class="muted" id="cost"></footer>
+    </div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let maxChars = 4000;
+
+function el(tag, text, cls) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (cls) node.className = cls;
+  return node;
+}
+function num(x) {
+  return Number(x).toLocaleString(undefined, { maximumFractionDigits: 6 });
+}
+function item(list, label, value, cls) {
+  const li = el("li");
+  li.append(el("span", label + ": "), el("span", value, cls));
+  list.append(li);
+}
+function updateCount() {
+  const n = $("problem").value.trim().length;
+  $("count").textContent = `${n.toLocaleString()} / ${maxChars.toLocaleString()} characters`;
+}
+
+async function start() {
+  try {
+    const health = await (await fetch("/health")).json();
+    maxChars = health.max_problem_chars;
+    $("mode").textContent = health.mode === "live"
+      ? `live mode · ${health.model} · replies capped at ${num(health.max_tokens)} tokens`
+      : `examples mode · no API key · replays ${health.examples_cached} cached examples`;
+  } catch (e) { $("mode").textContent = "can't reach the server"; }
+  const examples = await (await fetch("/examples")).json();
+  for (const ex of examples) {
+    const button = el("button", ex.title);
+    button.append(el("small", ex.kind));
+    button.onclick = () => { $("problem").value = ex.text; updateCount(); solve(); };
+    $("examples").append(button);
+  }
+  updateCount();
+}
+
+async function solve() {
+  const problem = $("problem").value.trim();
+  if (!problem) return;
+  $("solve").disabled = true; $("solve").textContent = "Solving…";
+  $("error").hidden = true;
+  try {
+    const response = await fetch("/solve", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ problem }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail));
+    show(data);
+  } catch (e) {
+    $("result").hidden = true;
+    $("error").textContent = e.message; $("error").hidden = false;
+  } finally {
+    $("solve").disabled = false; $("solve").textContent = "Solve";
+  }
+}
+
+function show(r) {
+  const v = r.verification;
+  const verdict = $("verdict");
+  verdict.className = "verdict " + (v.verified ? "ok" : "bad");
+  verdict.textContent = v.verified ? "Verified" : (v.confirmed ? `Confirmed: ${r.status}` : "Not verified: no answer is reported");
+  verdict.append(el("span", v.verified
+    ? "CBC and HiGHS agree on the optimum, and every constraint checks out by plain arithmetic."
+    : `Stopped: ${r.stopped}. ${r.model_error || ""}`));
+
+  const answer = $("answer"); answer.replaceChildren();
+  if (r.objective !== null) {
+    answer.append(el("div", num(r.objective), "big"), el("div", "objective value", "muted"));
+    const table = el("table");
+    for (const [name, value] of Object.entries(r.values)) {
+      const tr = el("tr"); tr.append(el("td", name), el("td", num(value))); table.append(tr);
+    }
+    answer.append(table);
+    if (r.binding.length) answer.append(el("p", "Binding constraints: " + r.binding.join(", "), "muted"));
+  } else {
+    answer.append(el("p", r.status ? `The model is ${r.status}.` : "No usable model.", "muted"));
+  }
+  if (r.reference_objective !== null) {
+    const ok = r.matches_reference;
+    answer.append(el("div", ok
+      ? `Matches the hand-checked answer (${num(r.reference_objective)}).`
+      : `The hand-checked answer is ${num(r.reference_objective)}: verification can't see a model that misreads the text.`,
+      "note"));
+  }
+
+  const checks = $("checks"); checks.replaceChildren();
+  item(checks, "CBC", v.cbc);
+  item(checks, "HiGHS (independent)", v.highs ?? "not run");
+  item(checks, "Solvers agree", v.solvers_agree === null ? "n/a" : (v.solvers_agree ? "yes" : "no"),
+       v.solvers_agree ? "pass" : "fail");
+  item(checks, "Arithmetic checks", v.check_problems.length ? v.check_problems.join("; ") : "pass",
+       v.check_problems.length ? "fail" : "pass");
+
+  $("model").textContent = r.model_lines.length ? r.model_lines.join("\n") : (r.model_error || "no usable model");
+
+  const explanation = $("explanation"); explanation.replaceChildren();
+  if (r.explanation) {
+    explanation.append(el("p", r.explanation));
+    if (r.explanation_unsupported.length)
+      explanation.append(el("div", "Not backed by the solver's numbers: " + r.explanation_unsupported.join(", "), "note"));
+    if (r.explanation_problem) explanation.append(el("div", r.explanation_problem, "note"));
+  } else {
+    explanation.append(el("p", "Only verified answers are explained.", "muted"));
+  }
+
+  const flags = $("flags"); flags.replaceChildren();
+  item(flags, "Direct estimate", (r.low_confidence ? "LOW CONFIDENCE: " : "") + (r.low_confidence_reason || "n/a"),
+       r.low_confidence ? "warn" : (r.low_confidence === false ? "pass" : ""));
+  if (r.checklist_flags === null) item(flags, "Checklist", (r.checklist_notes || []).join("; ") || "not run");
+  else if (!r.checklist_flags.length) item(flags, "Checklist", "no differences from the text found", "pass");
+  else for (const f of r.checklist_flags) item(flags, `Checklist (${f.kind})`, f.detail, "warn");
+
+  const attempts = $("attempts"); attempts.replaceChildren();
+  for (const a of r.attempts) {
+    item(attempts, `Attempt ${a.number}`, a.outcome + (a.cached ? " (replayed)" : ""));
+    if (a.feedback) attempts.append(el("li", "Feedback sent: " + a.feedback, "muted"));
+  }
+  if (r.revision_flags.length) item(attempts, "Revision flags", r.revision_flags.join("; "), "warn");
+  $("cost").textContent = `${r.calls} Claude calls, ${r.cached_calls} replayed from the cache; ` +
+    `$${r.cost_usd.toFixed(4)} at their token counts, $${r.paid_usd.toFixed(4)} paid now.`;
+  $("result").hidden = false;
+}
+
+$("solve").onclick = solve;
+$("problem").addEventListener("input", updateCount);
+start();
+</script>
+</body>
+</html>

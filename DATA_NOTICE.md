@@ -42,6 +42,14 @@ NL4Opt's numbers (the rule is in `src/opt_agent/perturb.py`; counts in
 `data/nl4opt/ground_truth/PERTURBED.md`). ORLM's NL4Opt answers (CC BY-NC 4.0) are a
 cross-check only and are never committed.
 
+## The demo's examples (this project's own)
+
+The four example problems in `src/opt_agent/demo/examples.py` (paint production, café
+staffing, produce shipping, cattle feed) were written for this project, and their cached
+replies (`src/opt_agent/demo/replies/`) are Claude's answers to them. Both are covered by the
+MIT license with the code. `tests/test_demo.py` checks that no example shares 8 words in a
+row with any NL4Opt problem.
+
 ## Removal on request
 
 If you hold rights in any of this material and want it removed, open an issue on this

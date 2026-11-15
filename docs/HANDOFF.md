@@ -115,3 +115,33 @@ Logged here as the owner asked: the simplest reasonable option, where the reques
   follow-up (3 files, byte for byte, about 5 s). Checked: with a throwaway edit under
   `src/opt_agent/` and fastapi/uvicorn added to the lock, the whole suite passed (988) and
   the follow-up rebuilt byte for byte; the edit was reverted.
+- **Step 1, the demo** (`src/opt_agent/demo/`; FastAPI is imported only there, and it's the
+  `demo` extra). fastapi 0.163.1 and uvicorn 0.54.0 (with starlette, click, annotated-doc)
+  are pinned in `requirements.lock`, installed with the old lock as a constraint, so no study
+  package moved; each tag keeps its own lock, which the rebuild checks.
+  - **Modes.** Examples (default) replays the examples through `api.ReplayOnlyClient`, which
+    has no key and sends nothing; other text gets 404. Live needs `OPT_AGENT_LIVE=1`; with it
+    and no key the app refuses to start rather than quietly falling back. The examples
+    replay for free in live mode too.
+  - **Live guards.** One solve at a time (a second request gets 429, not a queue of paid
+    calls); at most 4,000 characters (413); every reply capped at 8,000 tokens, half the
+    studies' 16,000 (`api.max_tokens_cap`, a ContextVar read where requests are built, so
+    the cap is in what's sent, hashed and cached; M6's longest formulation reply was 3,409
+    tokens); and `budget.BudgetedClient` with a $0.50 cap by default
+    (`OPT_AGENT_DEMO_CAP_USD`, ledger `logs/spend/demo.jsonl`). `api.UNFINISHED`'s cut-off
+    message no longer names 16,000, since the demo's cap differs (the frozen code keeps its
+    own message; `scripts/followup_results.py` matches the frozen one).
+  - **Pipeline.** Self-correction (3 attempts, as evaluated), plus the report-only estimate
+    and checklist and the explanation: up to 6 calls per problem.
+  - **Examples.** Four original problems (paint production, café staffing, produce shipping,
+    cattle feed), each with a hand-checked answer that a test re-derives with both solvers;
+    only the staffing one is integer-sensitive (LP 15.4, integer 16). The page says whether
+    a verified answer matches it, which is the point verification can't make on its own.
+    Their replies go in `src/opt_agent/demo/replies/` (not `cache/`, which `.gitignore`
+    ignores), written by `scripts/cache_examples.py` (paid; the owner runs it).
+  - **Image.** `python:3.13-slim`, the whole lock (dev tools included: one lock is simpler
+    than two), the package installed with its page and replies, a non-root user. CI's
+    `demo-image` job builds it, smoke-tests `/health`, the examples and the paint example's
+    replay (`scripts/demo_smoke.py`), and checks that live mode without a key won't start.
+  - The sandbox can't bind or reach local ports, so the page was checked in the desktop
+    app's browser pane with fake replies in a scratch directory (never committed).

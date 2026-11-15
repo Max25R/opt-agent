@@ -178,7 +178,7 @@ def test_an_api_error_after_a_model_keeps_that_model():
     ("reply", "flag"),
     [
         (("", "refusal"), "Claude declined to answer"),
-        (("Use 83 pipelines and", "max_tokens"), "the reply was cut off at 16000 tokens"),
+        (("Use 83 pipelines and", "max_tokens"), "the reply was cut off at its max_tokens limit"),
         ("", "the reply had no text"),
         (status_error(400), "the API call failed: APIStatusError (400): HTTP 400"),
     ],

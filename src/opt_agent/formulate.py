@@ -61,7 +61,7 @@ def build_request(problem: str, model_id: str, revision: Revision | None = None)
     """The whole request, exactly as sent, hashed, cached, and logged."""
     return {
         "model": model_id,
-        "max_tokens": api.MAX_TOKENS,
+        "max_tokens": api.max_tokens(),
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": request_text(problem, revision)}],
         "thinking": api.THINKING,

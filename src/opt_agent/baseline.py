@@ -57,7 +57,7 @@ def build_request(problem: str, model_id: str) -> dict:
     settings as formulate.build_request; only the system prompt and the schema differ."""
     return {
         "model": model_id,
-        "max_tokens": api.MAX_TOKENS,
+        "max_tokens": api.max_tokens(),
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": problem}],
         "thinking": api.THINKING,

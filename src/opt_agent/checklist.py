@@ -129,7 +129,7 @@ def build_request(problem: str, names: list[str], model_id: str = DEFAULT_MODEL)
     settings as formulate.build_request."""
     return {
         "model": model_id,
-        "max_tokens": api.MAX_TOKENS,
+        "max_tokens": api.max_tokens(),
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": request_text(problem, names)}],
         "thinking": api.THINKING,
