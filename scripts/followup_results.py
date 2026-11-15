@@ -472,9 +472,12 @@ def also_lines(also: dict) -> list[str]:
         + "; ".join(spend_text(c, also["spend"][c]) for c in CONDITIONS)
         + ". A condition's cost counts every reply it used; conditions 2 to 4 share each "
         "sample's first reply, which only the first of them to run paid for.",
-        f"- **Key disputes (5b):** {also['disputes']['n']} problems meet the trigger: "
-        + ", ".join(f"`{x}`" for x in also["disputes"]["problems"])
-        + ". They are being checked as 5b specifies; until then the raw key stands.",
+        f"- **Keys not checked (5b):** {also['disputes']['n']} problems meet the dispute "
+        "trigger: " + ", ".join(f"`{x}`" for x in also["disputes"]["problems"])
+        + ". The pre-registered check of those keys wasn't performed "
+        "([deviation 2](DEVIATIONS.md)), so the raw keys are the result of record, as "
+        "pre-registered. Some of these failures may be key errors rather than errors by the "
+        "conditions; that is unknown.",
     ]  # fmt: skip
     return lines
 

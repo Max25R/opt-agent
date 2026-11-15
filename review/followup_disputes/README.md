@@ -1,8 +1,11 @@
 # Key disputes: the plan (follow-up pre-registration, section 5b)
 
-**Status: prepared, not started (2026-11-15).** No encoding has been written and no judge has
-seen anything. The encoding's format differs from what the frozen `judge_prompt.md` describes;
-see `docs/followup/DEVIATIONS.md`.
+**Status: NOT RUN.** The owner decided on 2026-11-15, for time and before any encoding or
+judging, not to perform the check (`docs/followup/DEVIATIONS.md`, deviation 2). No encoding
+was written and no judge saw anything. The plan below is kept as it was prepared; the packets
+stay git-ignored and `scripts/dispute_packets.py` stays, so it could still be run, but
+anything it found would be exploratory and post hoc, never the result of record. Deviation
+1, the JSON format for the encodings, is superseded.
 
 ## The problems
 

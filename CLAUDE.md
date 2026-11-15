@@ -481,7 +481,7 @@ python scripts/blind_taxonomy.py runs/test [--merge judge|second --reply R.csv -
 python scripts/amendment3.py runs/test   # after every report rebuild: Amendment 3's row
 python scripts/eval_json.py              # then results/eval.json (README numbers come from it)
 python scripts/followup_results.py       # results/followup.json + docs/followup/RESULTS.md (needs the data)
-python scripts/dispute_packets.py [--prompts]   # 5b: packets (git-ignored), then judge prompts
+python scripts/dispute_packets.py [--prompts]   # 5b: packets, judge prompts (check not run: deviation 2)
 ```
 
 ## Ground truth (milestone 3 decisions)

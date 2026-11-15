@@ -75,7 +75,7 @@ The same analysis with the problems seen before the split included.
 - **Unused variables dropped (5a, exploratory):** answers with a drop were right 6 of 12, without 952 of 1140 (Fisher p 0.0080).
 - **Failures, silent / loud** (all 128 problems, sample answers): no-solver baseline 83 / 11, single-shot 62 / 4, self-correction 65 / 0, checklist revision 59 / 4.
 - **Latency p50 / p95, cost:** no-solver baseline 9.7 s / 50.4 s, $0.6271 (paid $0.6271); single-shot 11.8 s / 29.0 s, $0.7903 (paid $0.7903); self-correction 11.9 s / 29.6 s, $0.7962 (paid $0.0059); checklist revision 26.8 s / 79.1 s, $2.0845 (paid $1.2942). A condition's cost counts every reply it used; conditions 2 to 4 share each sample's first reply, which only the first of them to run paid for.
-- **Key disputes (5b):** 15 problems meet the trigger: `complexlp:14`, `complexlp:25`, `complexlp:63`, `complexlp:78`, `complexlp:81`, `complexlp:83`, `complexlp:94`, `industryor:17`, `industryor:22`, `industryor:26`, `industryor:27`, `industryor:30`, `industryor:31`, `industryor:32`, `industryor:41`. They are being checked as 5b specifies; until then the raw key stands.
+- **Keys not checked (5b):** 15 problems meet the dispute trigger: `complexlp:14`, `complexlp:25`, `complexlp:63`, `complexlp:78`, `complexlp:81`, `complexlp:83`, `complexlp:94`, `industryor:17`, `industryor:22`, `industryor:26`, `industryor:27`, `industryor:30`, `industryor:31`, `industryor:32`, `industryor:41`. The pre-registered check of those keys wasn't performed ([deviation 2](DEVIATIONS.md)), so the raw keys are the result of record, as pre-registered. Some of these failures may be key errors rather than errors by the conditions; that is unknown.
 
 ## Descriptive, not pre-registered
 

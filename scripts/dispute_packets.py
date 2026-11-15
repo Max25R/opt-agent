@@ -1,6 +1,10 @@
 """Section 5b's key disputes: packets for the encoders and, once encodings exist, the judges'
 prompts. No API calls; nothing here judges anything.
 
+**Not run:** the owner decided on 2026-11-15 not to perform the check
+(docs/followup/DEVIATIONS.md, deviation 2). The script is kept so it could be run later, as an
+exploratory, post hoc check.
+
 The problems are the ones the frozen report lists under `disputes`
 (runs/followup-test/followup_report.json), by label only: this script never reads the key,
 an answer, or any condition's model.

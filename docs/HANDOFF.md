@@ -43,6 +43,10 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
     `tests/test_shared_first_reply.py`);
   - `stats.sign_flip_exact` (exact, brute-force tested); the analysis,
     `src/opt_agent/followup_report.py`, tested on synthetic answers.
+- **Follow-up results:** written up (`docs/followup/RESULTS.md`, the README's follow-up
+  section, `results/followup.json`). The 5b key-dispute check was **not performed** (owner,
+  2026-11-15, for time; `docs/followup/DEVIATIONS.md`, deviation 2): no corrected-key row,
+  raw keys stay the result of record.
 - **Spend:** $3.88 of the $20 credit: $0.98, plus the condition-4 dev smoke run's $0.1775
   (2026-11-11) and the follow-up test run's $2.7176 on 1252 calls (`runs/followup-test`). About
   $6.39 of November's $10 limit is left.

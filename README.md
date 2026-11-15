@@ -360,9 +360,11 @@ problems): baseline 83 / 11, single-shot 62 / 4, self-correction 65 / 0, checkli
 59 / 4. Verification checks the solution of Claude's model, not whether the model matches
 the text.
 
-**Keys under check.** 15 problems meet the pre-registered dispute trigger (at least 3 of
-the 4 conditions agree on an answer that differs from the key). They're being checked as
-pre-registered; until then the raw keys are the result of record.
+**Keys not checked.** 15 problems meet the pre-registered dispute trigger (at least 3 of
+the 4 conditions agree on an answer that differs from the key). The pre-registered check of
+those keys wasn't performed ([deviation 2](docs/followup/DEVIATIONS.md)), so the raw keys are
+the result of record, as pre-registered. Some of these failures may be key errors rather than
+errors by the conditions; that is unknown.
 
 **Cost.** $2.7176 paid, on 1252 calls.
 
