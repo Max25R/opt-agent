@@ -301,3 +301,17 @@ def test_the_image_never_gets_the_key_the_data_or_the_runs():
     dockerfile = (root / "Dockerfile").read_text()
     assert "COPY . " not in dockerfile  # only named files and src/ go in
     assert 'CMD ["python", "-m", "opt_agent.demo", "--host", "0.0.0.0"' in dockerfile
+
+
+# ---- the committed replies --------------------------------------------------------------
+
+
+@pytest.mark.parametrize("example", examples.EXAMPLES, ids=lambda e: e.id)
+def test_each_committed_example_replays_and_matches_its_hand_checked_answer(example):
+    """The replies scripts/cache_examples.py wrote (the owner's paid run, 2026-11-15) replay
+    with no client at all, every call from the cache. A change to a prompt or a setting
+    would miss them: re-cache, never edit them."""
+    result = pipeline.solve(example.text, ReplayOnlyClient(), Cache(demo_app.REPLIES))
+    r = pipeline.to_response(result, "examples", example)
+    assert r.verification.verified and r.matches_reference is True
+    assert r.calls == r.cached_calls and r.paid_usd == 0

@@ -443,8 +443,10 @@ point is a trustworthy evaluation, not a demo.
   (`logs/spend/live-tests.jsonl`), and $3 for milestone 6's test + perturbed run (owner,
   2026-10-28). Dev runs get their own cap, agreed with the owner before each one: $0.75 for
   the condition-4 dev smoke run (owner, 2026-11-11). The follow-up test run's cap was $6
-  (pre-registration, section 6); it paid $2.7176. Spent so far: $3.88 of the $20 credit
-  (2026-11-15; the ledger is in `docs/HANDOFF.md`).
+  (pre-registration, section 6); it paid $2.7176. The demo examples' replies: cap $0.30,
+  paid $0.0139 (owner's terminal, 2026-11-15; `logs/spend/demo-examples.jsonl`). The demo's
+  live mode has its own cap ($0.50 by default, `logs/spend/demo.jsonl`). Spent so far:
+  $3.89 of the $20 credit (2026-11-15; the ledger is in `docs/HANDOFF.md`).
 - `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
   paid run. An unlisted model raises instead of being guessed.
 - Budget stops, spend-limit errors (`api.SpendLimitReached`: a 429 with

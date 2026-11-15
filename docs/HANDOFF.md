@@ -41,9 +41,9 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
   ComplexLP (CC BY-SA 4.0) and ORLM's IndustryOR (CC BY-NC 4.0), as cleaned by LLM4OR at
   `75962df` (no license stated), plus NL4Opt (MIT). History was kept (owner, 2026-11-15):
   rewriting it would break `followup-freeze` and the commit in `FREEZE.json`.
-- **Spend:** $3.88 of the $20 credit ($0.98 before the follow-up, $0.1775 for the
-  condition-4 dev smoke run, $2.7176 for the test run). About $6.39 of November's $10 limit
-  is left; it resets on December 1.
+- **Spend:** $3.89 of the $20 credit ($0.98 before the follow-up, $0.1775 for the
+  condition-4 dev smoke run, $2.7176 for the test run, $0.0139 for the demo examples'
+  replies). About $6.38 of November's $10 limit is left; it resets on December 1.
 
 ## Open items
 1. **M7 demo** (the rest of milestone 7; needs the owner's go-ahead): FastAPI `POST /solve`,
@@ -145,3 +145,8 @@ Logged here as the owner asked: the simplest reasonable option, where the reques
     replay (`scripts/demo_smoke.py`), and checks that live mode without a key won't start.
   - The sandbox can't bind or reach local ports, so the page was checked in the desktop
     app's browser pane with fake replies in a scratch directory (never committed).
+  - **The examples' replies** (owner's terminal, 2026-11-15): 16 calls, $0.0139. Replayed
+    with no key, all four are verified and equal their hand-checked answers, with no
+    low-confidence or checklist flag; their models read the text correctly. So no example
+    needed the silent-failure label the owner asked for in case one missed.
+    `test_each_committed_example_replays_and_matches_its_hand_checked_answer` pins this.
