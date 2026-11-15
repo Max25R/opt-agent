@@ -1,10 +1,16 @@
 """Pre-registration section 7: every number in the README's Evaluation section comes from
 results/eval.json, at the precision the README shows it. So does every number in the "The
 rows" sections of Amendments 4 and 5 (docs/amendments/amendment-4.md, amendment-5.md), whose
-rows scripts/amendment4.py and amendment5.py generate into eval.json.
+rows scripts/amendment4.py and amendment5.py generate into eval.json. Likewise for the
+follow-up (its pre-registration, section 7): every number in the README's "Follow-up
+evaluation" section and in docs/followup/RESULTS.md comes from results/followup.json
+(scripts/followup_results.py).
 
 How a number in the README is read:
-- `-123` in backticks is a problem id: some string in eval.json must equal it.
+- `-123` in backticks is a problem id, and `complexlp:14` a follow-up label: some string in
+  the results file must equal it. Any other code span with a letter in it (a path, a hash,
+  a model id) isn't a result.
+- A sign is part of a number after a space or "(": `-1.7` must equal a negative value.
 - `12.3%` is a rate: some value times 100, rounded to the shown decimals, must equal it. In a
   range such as `93.4–98.0%`, both ends are rates.
 - `$0.150`, `3.8` and `1e-6` must equal some value rounded to the shown decimals (exactly,
@@ -12,8 +18,9 @@ How a number in the README is read:
 - A whole number such as `264` must equal some whole value exactly.
 
 Not results, so skipped: model names ("Claude Haiku 5.5"), amendment numbers, percentile
-names ("p95"), and link targets. Numbers written as words aren't checked, so results are
-written in digits.
+names ("p95"), link targets, dates, hypothesis names ("H1"), and section and condition
+numbers ("section 4", "5b", "conditions 2 to 4"), and "SHA-256". Numbers written as words
+aren't checked, so results are written in digits.
 
 The check is by value, not by place: a small whole number like 3 matches many values. It
 catches numbers that appear nowhere in eval.json, such as a stale or retyped result.
@@ -30,21 +37,40 @@ README = ROOT / "README.md"
 AMENDMENT_4 = ROOT / "docs" / "amendments" / "amendment-4.md"
 AMENDMENT_5 = ROOT / "docs" / "amendments" / "amendment-5.md"
 EVAL = ROOT / "results" / "eval.json"
-# Each checked document, and the section of it that reports results.
-CHECKED = [(README, "Evaluation"), (AMENDMENT_4, "The rows"), (AMENDMENT_5, "The rows")]
+FOLLOWUP = ROOT / "results" / "followup.json"
+FOLLOWUP_RESULTS = ROOT / "docs" / "followup" / "RESULTS.md"
+# Each checked document, the section of it that reports results (None: all of it), the
+# results file its numbers come from, and how many problem ids it must cite at least.
+CHECKED = [
+    (README, "Evaluation", EVAL, 2),
+    (AMENDMENT_4, "The rows", EVAL, 2),
+    (AMENDMENT_5, "The rows", EVAL, 2),
+    (README, "Follow-up evaluation", FOLLOWUP, 0),
+    (FOLLOWUP_RESULTS, None, FOLLOWUP, 0),
+]
 
 NOT_RESULTS = [
     r"\]\([^)]*\)",  # a link's target
     r"Claude (?:Haiku|Sonnet|Opus) \d+(?:\.\d+)?",  # a model's name
     r"Amendments? \d+(?: and \d+)?",  # a document reference
     r"\bp\d\d\b",  # a percentile's name, as in "latency p50 / p95"
+    r"\b\d{4}-\d{2}-\d{2}\b",  # a date
+    r"SHA-256",  # a hash's name
+    r"\bH[12]\b",  # a hypothesis's name
+    r"\b[Ss]ections? \d+\b",  # a section of a pre-registration
+    r"\b5[abc]\b",  # a subsection of the follow-up's section 5
+    r"\b[Cc]onditions? \d(?: to \d)?\b",  # a condition's number
 ]
 PROBLEM_ID = re.compile(r"`(-?\d+)`")
+LABEL = re.compile(r"`((?:complexlp|industryor):\d+)`")
+CODE_SPAN = re.compile(r"`[^`\n]*[A-Za-z_][^`\n]*`")
 RATE_RANGE = re.compile(r"(\d+(?:\.\d+)?)–(\d+(?:\.\d+)?)%")
-NUMBER = re.compile(r"\d+(?:\.\d+)?(?:e-?\d+)?%?")
+NUMBER = re.compile(r"(?:(?<=[\s(])[+-])?\d+(?:\.\d+)?(?:e-?\d+)?%?")
 
 
-def section(text: str, heading: str) -> str:
+def section(text: str, heading: str | None) -> str:
+    if heading is None:
+        return text
     start = text.index(f"\n## {heading}\n")
     end = text.find("\n## ", start + 1)
     return text[start : end if end != -1 else len(text)]
@@ -84,7 +110,8 @@ def matches(token: str, numbers: list[float], rate: bool = False) -> bool:
 def unmatched(section: str, data: dict) -> list[str]:
     numbers, strings = leaves(data)
     missing = [i for i in PROBLEM_ID.findall(section) if i not in strings]
-    section = PROBLEM_ID.sub(" ", section)
+    missing += [i for i in LABEL.findall(section) if i not in strings]
+    section = CODE_SPAN.sub(" ", PROBLEM_ID.sub(" ", LABEL.sub(" ", section)))
     for pattern in NOT_RESULTS:
         section = re.sub(pattern, " ", section)
     for low, high in RATE_RANGE.findall(section):
@@ -94,24 +121,24 @@ def unmatched(section: str, data: dict) -> list[str]:
     return missing
 
 
-@pytest.fixture(scope="module", params=CHECKED, ids=lambda c: f"{c[0].name}: {c[1]}")
+@pytest.fixture(scope="module", params=CHECKED, ids=lambda c: f"{c[0].name}: {c[1] or 'all'}")
 def section_and_data(request):
-    if not EVAL.exists():
-        pytest.fail("results/eval.json is missing: python scripts/eval_json.py")
-    path, heading = request.param
-    return section(path.read_text(), heading), json.loads(EVAL.read_text())
+    path, heading, results, min_ids = request.param
+    if not results.exists():
+        pytest.fail(f"{results.relative_to(ROOT)} is missing: see its generating script")
+    return section(path.read_text(), heading), json.loads(results.read_text()), min_ids
 
 
-def test_every_number_in_a_checked_section_is_in_eval_json(section_and_data):
-    section, data = section_and_data
+def test_every_number_in_a_checked_section_is_in_its_results_file(section_and_data):
+    section, data, _ = section_and_data
     assert unmatched(section, data) == []
 
 
 def test_the_section_has_results_to_check(section_and_data):
     """Guards against a check that passes because it found nothing."""
-    section, _ = section_and_data
+    section, _, min_ids = section_and_data
     assert len(NUMBER.findall(section)) > 40
-    assert len(PROBLEM_ID.findall(section)) >= 2
+    assert len(PROBLEM_ID.findall(section)) >= min_ids
 
 
 @pytest.mark.parametrize(
@@ -122,11 +149,14 @@ def test_the_section_has_results_to_check(section_and_data):
         ("cost $0.125", ["0.125"]),
         ("265 of 274", ["265"]),
         ("problem `12345`", ["12345"]),
+        ("problem `complexlp:99`", ["complexlp:99"]),
+        ("a difference of (-0.4 pp", ["-0.4"]),  # the sign counts
+        ("H2 +6.3 pp", ["+6.3"]),
     ],
 )
 def test_a_number_not_in_eval_json_is_caught(text, bad):
     data = {"rate": 0.9635, "low": 0.934, "high": 0.980, "usd": 0.1242686, "right": 264,
-            "n": 274, "ids": ["431521997"]}  # fmt: skip
+            "n": 274, "ids": ["431521997"], "pp": 0.4, "diff": 6.25}  # fmt: skip
     assert unmatched(text, data) == bad
 
 
@@ -134,4 +164,13 @@ def test_numbers_that_are_in_eval_json_pass():
     data = {"rate": 0.9635, "low": 0.934, "high": 0.980, "usd": 0.1242686, "right": 264,
             "n": 274, "ids": ["431521997"], "tolerance": 1e-6}  # fmt: skip
     text = "96.4% (93.4–98.0%), $0.124, 264 of 274, `431521997`, tolerance 1e-6, Claude Opus 5.5"
+    assert unmatched(text, data) == []
+
+
+def test_follow_up_forms_pass():
+    data = {"labels": ["complexlp:14"], "low": -1.66, "diff": 6.34, "bound": 4}
+    text = (
+        "`complexlp:14` (-1.7 to +6.3 pp), within +/-4 pp, H1, section 5b, conditions 2 "
+        "to 4, approved 2026-11-13, `runs/followup-test`, SHA-256 `78c9c9a5ae58`"
+    )
     assert unmatched(text, data) == []

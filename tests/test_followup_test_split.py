@@ -164,7 +164,13 @@ def test_a_problem_with_no_line_yet_is_incomplete(frozen, tmp_path):
     assert report["incomplete_problems"] == [manifest["problem_ids"][-1]]
 
 
-def test_nothing_runs_or_is_written_without_the_freeze(monkeypatch, tmp_path):
+@pytest.fixture
+def not_frozen(monkeypatch, tmp_path):
+    """No approval, whatever the repository holds: the freeze file is somewhere empty."""
+    monkeypatch.setattr(followup_freeze, "FREEZE_PATH", tmp_path / "no-freeze" / "FREEZE.json")
+
+
+def test_nothing_runs_or_is_written_without_the_freeze(not_frozen, monkeypatch, tmp_path):
     monkeypatch.setattr(followup, "load_test", lambda: list(FAKE))
     out = tmp_path / "run"
     with pytest.raises(FreezeError):
@@ -172,7 +178,7 @@ def test_nothing_runs_or_is_written_without_the_freeze(monkeypatch, tmp_path):
     assert not out.exists()
 
 
-def test_without_the_freeze_the_problems_dont_even_load(tmp_path):
+def test_without_the_freeze_the_problems_dont_even_load(not_frozen):
     with pytest.raises(FreezeError):
         evaluate.scorable_records(TEST)
 
@@ -203,7 +209,7 @@ def test_the_cli_refuses_a_subset(frozen, tmp_path):
         evaluate.main(["--split", TEST, "complexlp:1", "--out", str(tmp_path), "--plan"])
 
 
-def test_the_cli_plan_needs_the_freeze(tmp_path):
+def test_the_cli_plan_needs_the_freeze(not_frozen, tmp_path):
     with pytest.raises(SystemExit, match="REFUSED"):
         evaluate.main(["--split", TEST, "--all", "--out", str(tmp_path), "--plan"])
 

@@ -5,6 +5,7 @@ FREEZE.json; nothing calls the API."""
 
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -63,10 +64,18 @@ def test_section_2s_id_hashes_come_from_split_json():
 
 
 @needs_data
-def test_only_the_owners_approval_is_left():
-    assert followup_freeze.unfinished() == [
-        "docs/FOLLOWUP_PREREGISTRATION.md is still a draft: the owner approves it first"
-    ]
+def test_nothing_is_left_once_the_owner_approved():
+    """Approved on 2026-11-13: every section 2 hash holds and the status line isn't a draft."""
+    assert followup_freeze.unfinished() == []
+
+
+def test_a_draft_is_left_to_approve(monkeypatch, tmp_path):
+    draft = tmp_path / "FOLLOWUP_PREREGISTRATION.md"
+    text = followup_freeze.PREREGISTRATION_PATH.read_text()
+    draft.write_text("**Status: DRAFT (made-up).**\n" + text)
+    monkeypatch.setattr(followup_freeze, "PREREGISTRATION_PATH", draft)
+    monkeypatch.setattr(followup_freeze, "_relative", lambda path: Path(path).name)
+    assert any("still a draft" in item for item in followup_freeze.unfinished())
 
 
 def test_a_missing_data_file_is_named(monkeypatch):
@@ -108,7 +117,11 @@ def test_the_analysis_hash_must_be_the_fingerprints(freeze_file, monkeypatch):
         followup_freeze.check()
 
 
-def test_approve_refuses_a_draft(freeze_file):
+def test_approve_refuses_a_draft(freeze_file, monkeypatch, tmp_path):
+    draft = tmp_path / "FOLLOWUP_PREREGISTRATION.md"
+    draft.write_text("**Status: DRAFT (made-up).**\n")
+    monkeypatch.setattr(followup_freeze, "PREREGISTRATION_PATH", draft)
+    monkeypatch.setattr(followup_freeze, "_relative", lambda path: Path(path).name)
     with pytest.raises(FreezeError, match="still a draft"):
         followup_freeze.approve()
     assert not freeze_file.exists()

@@ -19,7 +19,8 @@ point is a trustworthy evaluation, not a demo.
 ## Hard rules
 
 - **No made-up numbers.** Every number in the README comes from `results/eval.json`
-  (milestone 6 adds a test that enforces this).
+  (milestone 6 adds a test that enforces this), or, in its "Follow-up evaluation" section,
+  from `results/followup.json` (`scripts/followup_results.py`; the same test).
 - Tests for the schema, solver, and ground-truth layers **never call the Claude API**.
 - Report failures honestly. If something (e.g. self-correction) doesn't help, say so.
 - Bulk eval runs use a small, cheap model. Check current model IDs and prices in the docs
@@ -479,6 +480,8 @@ python -m opt_agent.packets judge --apply   # both sheets filled: combined label
 python scripts/blind_taxonomy.py runs/test [--merge judge|second --reply R.csv --grader G]
 python scripts/amendment3.py runs/test   # after every report rebuild: Amendment 3's row
 python scripts/eval_json.py              # then results/eval.json (README numbers come from it)
+python scripts/followup_results.py       # results/followup.json + docs/followup/RESULTS.md (needs the data)
+python scripts/dispute_packets.py [--prompts]   # 5b: packets (git-ignored), then judge prompts
 ```
 
 ## Ground truth (milestone 3 decisions)

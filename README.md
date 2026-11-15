@@ -320,6 +320,60 @@ calls.
   [note on deviations](docs/amendments/DEVIATIONS.md) are in
   [`docs/amendments/`](docs/amendments/).
 
+## Follow-up evaluation
+
+NL4Opt looked saturated, so a follow-up asked the same questions on harder problems: 128
+from LLM4OR's cleaned benchmarks (ComplexLP 86, IndustryOR 42), each answered in 3 samples
+by Claude Haiku 5.5 in 4 conditions. The conditions are the no-solver baseline, single-shot,
+self-correction, and a new one, checklist revision: one revision when a formulation
+checklist flags a confirmed optimum. Everything was pre-registered and frozen before any
+test problem was opened ([`docs/FOLLOWUP_PREREGISTRATION.md`](docs/FOLLOWUP_PREREGISTRATION.md)).
+The primary analysis uses the 121 problems no one had seen before the split. Every number
+in this section comes from [`results/followup.json`](results/followup.json), and a test
+checks it. The full write-up is [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md).
+
+| condition | mean score (95% CI) | right by majority of 3 (95% Wilson) |
+|---|---|---|
+| no-solver baseline | 75.8% (68.9–82.4%) | 94 of 121 (69.5–84.2%) |
+| single-shot | 82.1% (75.8–87.9%) | 101 of 121 (75.8–89.0%) |
+| self-correction | 82.4% (76.0–88.2%) | 101 of 121 (75.8–89.0%) |
+| checklist revision | 82.6% (76.6–88.2%) | 103 of 121 (77.7–90.4%) |
+
+**H2, single-shot minus the baseline: +6.34 pp, detected on the primary sign-flip test
+(Holm p 0.0445, 95% CI 1.4–11.6 pp); the secondary majority-vote McNemar test isn't
+significant (Holm p 0.24); and 1.38 pp of the 6.34 comes from 8 baseline replies cut off at
+max_tokens (descriptive).** The sign-flip test is the pre-registered primary test and decides
+the claim; McNemar doesn't. With all 128 problems the difference is +7.3 pp (sign-flip Holm
+p 0.0161).
+
+**H1, the checklist revision: inconclusive.** Checklist revision minus single-shot is
++0.6 pp (95% CI -1.7 to 3.0 pp), Holm p 0.8184. The pre-registered claim is "no difference
+larger than 4 pp", and nothing stronger: 4 is the smallest whole number of percentage points
+X with the 95% CI inside ±X, as the pre-registration's section 4 defines it. The checklist
+revision revised 100 of 384 answers: 11 went from wrong to right and 8 from right to wrong.
+Counting every reply it used, it cost $2.0845 against single-shot's $0.7903.
+
+**Self-correction barely acted.** It revised 4 of 384 answers and fixed 1.
+
+**Most failures are still silent.** Silent / loud failures (sample answers, all 128
+problems): baseline 83 / 11, single-shot 62 / 4, self-correction 65 / 0, checklist revision
+59 / 4. Verification checks the solution of Claude's model, not whether the model matches
+the text.
+
+**Keys under check.** 15 problems meet the pre-registered dispute trigger (at least 3 of
+the 4 conditions agree on an answer that differs from the key). They're being checked as
+pre-registered; until then the raw keys are the result of record.
+
+**Cost.** $2.7176 paid, on 1252 calls.
+
+## Sources
+
+The benchmarks are NL4Opt (milestone 6) and LLM4OR's cleaned versions of Mamo's ComplexLP
+and ORLM's IndustryOR (the follow-up). The MIT license covers the code only: the run records
+under `runs/` hold problem text and answers that stay under their own licenses, including
+CC BY-SA 4.0 (ComplexLP) and CC BY-NC 4.0 (IndustryOR). Attribution, links and terms are in
+[`DATA_NOTICE.md`](DATA_NOTICE.md).
+
 ## Limitations
 
 _TODO._

@@ -43,7 +43,9 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
     `tests/test_shared_first_reply.py`);
   - `stats.sign_flip_exact` (exact, brute-force tested); the analysis,
     `src/opt_agent/followup_report.py`, tested on synthetic answers.
-- **Spend:** $0.98 of the $20 credit; about $9.29 of November's $10 limit is left.
+- **Spend:** $3.88 of the $20 credit: $0.98, plus the condition-4 dev smoke run's $0.1775
+  (2026-11-11) and the follow-up test run's $2.7176 on 1252 calls (`runs/followup-test`). About
+  $6.39 of November's $10 limit is left.
 - **Unpushed:** the last 4 commits on `main` (`git push origin main`), plus the uncommitted
   follow-up work above.
 
