@@ -1,47 +1,143 @@
 """Rebuild every reported number from the committed runs, with each study's frozen code and
-no API key, and compare the results with the committed files byte for byte.
-
-- **The follow-up** (tag followup-freeze): the frozen analysis, followup_report.py, scores
-  runs/followup-test, and scripts/followup_results.py (written after the freeze, against the
-  same package) turns that report into results/followup.json and docs/followup/RESULTS.md.
-  Needs the LLM4OR data, which holds the keys (docs/EXTERNAL_DATA.md).
+no API key, and compare with the committed files.
 
 Each study runs in its tag's own tree (opt_agent.frozen), so nothing HEAD changes can move a
-number, and nothing here writes into this checkout. Exits 1 on any difference (printing the
-start of a diff), or if something can't be rebuilt; 0 when everything matches.
+number, and nothing here writes into this checkout. Two checks per study:
 
-Run:  python scripts/reproduce.py
+1. **Replay** (skip with --no-replay): every pair of every committed run again, from the run's
+   cached replies, through the frozen pipeline, with a client that refuses every request
+   (scripts/replay_run.py). Every recorded field of every answer must equal the committed
+   results.jsonl, except what a replay can't repeat: time (latency, retry and wall time) and
+   what was paid or cached. So the committed answers are what the frozen code makes of the
+   cached replies.
+2. **Rebuild** the reports and results files from the committed run records, byte for byte:
+   - M6 (m6-freeze): opt_agent.report for runs/test and runs/test-perturbed, Amendment 3's
+     row (scripts/amendment3.py), and results/eval.json (scripts/eval_json.py, which adds
+     Amendments 4 and 5);
+   - the follow-up (followup-freeze): opt_agent.followup_report, then results/followup.json
+     and docs/followup/RESULTS.md (scripts/followup_results.py).
+   The write-up scripts were written after the freezes, against the same package, so they're
+   copied in from this checkout.
+
+Latency and cost in the reports come from the recorded runs (a replay is faster, and pays
+nothing), so they're rebuilt, not replayed. Needs the tags (git fetch --tags) and LLM4OR's
+data, which holds the follow-up's keys and Amendment 5's external key
+(python scripts/fetch_llm4or.py). Exits 1 on any difference, printing it, or if something
+can't be rebuilt; 0 when everything matches.
+
+Run:  python scripts/reproduce.py              # rebuild and replay (a few minutes)
+      python scripts/reproduce.py --no-replay  # rebuild only (about 15 s)
 """
 
 import argparse
 import difflib
+import json
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from opt_agent import followup_freeze
+from opt_agent.freeze import FREEZE_TAG as M6_TAG
 from opt_agent.frozen import FrozenError, Tree
 
 ROOT = Path(__file__).resolve().parents[1]
-FOLLOWUP_RUN = "runs/followup-test"
-RUN_FILES = ("manifest.json", "results.jsonl", "attempts.jsonl", "spend.jsonl")  # no cache
+RUN_FILES = ("manifest.json", "results.jsonl", "attempts.jsonl", "spend.jsonl")
 LLM4OR = "data/external/llm4or-clean"
+M6_RUNS = ("runs/test", "runs/test-perturbed")
+M6_OUTPUTS = ("runs/test/report.json", "runs/test-perturbed/report.json", "results/eval.json")
+M6_SCRIPTS = ("amendment3", "amendment4", "amendment5", "eval_json")
+FOLLOWUP_RUN = "runs/followup-test"
 FOLLOWUP_OUTPUTS = (f"{FOLLOWUP_RUN}/followup_report.json", "results/followup.json",
                     "docs/followup/RESULTS.md")  # fmt: skip
+# What a replay can't repeat: time, and what was paid or replayed (evaluate.Item).
+NOT_REPLAYED = {"run_id", "latency_s", "retry_s", "wall_s", "cached_calls", "paid_usd",
+                "report_only_paid_usd"}  # fmt: skip
 DIFF_LINES = 40  # of each difference, printed
 
 
-def rebuild_followup(workdir: Path) -> dict[str, bytes]:
-    """The follow-up's three output files, rebuilt in followup-freeze's tree, by path."""
-    if not all(p.exists() for p in followup_freeze.data_files()):
-        raise FrozenError(f"the follow-up needs the LLM4OR data in {LLM4OR} "
-                          "(docs/EXTERNAL_DATA.md): it holds the keys")  # fmt: skip
+# ---- the studies --------------------------------------------------------------------------
+
+
+def m6(workdir: Path, replay: bool) -> tuple[dict[str, bytes], list[str]]:
+    """M6's three files, rebuilt in m6-freeze's tree, and the replay's differences."""
+    tree = Tree.extract(M6_TAG, workdir / "m6")
+    tree.copy(*(f"{run}/{name}" for run in M6_RUNS for name in RUN_FILES), LLM4OR,
+              "review/blind_grading/test", "review/taxonomy/test",
+              *(f"scripts/{name}.py" for name in M6_SCRIPTS))  # fmt: skip
+    differences = []
+    if replay:
+        differences = [d for run in M6_RUNS for d in replayed(tree, run)]
+    tree.python("-m", "opt_agent.report", "runs/test")
+    tree.python("scripts/amendment3.py", "runs/test")  # the row a report rebuild drops
+    tree.python("-m", "opt_agent.report", "runs/test-perturbed", "--original", "runs/test")
+    tree.python("scripts/eval_json.py")
+    return {rel: tree.read(rel) for rel in M6_OUTPUTS}, differences
+
+
+def followup(workdir: Path, replay: bool) -> tuple[dict[str, bytes], list[str]]:
+    """The follow-up's three files, rebuilt in followup-freeze's tree, and the replay's."""
     tree = Tree.extract(followup_freeze.FREEZE_TAG, workdir / "followup")
     tree.copy(*(f"{FOLLOWUP_RUN}/{name}" for name in RUN_FILES), LLM4OR,
               "scripts/followup_results.py")  # fmt: skip
+    differences = replayed(tree, FOLLOWUP_RUN) if replay else []
     tree.python("-m", "opt_agent.followup_report", FOLLOWUP_RUN)
     tree.python("scripts/followup_results.py")
-    return {rel: tree.read(rel) for rel in FOLLOWUP_OUTPUTS}
+    return {rel: tree.read(rel) for rel in FOLLOWUP_OUTPUTS}, differences
+
+
+def rebuild_followup(workdir: Path) -> dict[str, bytes]:
+    """The follow-up's files alone, rebuilt (tests/test_followup_results.py)."""
+    require_data()
+    return followup(workdir, replay=False)[0]
+
+
+# ---- the replay ---------------------------------------------------------------------------
+
+
+def replayed(tree: Tree, run: str) -> list[str]:
+    """Replay `run` in `tree` from its committed cache, and compare every answer."""
+    tree.copy(f"{run}/cache", "scripts/replay_run.py")
+    out = f"replay/{Path(run).name}"
+    tree.python("scripts/replay_run.py", run, out)
+    return item_differences(ROOT / run / "results.jsonl", tree.root / out / "results.jsonl",
+                            run)  # fmt: skip
+
+
+def latest_items(path: Path) -> dict[tuple, dict]:
+    """Each pair's last item line, as evaluate.latest_items picks it (a resume's line
+    replaces an earlier one), keyed by problem, condition and sample."""
+    items = {}
+    for line in path.read_text().splitlines():
+        entry = json.loads(line)
+        if entry.get("kind") == "item":
+            items[entry["problem_id"], entry["condition"], entry.get("sample", 0)] = entry
+    return items
+
+
+def item_differences(committed: Path, replay: Path, run: str) -> list[str]:
+    before, after = latest_items(committed), latest_items(replay)
+    found = [f"{run}: pair {key} is only in the {where}" for key, where in
+             [(k, "committed run") for k in before.keys() - after.keys()]
+             + [(k, "replay") for k in after.keys() - before.keys()]]  # fmt: skip
+    for key in sorted(before.keys() & after.keys()):
+        for name in sorted((before[key].keys() | after[key].keys()) - NOT_REPLAYED):
+            if before[key].get(name) != after[key].get(name):
+                found.append(f"{run}: {key} {name}: committed {before[key].get(name)!r}, "
+                             f"replayed {after[key].get(name)!r}")  # fmt: skip
+    return found
+
+
+# ---- comparing ------------------------------------------------------------------------------
+
+
+def require_data() -> None:
+    if (
+        not all(p.exists() for p in followup_freeze.data_files())
+        or not (ROOT / LLM4OR / "NL4Opt").is_dir()
+    ):
+        raise FrozenError(f"needs LLM4OR's data in {LLM4OR} (the follow-up's keys and "
+                          "Amendment 5's): python scripts/fetch_llm4or.py")  # fmt: skip
 
 
 def differences(rebuilt: dict[str, bytes], root: Path = ROOT) -> list[str]:
@@ -61,20 +157,31 @@ def differences(rebuilt: dict[str, bytes], root: Path = ROOT) -> list[str]:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Rebuild the reported numbers; no API key.")
-    parser.parse_args(argv)
+    parser.add_argument("--no-replay", action="store_true", help="rebuild only (fast)")
+    args = parser.parse_args(argv)
+    replay = not args.no_replay
+    failures, rebuilt = [], {}
     with tempfile.TemporaryDirectory(prefix="reproduce-") as workdir:
         try:
-            rebuilt = rebuild_followup(Path(workdir))
+            require_data()
+            for name, study in (("M6", m6), ("follow-up", followup)):
+                start = time.monotonic()
+                files, replay_differences = study(Path(workdir), replay)
+                rebuilt |= files
+                failures += replay_differences
+                what = "replayed and rebuilt" if replay else "rebuilt"
+                print(f"{name}: {what} in {time.monotonic() - start:.0f} s")
         except FrozenError as error:
             sys.exit(f"CAN'T REBUILD: {error}")
-    found = differences(rebuilt)
+    failures += differences(rebuilt)
     for rel in rebuilt:
-        print(f"{'DIFFERS' if any(f.startswith(f'DIFFERS: {rel}') for f in found) else 'same'}"
+        print(f"{'DIFFERS' if any(f.startswith(f'DIFFERS: {rel}') for f in failures) else 'same'}"
               f"  {rel}")  # fmt: skip
-    if found:
-        print("\n\n".join(found))
-        sys.exit(1)
-    print(f"All {len(rebuilt)} files rebuild byte for byte.")
+    if failures:
+        print("\n\n".join(failures[:50]))
+        sys.exit(f"{len(failures)} difference(s): the committed results don't reproduce")
+    replays = "every committed answer replays from the cache, and " if replay else ""
+    print(f"Reproduced: {replays}all {len(rebuilt)} files rebuild byte for byte.")
 
 
 if __name__ == "__main__":

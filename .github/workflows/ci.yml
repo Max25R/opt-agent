@@ -71,3 +71,60 @@ jobs:
       - name: Server log
         if: always()
         run: docker logs demo
+
+  reproduce:
+    # Every reported number, from the committed runs, by each study's frozen code
+    # (scripts/reproduce.py): every answer replayed from the run's cached replies with a
+    # client that refuses every request, then the reports and results files rebuilt byte
+    # for byte. LLM4OR's data (the follow-up's keys) is fetched at its pinned commit and
+    # checked against its recorded hashes; it's never committed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # the tags: each study rebuilds from its own
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install
+        run: |
+          pip install -r requirements.lock
+          pip install --no-deps -e .
+
+      - name: Fetch LLM4OR's cleaned benchmarks
+        run: python scripts/fetch_llm4or.py
+
+      - name: Reproduce
+        run: python scripts/reproduce.py
+
+  screenshot:
+    # The README's screenshot, captured headlessly (scripts/screenshot.py: the app
+    # in-process, in examples mode) and kept as an artifact, so the script stays working.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install
+        run: |
+          pip install -r requirements.lock
+          pip install --no-deps -e .
+          pip install playwright==1.65.2
+          python -m playwright install --with-deps --only-shell chromium
+
+      - name: Capture
+        run: python scripts/screenshot.py --out demo.png
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-screenshot
+          path: demo.png

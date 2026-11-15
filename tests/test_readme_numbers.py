@@ -1,10 +1,12 @@
-"""Pre-registration section 7: every number in the README's Evaluation section comes from
-results/eval.json, at the precision the README shows it. So does every number in the "The
-rows" sections of Amendments 4 and 5 (docs/amendments/amendment-4.md, amendment-5.md), whose
-rows scripts/amendment4.py and amendment5.py generate into eval.json. Likewise for the
-follow-up (its pre-registration, section 7): every number in the README's "Follow-up
-evaluation" section and in docs/followup/RESULTS.md comes from results/followup.json
-(scripts/followup_results.py).
+"""Pre-registration section 7: every number in the README comes from a generated results
+file, at the precision the README shows it: results/eval.json (milestone 6) or
+results/followup.json (the follow-up, its pre-registration's section 7). The whole README is
+checked against both, without its fenced code blocks (commands and the diagram), and each
+results section against its own file. So is the full M6 write-up, docs/EVALUATION.md (the
+README's Evaluation section until the README was rewritten on 2026-11-15), every number in
+the "The rows" sections of Amendments 4 and 5 (docs/amendments/amendment-4.md,
+amendment-5.md), whose rows scripts/amendment4.py and amendment5.py generate into eval.json,
+and docs/followup/RESULTS.md (scripts/followup_results.py).
 
 How a number in the README is read:
 - `-123` in backticks is a problem id, and `complexlp:14` a follow-up label: some string in
@@ -19,8 +21,9 @@ How a number in the README is read:
 
 Not results, so skipped: model names ("Claude Haiku 5.5"), amendment numbers, percentile
 names ("p95"), link targets, dates, hypothesis names ("H1"), and section and condition
-numbers ("section 4", "5b", "conditions 2 to 4"), and "SHA-256". Numbers written as words
-aren't checked, so results are written in digits.
+numbers ("section 4", "5b", "conditions 2 to 4"), "SHA-256", a cited paper's venue and year
+("ICML 2024"), license versions ("CC BY-SA 4.0"), and fenced code blocks. Numbers written as
+words aren't checked, so results are written in digits.
 
 The check is by value, not by place: a small whole number like 3 matches many values. It
 catches numbers that appear nowhere in eval.json, such as a stale or retyped result.
@@ -34,19 +37,24 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
+EVALUATION = ROOT / "docs" / "EVALUATION.md"
 AMENDMENT_4 = ROOT / "docs" / "amendments" / "amendment-4.md"
 AMENDMENT_5 = ROOT / "docs" / "amendments" / "amendment-5.md"
 EVAL = ROOT / "results" / "eval.json"
 FOLLOWUP = ROOT / "results" / "followup.json"
 FOLLOWUP_RESULTS = ROOT / "docs" / "followup" / "RESULTS.md"
-# Each checked document, the section of it that reports results (None: all of it), the
-# results file its numbers come from, and how many problem ids it must cite at least.
+# Each checked document, the section of it that reports results (a heading with its level;
+# None: all of it), the results files its numbers come from, how many problem ids it must
+# cite at least, and how many numbers it must have at least (so a check can't pass by
+# finding nothing).
 CHECKED = [
-    (README, "Evaluation", EVAL, 2),
-    (AMENDMENT_4, "The rows", EVAL, 2),
-    (AMENDMENT_5, "The rows", EVAL, 2),
-    (README, "Follow-up evaluation", FOLLOWUP, 0),
-    (FOLLOWUP_RESULTS, None, FOLLOWUP, 0),
+    (README, None, (EVAL, FOLLOWUP), 0, 60),
+    (README, "### NL4Opt", (EVAL,), 0, 25),
+    (README, "### Harder problems", (FOLLOWUP,), 0, 30),
+    (EVALUATION, None, (EVAL,), 2, 40),
+    (AMENDMENT_4, "## The rows", (EVAL,), 2, 40),
+    (AMENDMENT_5, "## The rows", (EVAL,), 2, 40),
+    (FOLLOWUP_RESULTS, None, (FOLLOWUP,), 0, 40),
 ]
 
 NOT_RESULTS = [
@@ -60,7 +68,10 @@ NOT_RESULTS = [
     r"\b[Ss]ections? \d+\b",  # a section of a pre-registration
     r"\b5[abc]\b",  # a subsection of the follow-up's section 5
     r"\b[Cc]onditions? \d(?: to \d)?\b",  # a condition's number
+    r"\b(?:ICML|ICLR|NeurIPS) \d{4}\b",  # a cited paper's venue and year
+    r"\bCC BY(?:-[A-Z]{2})* \d\.\d\b",  # a license's version
 ]
+FENCED = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 PROBLEM_ID = re.compile(r"`(-?\d+)`")
 LABEL = re.compile(r"`((?:complexlp|industryor):\d+)`")
 CODE_SPAN = re.compile(r"`[^`\n]*[A-Za-z_][^`\n]*`")
@@ -69,11 +80,16 @@ NUMBER = re.compile(r"(?:(?<=[\s(])[+-])?\d+(?:\.\d+)?(?:e-?\d+)?%?")
 
 
 def section(text: str, heading: str | None) -> str:
+    """From the line starting with `heading` ("## The rows", "### NL4Opt") to the next heading
+    of its level or higher; the whole text for None. Fenced code blocks are left out."""
+    text = FENCED.sub(" ", text)
     if heading is None:
         return text
-    start = text.index(f"\n## {heading}\n")
-    end = text.find("\n## ", start + 1)
-    return text[start : end if end != -1 else len(text)]
+    level = heading.split(" ")[0]
+    start = text.index(f"\n{heading}")
+    ends = [text.find(f"\n{'#' * n} ", start + 1) for n in range(1, len(level) + 1)]
+    ends = [e for e in ends if e != -1]
+    return text[start : min(ends) if ends else len(text)]
 
 
 def leaves(data) -> tuple[list[float], set[str]]:
@@ -123,22 +139,29 @@ def unmatched(section: str, data: dict) -> list[str]:
 
 @pytest.fixture(scope="module", params=CHECKED, ids=lambda c: f"{c[0].name}: {c[1] or 'all'}")
 def section_and_data(request):
-    path, heading, results, min_ids = request.param
-    if not results.exists():
-        pytest.fail(f"{results.relative_to(ROOT)} is missing: see its generating script")
-    return section(path.read_text(), heading), json.loads(results.read_text()), min_ids
+    path, heading, results, min_ids, min_numbers = request.param
+    for file in results:
+        if not file.exists():
+            pytest.fail(f"{file.relative_to(ROOT)} is missing: see its generating script")
+    data = [json.loads(file.read_text()) for file in results]  # leaves() walks a list too
+    return section(path.read_text(), heading), data, min_ids, min_numbers
 
 
 def test_every_number_in_a_checked_section_is_in_its_results_file(section_and_data):
-    section, data, _ = section_and_data
+    section, data, _, _ = section_and_data
     assert unmatched(section, data) == []
 
 
 def test_the_section_has_results_to_check(section_and_data):
     """Guards against a check that passes because it found nothing."""
-    section, _, min_ids = section_and_data
-    assert len(NUMBER.findall(section)) > 40
+    section, _, min_ids, min_numbers = section_and_data
+    assert len(NUMBER.findall(section)) >= min_numbers
     assert len(PROBLEM_ID.findall(section)) >= min_ids
+
+
+def test_fenced_code_and_citations_arent_results():
+    text = "```bash\ndocker run -p 8000:8000 x\n```\nOptiMUS (ICML 2024), CC BY-SA 4.0"
+    assert unmatched(section(text, None), {"n": 1}) == []
 
 
 @pytest.mark.parametrize(

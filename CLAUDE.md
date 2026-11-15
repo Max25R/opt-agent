@@ -507,7 +507,10 @@ python scripts/amendment3.py runs/test   # after every report rebuild: Amendment
 python scripts/eval_json.py              # then results/eval.json (README numbers come from it)
 python scripts/followup_results.py       # results/followup.json + docs/followup/RESULTS.md (needs the data)
 python scripts/dispute_packets.py [--prompts]   # 5b: packets, judge prompts (check not run: deviation 2)
-python scripts/reproduce.py         # rebuild the reported numbers from each study's tag; no key
+python scripts/fetch_llm4or.py      # LLM4OR's data at its pinned commit, hashes checked (git-ignored)
+python scripts/reproduce.py         # replay + rebuild every reported number from the tags; no key
+python scripts/reproduce.py --no-replay   # the rebuild alone (about 15 s)
+python scripts/screenshot.py        # docs/demo.png headlessly (needs Playwright; CI keeps one)
 python -m opt_agent.demo            # the demo, examples mode (no key): http://127.0.0.1:8000
 OPT_AGENT_LIVE=1 python -m opt_agent.demo   # live mode: the key in .env; guarded (demo/app.py)
 python scripts/cache_examples.py --plan     # the examples' replies: worst case (the paid run is the owner's)

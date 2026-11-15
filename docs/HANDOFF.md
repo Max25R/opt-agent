@@ -150,3 +150,31 @@ Logged here as the owner asked: the simplest reasonable option, where the reques
     low-confidence or checklist flag; their models read the text correctly. So no example
     needed the silent-failure label the owner asked for in case one missed.
     `test_each_committed_example_replays_and_matches_its_hand_checked_answer` pins this.
+- **Step 2, reproduce and the README.**
+  - **`scripts/reproduce.py`** runs each study's frozen code in its tag's tree. It replays
+    every committed answer from the run's cache through `scripts/replay_run.py` (a client
+    that refuses every request; everything recorded must match except time and what was paid
+    or cached), then rebuilds both M6 reports (the Amendment 3 row included), both follow-up
+    files and both results files byte for byte. Locally: all 3,078 answers replay and all 6
+    files match, in about 3.5 minutes. The M6 write-up scripts are copied in from HEAD,
+    since they were written after the freeze against the same package.
+  - **CI's `reproduce` job** fetches LLM4OR's data first (`scripts/fetch_llm4or.py`: a
+    sparse clone at the pinned commit, every file checked against the hashes the studies
+    recorded, never committed). Without the data there's no follow-up or Amendment 5 to
+    check, so the script refuses rather than skipping.
+  - **The README** was rewritten for a short read: pitch, screenshot, results, limitations,
+    quickstart, reproduce, a diagram, positioning, links. The M6 write-up moved verbatim to
+    `docs/EVALUATION.md` and the design sections to `docs/DESIGN.md`.
+    `tests/test_readme_numbers.py` now checks the whole README (fenced code left out) against
+    both results files, each results subsection against its own file, and
+    `docs/EVALUATION.md` against `eval.json`.
+  - **The screenshot.** No headless browser can start inside Claude Code's sandbox (macOS
+    denies Chromium's Mach port registration), so `docs/demo.png` was captured in the
+    desktop app's browser pane from the real demo (examples mode, the committed replies) and
+    cropped. `scripts/screenshot.py` captures it headlessly (Playwright, the app in-process,
+    no port), and CI's `screenshot` job runs it and keeps a 2x PNG as the `demo-screenshot`
+    artifact; either can replace the committed image.
+  - Playwright and matplotlib aren't in the lock: they only make pictures, and each script's
+    docstring pins its install. The demo page now renders the explanations' **bold** (DOM
+    nodes only, no innerHTML).
+

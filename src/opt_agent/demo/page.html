@@ -135,6 +135,19 @@ function el(tag, text, cls) {
   if (cls) node.className = cls;
   return node;
 }
+function richText(text) {
+  // Claude's explanations use **bold** and blank-line paragraphs. Only those are rendered,
+  // as DOM nodes (never innerHTML), so nothing in a reply can inject markup.
+  const parts = document.createDocumentFragment();
+  for (const block of text.split(/\n\s*\n/)) {
+    const p = el("p"), pieces = block.split("**");
+    const bold = pieces.length % 2 === 1;  // an unpaired ** stays as it is
+    pieces.forEach((piece, i) => p.append(bold && i % 2 ? el("strong", piece)
+      : document.createTextNode(i && !bold ? "**" + piece : piece)));
+    parts.append(p);
+  }
+  return parts;
+}
 function num(x) {
   return Number(x).toLocaleString(undefined, { maximumFractionDigits: 6 });
 }
@@ -228,7 +241,7 @@ function show(r) {
 
   const explanation = $("explanation"); explanation.replaceChildren();
   if (r.explanation) {
-    explanation.append(el("p", r.explanation));
+    explanation.append(richText(r.explanation));
     if (r.explanation_unsupported.length)
       explanation.append(el("div", "Not backed by the solver's numbers: " + r.explanation_unsupported.join(", "), "note"));
     if (r.explanation_problem) explanation.append(el("div", r.explanation_problem, "note"));
