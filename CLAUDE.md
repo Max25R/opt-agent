@@ -325,12 +325,14 @@ point is a trustworthy evaluation, not a demo.
        external corroboration against LLM4OR's cleaned NL4Opt (`docs/EXTERNAL_DATA.md`, data
        git-ignored): it removed 5 of Amendment 4's six key errors. `scripts/amendment5.py` →
        eval.json `amendment_5`, which CI copies forward without recomputing (no data there).
-7. [ ] **M7, in progress. Start from `docs/HANDOFF.md`.** Done: part 1's robustness fixes;
+7. [ ] **M7: the follow-up study is done; the demo is left. Start from `docs/HANDOFF.md`.**
+   Done: part 1's robustness fixes;
    the formulation checklist with dev revision 1 (`docs/FOLLOWUP_DEV_LOG.md`: dev run
    `runs/dev-checklist`, $0 re-score `runs/dev-checklist-rev1`, mutation recall 97% for either
    check, an upper bound); a sample index in the cache key (`evaluate --sample n`).
-   - **Follow-up pre-registration, drafted** (`docs/FOLLOWUP_PREREGISTRATION.md`; owner's
-     decisions 2026-11-10 and 2026-11-11 in its section 0; not approved, frozen or tagged).
+   - **Follow-up pre-registration** (`docs/FOLLOWUP_PREREGISTRATION.md`; owner's decisions
+     2026-11-10 to 2026-11-13 in its section 0): **approved and frozen 2026-11-13**
+     (`docs/followup/FREEZE.json`, tag `followup-freeze` = `f36e812`; never edit it).
      H1 checklist-revision vs single-shot, H2 single-shot vs baseline, Holm; per-problem
      score of 3 samples, exact sign-flip test (`stats.sign_flip_exact`), McNemar on majority;
      "detected" only at Holm p < 0.05, else inconclusive with its interval. Power:
@@ -366,8 +368,28 @@ point is a trustworthy evaluation, not a demo.
      the follow-up): a claimed optimum at an infeasible point is settled like an
      "infeasible or unbounded" label (`CBC_INFEASIBLE_OPTIMUM_BUG`); it changes no logged
      solve, the ground truth, or M6's results (all rebuilt byte-identical).
-   - Next: the owner approves, freezes and tags; the test run ($6 cap); then the demo:
-     FastAPI `POST /solve` + one HTML page + Dockerfile.
+   - **The test run and results (2026-11-15; no API calls after the run):** the owner ran
+     `runs/followup-test` from their terminal at `f36e812` (1536 answers, 0 errored,
+     $2.7176 on 1252 calls; committed). On the 121 unexposed problems: **H2 detected**
+     (single-shot minus baseline +6.34 pp, sign-flip Holm p 0.0445; McNemar on majority not
+     significant, Holm p 0.24; 1.38 pp of it from 8 baseline replies cut off at max_tokens,
+     descriptive), **H1 inconclusive** (+0.6 pp; no difference larger than 4 pp).
+     `scripts/followup_results.py` writes `results/followup.json` and renders
+     `docs/followup/RESULTS.md`; the README's "Follow-up evaluation" section takes its numbers
+     from that JSON (the README-number test). Descriptive extras and the HiGHS debug print
+     check: `docs/followup/RUN_NOTES.md`.
+   - **Deviations** (`docs/followup/DEVIATIONS.md`): **the 5b key-dispute check wasn't
+     performed** (deviation 2; owner, 2026-11-15, for time, before any encoding or judging):
+     no corrected-key row, raw keys are the result of record, the 15 trigger problems are
+     listed by label, and whether any are key errors is unknown. Deviation 1 (Gemini JSON
+     encodings) is superseded. `review/followup_disputes/` (plan marked not run, packets
+     git-ignored) and `scripts/dispute_packets.py` are kept for an optional, exploratory check.
+   - **Data notice (2026-11-15):** `DATA_NOTICE.md` (linked from the README's Sources and
+     `LICENSE`): MIT covers the code only; `runs/` holds Mamo ComplexLP (CC BY-SA 4.0) and
+     IndustryOR (CC BY-NC 4.0) text as cleaned by LLM4OR (no license), plus NL4Opt (MIT).
+     History kept, since rewriting it would break the freeze tags.
+   - **Next (needs the owner's go-ahead): the demo**: FastAPI `POST /solve` + one HTML page +
+     Dockerfile. Open items are listed in `docs/HANDOFF.md`.
 8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
    limitations, repo description/topics.
 
@@ -420,8 +442,9 @@ point is a trustworthy evaluation, not a demo.
   replies cost nothing. Caps: $1 for smoke tests, $0.25 for all live-test runs together
   (`logs/spend/live-tests.jsonl`), and $3 for milestone 6's test + perturbed run (owner,
   2026-10-28). Dev runs get their own cap, agreed with the owner before each one: $0.75 for
-  the condition-4 dev smoke run (owner, 2026-11-11). The follow-up test run's cap is $6
-  (draft pre-registration, section 6).
+  the condition-4 dev smoke run (owner, 2026-11-11). The follow-up test run's cap was $6
+  (pre-registration, section 6); it paid $2.7176. Spent so far: $3.88 of the $20 credit
+  (2026-11-15; the ledger is in `docs/HANDOFF.md`).
 - `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
   paid run. An unlisted model raises instead of being guessed.
 - Budget stops, spend-limit errors (`api.SpendLimitReached`: a 429 with
@@ -585,6 +608,15 @@ python scripts/dispute_packets.py [--prompts]   # 5b: packets, judge prompts (ch
   Python 3.13 then skips them.
 - python.org's macOS Python has no CA certificates, so downloads pass `certifi`'s bundle
   explicitly (`data.py`).
+- **The follow-up is frozen at `followup-freeze`, not HEAD.** Any change under
+  `src/opt_agent/` makes `followup_freeze.check()` fail, so `followup.load_test`, the
+  follow-up report and `scripts/followup_results.py`'s build stop working at HEAD (rendering
+  from the committed JSON still works). Rebuild from the tag. Tests that need "not frozen"
+  set it up themselves (`not_frozen` fixture), never rely on the repository's state.
+- **HiGHS prints `HighsMipSolverData::transformNewIntegerFeasibleSolution tmpSolver.run();`**
+  on some MIPs. It changed no verification result (`docs/followup/RUN_NOTES.md`).
+- **Problem text is licensed data** (`DATA_NOTICE.md`): commit none outside `runs/` without
+  updating the notice; IndustryOR material is non-commercial only.
 - **Claude Code's Bash sandbox breaks Python's TLS on macOS** (`OSStatus -26276`, which
   the SDK reports as `APIConnectionError: Connection error.`), while `curl` gets through.
   Paid runs go outside the sandbox. A keyless check costs nothing: `httpx2.get(
