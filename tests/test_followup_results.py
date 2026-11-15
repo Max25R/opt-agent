@@ -14,6 +14,9 @@ SCRIPT = ROOT / "scripts" / "followup_results.py"
 spec = importlib.util.spec_from_file_location("followup_results", SCRIPT)
 results = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(results)
+spec = importlib.util.spec_from_file_location("reproduce", ROOT / "scripts" / "reproduce.py")
+reproduce = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(reproduce)
 
 RUN = ROOT / "runs" / "followup-test"
 REPORT = RUN / "followup_report.json"
@@ -104,14 +107,25 @@ def test_the_descriptive_counts_agree_with_the_report(committed, report):
         assert sum(kinds.values()) == report["failures"][c]["loud"]
 
 
-def test_rebuilding_gives_the_committed_json(committed):
-    """Needs the keys, which load only on the follow-up's frozen inputs (and the git-ignored
-    LLM4OR data), so CI skips it."""
+def test_rebuilding_from_the_tag_gives_the_committed_files(tmp_path):
+    """The frozen analysis, run in followup-freeze's own tree (scripts/reproduce.py), rebuilds
+    followup_report.json, results/followup.json and RESULTS.md byte for byte, however far HEAD
+    has moved. Needs the keys (the git-ignored LLM4OR data), so CI skips it unless they're
+    fetched."""
     from opt_agent import followup_freeze
-    from opt_agent.freeze import FreezeError
 
-    try:
-        followup_freeze.check()
-    except FreezeError:
-        pytest.skip("the follow-up's frozen inputs aren't all here (CI has no LLM4OR data)")
-    assert results.build() == committed
+    if not all(p.exists() for p in followup_freeze.data_files()):
+        pytest.skip("needs the LLM4OR data (docs/EXTERNAL_DATA.md)")
+    if followup_freeze.git("rev-parse", "--verify", "--quiet", "followup-freeze") is None:
+        pytest.skip("needs the tag followup-freeze")
+    rebuilt = reproduce.rebuild_followup(tmp_path)
+    assert set(rebuilt) == set(reproduce.FOLLOWUP_OUTPUTS)
+    assert reproduce.differences(rebuilt) == []
+
+
+def test_a_rebuilt_file_that_differs_is_shown(tmp_path):
+    (tmp_path / "a.json").write_text('{\n "x": 1\n}\n')
+    found = reproduce.differences({"a.json": b'{\n "x": 2\n}\n'}, root=tmp_path)
+    assert len(found) == 1 and found[0].startswith("DIFFERS: a.json")
+    assert '- "x": 1' in found[0] and '+ "x": 2' in found[0]
+    assert reproduce.differences({"a.json": (tmp_path / "a.json").read_bytes()}, tmp_path) == []

@@ -24,7 +24,8 @@ its fingerprint's digest in its log, so the report can show which inputs each pa
 After the M6 runs, HEAD moves on (milestone 7 changes src/), so the working tree no longer
 matches the approval, as it shouldn't. What stays checkable is the tag `m6-freeze`, the
 commit both test runs ran on: tag_problems() reads it from git's objects, and a test runs it
-in CI. check() still compares the working tree, because it gates a new test run.
+in CI. check() still compares the working tree, because it gates a new test run. The
+results rebuild from the tag's own code (frozen.py, scripts/reproduce.py), never HEAD's.
 """
 
 import argparse
@@ -175,29 +176,43 @@ def check() -> str:
 
 
 def tag_problems(tag: str = FREEZE_TAG) -> list[str]:
-    """Does `tag` hold exactly the approved inputs? Empty if it does. Read from git's
-    objects, not the working tree, so it holds however far HEAD has moved:
-    - the tag exists, and its docs/FREEZE.json is the one in the working tree;
+    """Does `tag` hold exactly the approved inputs? Empty if it does (see approval_at_tag)."""
+    return approval_at_tag(tag, "docs/FREEZE.json", FREEZE_PATH)[1]
+
+
+def approval_at_tag(
+    tag: str,
+    freeze_file: str,
+    working_copy: Path,
+    kind: type[Approval] = Approval,
+    untracked: tuple[str, ...] = (),
+) -> tuple[Approval | None, list[str]]:
+    """A study's approval as committed at `tag`, and how the tag differs from it (empty if
+    it doesn't). Both studies use it (followup_freeze.tag_problems too). Everything is read
+    from git's objects, not the working tree, so it holds however far HEAD has moved:
+    - the tag exists, and its `freeze_file` is the one in the working tree (`working_copy`);
     - the tag's parent is the commit the approval names (approve() records HEAD, and the
-      owner then commits FREEZE.json on top);
+      owner then commits the approval on top);
     - every file the fingerprint names hashes the same at the tag, and the tag has no source
-      file the fingerprint lacks. The named values (prompts, schemas, seed) are defined in
-      those source files, and the schemas by the locked SDK, so the files cover them."""
+      file the fingerprint lacks. The named values (prompts, schemas, seeds) are defined in
+      those source files, and the schemas by the locked SDK, so the files cover them.
+      Files under an `untracked` prefix are git-ignored, so the tag can't hold them: the
+      caller checks any copy that's here against the approval returned."""
     commit = git("rev-parse", "--verify", "--quiet", f"{tag}^{{commit}}")
     if commit is None:
-        return [f"no tag {tag} here (git fetch --tags; CI's checkout needs fetch-depth: 0)"]
-    committed = _committed(commit, "docs/FREEZE.json")
+        return None, [f"no tag {tag} here (git fetch --tags; CI's checkout needs fetch-depth: 0)"]
+    committed = _committed(commit, freeze_file)
     if committed is None:
-        return [f"docs/FREEZE.json isn't in {tag} ({commit[:7]})"]
-    approval = Approval.model_validate_json(committed)
+        return None, [f"{freeze_file} isn't in {tag} ({commit[:7]})"]
+    approval = kind.model_validate_json(committed)
     problems = []
-    if not FREEZE_PATH.exists() or FREEZE_PATH.read_bytes() != committed:
-        problems.append(f"docs/FREEZE.json differs from the one in {tag}")
+    if not working_copy.exists() or working_copy.read_bytes() != committed:
+        problems.append(f"{freeze_file} differs from the one in {tag}")
     if git("rev-parse", f"{commit}^") != approval.commit:
         problems.append(f"{tag}'s parent isn't the approved commit {approval.commit}")
     for name, sha in approval.fingerprint.items():
-        if "/" not in name:
-            continue  # a named value, covered by the source file that defines it
+        if "/" not in name or name.startswith(untracked):
+            continue  # a named value (covered by the source file that defines it), or data
         content = _committed(commit, name)
         if content is None:
             problems.append(f"{name}: not in {tag}")
@@ -207,7 +222,7 @@ def tag_problems(tag: str = FREEZE_TAG) -> list[str]:
     problems += [f"{path}: in {tag} but not in the approval"
                  for path in sources.splitlines()
                  if path.endswith(".py") and path not in approval.fingerprint]  # fmt: skip
-    return problems
+    return approval, problems
 
 
 def _committed(commit: str, path: str) -> bytes | None:

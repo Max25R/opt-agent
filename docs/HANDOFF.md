@@ -52,8 +52,8 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
    `_TODO._`); one reproduce script (rebuild plus a cache replay, no key; the CLI still needs
    a key even when every call is cached); the audit's docs fixes (`docs/audit/`, section 5);
    repo description and topics.
-3. **A CI check of the `followup-freeze` tag**, like M6's `freeze.tag_problems` (not built).
-   Until then, nothing in CI shows the follow-up's frozen inputs are still at the tag.
+3. ~~A CI check of the `followup-freeze` tag~~: done 2026-11-15 (`followup_freeze.tag_problems`,
+   see "Decisions made without the owner" below).
 4. **`amendment-5.md`'s status line** still says "DRAFT ... not tagged", though it is tagged
    `amendment-5` (1cb05ed). Fix only that line, as was done for Amendment 4.
 5. **Known and unfixed since M6:** the integrality rule matches ingredient names (see
@@ -69,10 +69,12 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
   `python -m opt_agent.freeze` and `python -m opt_agent.followup_freeze` report a mismatch.
   For the follow-up that also means `followup.load_test` raises `FreezeError`, so
   `python -m opt_agent.followup_report runs/followup-test` and `scripts/followup_results.py`
-  (the build) stop working at HEAD, and `test_rebuilding_gives_the_committed_json` skips.
-  Rendering still works (`scripts/followup_results.py --render`, from the committed JSON).
-  To rebuild, check out the tag (`git worktree add ../opt-agent-followup followup-freeze`,
-  in the owner's terminal: the sandbox can't add worktrees) and link `data/external/` into it.
+  (the build) stop working at HEAD, as they should. To rebuild, run
+  `python scripts/reproduce.py`: it extracts each tag's tree with `git archive` into a
+  temporary directory (`opt_agent.frozen`; no worktree, so it works in the sandbox and CI),
+  copies in the run files and the LLM4OR data, and runs the tag's own code there.
+  The tag checks (`freeze.tag_problems`, `followup_freeze.tag_problems`) read each approval
+  and every frozen file from git's objects, so a change at HEAD never fails them.
 - **Never edit frozen files:** `docs/FOLLOWUP_PREREGISTRATION.md` (its status paragraph still
   reads like a draft's after the first sentence; leave it), `docs/followup/judge_prompt.md`,
   `docs/followup/FREEZE.json`, `docs/PREREGISTRATION.md`, `docs/FREEZE.json`. Record changes as
@@ -100,3 +102,16 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
 - M6 rebuild order: `opt_agent.report`, then `scripts/amendment3.py`, then
   `scripts/eval_json.py`. CI checks the M6 freeze against its tag (`fetch-depth: 0`), so push
   tags with commits.
+
+## Decisions made without the owner (session of 2026-11-15)
+Logged here as the owner asked: the simplest reasonable option, where the request didn't say.
+- **Step 0, the freeze checks.** `freeze.approval_at_tag` reads a study's approval and every
+  file its fingerprint names from git's objects at the tag; M6's `tag_problems` and the new
+  `followup_freeze.tag_problems` both use it (the LLM4OR data is git-ignored, so a local copy
+  is checked against the tag's approval instead). `check()` still compares the working tree,
+  because it gates a new test run, and it now refuses at HEAD for both studies. The rebuild
+  runs the tag's code in a `git archive` tree (`opt_agent.frozen.Tree`) rather than HEAD's,
+  so a later refactor can't silently change a number; `scripts/reproduce.py` started with the
+  follow-up (3 files, byte for byte, about 5 s). Checked: with a throwaway edit under
+  `src/opt_agent/` and fastapi/uvicorn added to the lock, the whole suite passed (988) and
+  the follow-up rebuilt byte for byte; the edit was reverted.

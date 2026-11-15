@@ -234,3 +234,80 @@ def test_a_bad_row_is_named_by_id_without_its_text(tmp_path, monkeypatch):
         followup.load_sealed("industryor-test")
     assert "problem 1" in str(error.value) and "SECRET" not in str(error.value)
     assert error.value.__cause__ is None and error.value.__suppress_context__
+
+
+# ---- the tag ----------------------------------------------------------------------------
+# HEAD moves on after the run (the demo changes src/ and the lock), so these read the
+# approval and every frozen file from git's objects at followup-freeze, never the working
+# tree. In CI they need the tag fetched (the workflow's checkout uses fetch-depth: 0).
+
+in_git = pytest.mark.skipif(followup_freeze.git("rev-parse", "HEAD") is None,
+                            reason="not a git checkout")  # fmt: skip
+TAG = followup_freeze.FREEZE_TAG
+
+
+@in_git
+def test_the_followup_freeze_tag_holds_the_approved_inputs():
+    assert followup_freeze.tag_problems() == []
+
+
+@in_git
+def test_the_test_run_ran_on_the_tagged_commit_and_the_approved_inputs():
+    tagged = followup_freeze.git("rev-parse", f"{TAG}^{{commit}}")
+    approved = followup_freeze.digest(followup_freeze.approved().fingerprint)
+    log = followup_freeze.REPO_ROOT / "runs" / "followup-test" / "attempts.jsonl"
+    if not log.exists():
+        pytest.skip("the follow-up run isn't here")
+    passes = [json.loads(line) for line in log.read_text().splitlines()]
+    passes = [p for p in passes if p["kind"] == "run"]
+    assert passes and all(
+        (p["git_sha"], p["fingerprint"], p["git_dirty"]) == (tagged, approved, False)
+        for p in passes
+    )
+
+
+@in_git
+def test_a_commit_without_the_followup_approval_is_named():
+    assert followup_freeze.tag_problems(f"{TAG}^") == [
+        f"docs/followup/FREEZE.json isn't in {TAG}^ (f2bd2e3)"
+    ]
+
+
+@in_git
+def test_a_source_file_that_differs_at_the_tag_is_named(monkeypatch):
+    from opt_agent import freeze
+
+    committed = freeze._committed
+
+    def one_file_changed(commit: str, path: str) -> bytes | None:
+        return b"changed" if path == "src/opt_agent/followup_report.py" else committed(commit, path)
+
+    monkeypatch.setattr(freeze, "_committed", one_file_changed)
+    assert followup_freeze.tag_problems() == [f"src/opt_agent/followup_report.py: differs at {TAG}"]
+
+
+@in_git
+def test_a_working_tree_change_doesnt_matter_to_the_tag(monkeypatch):
+    """What a throwaway edit to src/ or a new dependency in the lock does: the working
+    tree's fingerprint changes, the tag's doesn't."""
+    real = followup_freeze.fingerprint()
+    monkeypatch.setattr(followup_freeze, "fingerprint",
+                        lambda: real | {"requirements.lock": "0" * 64,
+                                        "src/opt_agent/web.py": "1" * 64})  # fmt: skip
+    with pytest.raises(FreezeError):
+        followup_freeze.check()  # a new run at HEAD is refused, as it should be
+    assert followup_freeze.tag_problems() == []
+
+
+@in_git
+def test_a_data_file_that_isnt_the_approved_one_is_named(monkeypatch, tmp_path):
+    fake = tmp_path / "IndustryOR.jsonl"
+    fake.write_text("made-up\n")
+    monkeypatch.setattr(followup_freeze, "data_files", lambda: [fake])
+    name, real = "data/external/llm4or-clean/IndustryOR.jsonl", followup_freeze._relative
+    monkeypatch.setattr(followup_freeze, "_relative", lambda p: name if p == fake else real(p))
+    assert followup_freeze.tag_problems() == [f"{name}: here, but not the file approved at {TAG}"]
+
+
+def test_a_missing_followup_tag_is_named():
+    assert followup_freeze.tag_problems("no-such-tag")[0].startswith("no tag no-such-tag here")

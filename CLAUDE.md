@@ -609,10 +609,14 @@ python scripts/dispute_packets.py [--prompts]   # 5b: packets, judge prompts (ch
 - python.org's macOS Python has no CA certificates, so downloads pass `certifi`'s bundle
   explicitly (`data.py`).
 - **The follow-up is frozen at `followup-freeze`, not HEAD.** Any change under
-  `src/opt_agent/` makes `followup_freeze.check()` fail, so `followup.load_test`, the
-  follow-up report and `scripts/followup_results.py`'s build stop working at HEAD (rendering
-  from the committed JSON still works). Rebuild from the tag. Tests that need "not frozen"
-  set it up themselves (`not_frozen` fixture), never rely on the repository's state.
+  `src/opt_agent/` or to the lock makes `followup_freeze.check()` fail, so `followup.load_test`,
+  the follow-up report and `scripts/followup_results.py`'s build stop working at HEAD
+  (rendering from the committed JSON still works). `python scripts/reproduce.py` rebuilds
+  from the tag's own tree (`opt_agent.frozen`: `git archive`, run files and data copied in,
+  the tag's package first on the path), and the tag checks (`freeze.approval_at_tag`, used by
+  both `tag_problems`) read everything from git's objects, never the working tree. Tests that
+  need "not frozen" set it up themselves (`not_frozen` fixture), never rely on the
+  repository's state.
 - **HiGHS prints `HighsMipSolverData::transformNewIntegerFeasibleSolution tmpSolver.run();`**
   on some MIPs. It changed no verification result (`docs/followup/RUN_NOTES.md`).
 - **Problem text is licensed data** (`DATA_NOTICE.md`): commit none outside `runs/` without

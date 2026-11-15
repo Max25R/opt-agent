@@ -17,6 +17,12 @@ It works like M6's (freeze.py), and reuses its pieces, with the follow-up's list
 until that list is empty, the tree is committed and the packages are the locked ones, then
 writes docs/followup/FREEZE.json. followup.load_sealed() calls check() before it reads a test
 problem, so nothing reads the sealed split until the approval exists and still matches.
+
+After the test run, HEAD moves on (the demo changes src/ and the lock), so check() refuses at
+HEAD, as it should: it gates a new run. What stays checkable is the tag `followup-freeze`, the
+commit the run ran on: tag_problems() reads the approval and every frozen file from git's
+objects (in CI too), and the results rebuild from the tag's own code (frozen.py,
+scripts/reproduce.py), where check() passes inside the tag's tree.
 """
 
 import argparse
@@ -43,6 +49,7 @@ from opt_agent.freeze import (
     _canonical,
     _relative,
     _sha256,
+    approval_at_tag,
     differences,
     digest,
     drifted_packages,
@@ -50,6 +57,7 @@ from opt_agent.freeze import (
 from opt_agent.runs import REPO_ROOT, git
 
 FREEZE_PATH = REPO_ROOT / "docs" / "followup" / "FREEZE.json"
+FREEZE_TAG = "followup-freeze"  # the commit the test run ran on; it adds the approval
 PREREGISTRATION_PATH = REPO_ROOT / "docs" / "FOLLOWUP_PREREGISTRATION.md"
 ANALYSIS_PATH = SOURCE_DIR / "followup_report.py"
 JUDGE_PROMPT_PATH = REPO_ROOT / "docs" / "followup" / "judge_prompt.md"  # 5b's encoding check
@@ -214,6 +222,27 @@ def check() -> str:
     return digest(approval.fingerprint)
 
 
+def tag_problems(tag: str = FREEZE_TAG) -> list[str]:
+    """Does `tag` hold exactly the approved inputs? Empty if it does. The approval is the one
+    committed at the tag, and every frozen file is read from git's objects
+    (freeze.approval_at_tag), so this holds however far HEAD has moved. The LLM4OR data is
+    git-ignored, so the tag can't hold it: a copy that's here must be the approved one, and
+    one that isn't here (as in CI) is left to the rebuild, which refuses without it."""
+    approval, problems = approval_at_tag(
+        tag, "docs/followup/FREEZE.json", FREEZE_PATH, FollowupApproval, ("data/external/",)
+    )
+    if approval is None:
+        return problems
+    if approval.fingerprint.get(_relative(ANALYSIS_PATH)) != approval.analysis_sha256:
+        problems.append(f"docs/followup/FREEZE.json at {tag}: analysis_sha256 isn't the "
+                        "fingerprint's")  # fmt: skip
+    for path in data_files():
+        name = _relative(path)
+        if path.exists() and _sha256(path.read_bytes()) != approval.fingerprint.get(name):
+            problems.append(f"{name}: here, but not the file approved at {tag}")
+    return problems
+
+
 # ---- command line -----------------------------------------------------------------------
 
 
@@ -234,6 +263,12 @@ def status() -> str:
     else:
         lines.append(f"Frozen on {approval.approved_on}, and the inputs match: the test split "
                      "may be read and run.")  # fmt: skip
+    if problems := tag_problems():
+        lines.append(f"TAG {FREEZE_TAG} DOESN'T HOLD THE APPROVED INPUTS:\n  "
+                     + "\n  ".join(problems))  # fmt: skip
+    else:
+        lines.append(f"Tag {FREEZE_TAG} holds exactly the approved inputs: the follow-up's "
+                     "results rebuild from it (python scripts/reproduce.py).")  # fmt: skip
     return "\n".join(lines)
 
 
