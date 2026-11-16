@@ -9,7 +9,7 @@ test problem was opened, that ask whether a solver in the loop helps at all, and
 wrong answer gets through every check. Every reported number rebuilds from committed cached
 replies, with no API key.
 
-![The demo after solving its paint example: the problem, the verified optimum, the CBC and HiGHS cross-check, and the hand-checked answer it matches](docs/demo.png)
+![The demo after solving its paint example: the problem, the verified optimum (CBC and HiGHS agree, the arithmetic checks pass, and it matches the hand-checked answer), Claude's model, and Claude's explanation using the solver's numbers](docs/demo.png)
 
 *The demo in examples mode: no API key, and every Claude reply replayed from the committed
 cache.*

@@ -56,11 +56,11 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
    agent CLI still needs a key even when every call is cached; the demo's examples mode and
    `scripts/reproduce.py` don't.
 2a. **The README's screenshot** is the owner's headless capture (`scripts/screenshot.py`,
-   2026-11-15, 2x PNG), trimmed at the gap below the answer and verification cards. That run
-   stopped at the viewport's bottom (900 px), above the model and the explanation, because
-   the script clipped without `full_page=True` (fixed the same day). Rerunning
-   `python scripts/screenshot.py` now captures down to the explanation; CI's `pictures` job
-   does that on every push (artifact `demo-screenshot`).
+   2026-11-15, 2x PNG, after the `full_page=True` fix), cropped without scaling to the problem
+   card through the explanation card: the page's own title block (the README has the title
+   and pitch) and the side margins went, so the text stays as large as captured and the
+   image is less tall. A fresh `python scripts/screenshot.py` writes the uncropped page top;
+   CI's `pictures` job makes one on every push (artifact `demo-screenshot`).
 3. ~~A CI check of the `followup-freeze` tag~~: done 2026-11-15 (`followup_freeze.tag_problems`,
    see "Decisions made without the owner" below).
 4. **`amendment-5.md`'s status line** still says "DRAFT ... not tagged", though it is tagged
