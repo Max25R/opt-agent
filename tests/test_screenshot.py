@@ -58,6 +58,17 @@ def test_the_frame_never_takes_in_a_neighbor():
     assert clip["y"] + clip["height"] <= 1275.2
 
 
+def test_on_half_pixels_a_neighbor_counts_to_its_whole_pixel():
+    """CI's Linux layout (printed by capture()): the badge ends at 176.5, exactly 14 px above
+    the problem card, but paints the device row below; the frame starts at 177."""
+    badge = BADGE | {"y": 152.5, "height": 24.0}
+    problem = PROBLEM | {"y": 190.5, "height": 337.5}
+    explanation = EXPLANATION | {"y": 1141.0, "height": 173.5}
+    flags = FLAGS | {"y": 1328.5}
+    clip = screenshot.frame(problem, explanation, badge, flags)
+    assert clip == {"x": 62.5, "y": 177.0, "width": 975.0, "height": 1151.0}
+
+
 def test_the_committed_picture_has_the_frames_margins():
     pytest.importorskip("PIL")
     assert screenshot.margins(PICTURE) == screenshot.expected_margins() == (28, 27, 27, 27)

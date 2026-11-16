@@ -47,18 +47,20 @@ MARGIN_TOP, MARGIN = 14, 13.5  # CSS pixels of page background around the cards
 def frame(first: dict, last: dict, above: dict | None = None, below: dict | None = None) -> dict:
     """The clip, in CSS pixels, from the top of `first` to the bottom of `last` (two element
     boxes in one column, as Playwright's bounding_box() gives them), with the margins, but
-    never into `above` or `below` (the status badge and the flags card): the top margin is
-    the whole gap to the badge on the owner's Mac, and other fonts can make it a fraction of
-    a pixel less. Its edges go to whole device pixels by rounding inward, for the same
-    reason."""
+    never into `above` or `below` (the status badge and the flags card). The top margin is
+    the whole gap to the badge, so a neighbor's edge counts from the next whole CSS pixel:
+    where the layout lands on half pixels, Chromium paints a box out to the whole pixel (CI's
+    Linux fonts: the badge ends at 176.5 and paints the row below). The frame's edges go to
+    whole device pixels by rounding inward. On the owner's Mac every edge is a whole pixel,
+    and none of this moves the frame."""
     left = min(first["x"], last["x"]) - MARGIN
     right = max(first["x"] + first["width"], last["x"] + last["width"]) + MARGIN
     top = first["y"] - MARGIN_TOP
     bottom = last["y"] + last["height"] + MARGIN
     if above is not None:
-        top = max(top, above["y"] + above["height"])
+        top = max(top, math.ceil(above["y"] + above["height"]))
     if below is not None:
-        bottom = min(bottom, below["y"])
+        bottom = min(bottom, math.floor(below["y"]))
     left, top = (math.ceil(v * SCALE) / SCALE for v in (left, top))
     right, bottom = (math.floor(v * SCALE) / SCALE for v in (right, bottom))
     return {"x": left, "y": top, "width": right - left, "height": bottom - top}
