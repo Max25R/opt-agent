@@ -11,6 +11,7 @@ request that isn't in the cache raises NotInCache: nothing here can reach the AP
 Run (inside a tag's tree):  python scripts/replay_run.py runs/test replay/test
 """
 
+import hashlib
 import json
 import shutil
 import sys
@@ -31,7 +32,11 @@ class RefusingClient:
         return self
 
     def create(self, **request):
-        raise NotInCache("a request wasn't in the run's cache: a replay never calls the API")
+        # Which call missed, without the problem's text (licensed data; CI logs are shared).
+        sha = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
+        raise NotInCache(f"a request wasn't in the run's cache ({len(request['messages'])} "
+                         f"message(s); system prompt {request['system'][:48]!r}...; "
+                         f"sha256 {sha[:12]}): a replay never calls the API")  # fmt: skip
 
 
 def replay(run: Path, out: Path) -> None:
@@ -45,8 +50,13 @@ def replay(run: Path, out: Path) -> None:
     shutil.copytree(run / "cache", out / "cache")
     samples = manifest["settings"].get("samples")  # only a run of several samples records it
     more = {"sample": tuple(int(s) for s in samples.split(","))} if samples else {}
-    evaluate.evaluate(records, tuple(manifest["conditions"]), RefusingClient(), out, split,
-                      manifest["model_id"], **more)  # fmt: skip
+    try:
+        evaluate.evaluate(records, tuple(manifest["conditions"]), RefusingClient(), out, split,
+                          manifest["model_id"], **more)  # fmt: skip
+    except NotInCache as miss:
+        results = out / "results.jsonl"
+        done = len(results.read_text().splitlines()) if results.exists() else 0
+        raise SystemExit(f"{run}: the replay stopped after {done} pairs: {miss}") from None
 
 
 if __name__ == "__main__":
