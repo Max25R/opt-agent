@@ -7,8 +7,8 @@ results/followup.json only, so nothing in the kit can drift from the studies.
 - figures/accuracy.png, figures/failures.png, figures/cost.png: accuracy with 95%
   intervals, silent and loud failures, and cost, by condition, one panel per study.
 
-No API calls; the same inputs give the same tables. The figures need matplotlib, which isn't
-one of the project's dependencies: pip install matplotlib==3.11.2.
+No API calls; the same inputs give the same tables. The figures need matplotlib, pinned in the
+optional requirements-docs.lock: pip install -r requirements-docs.lock -c requirements.lock.
 
 Run:  python scripts/ie2310.py                # tables and figures
       python scripts/ie2310.py --tables-only  # no matplotlib needed

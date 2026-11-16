@@ -408,7 +408,8 @@ point is a trustworthy evaluation, not a demo.
    job, after `scripts/fetch_llm4or.py`); the README rewritten for a short read, with the M6
    write-up moved to `docs/EVALUATION.md` and the design to `docs/DESIGN.md`, and every
    README number checked; `docs/demo.png` (`scripts/screenshot.py` headlessly; CI keeps an
-   artifact). The IE 2310 kit is in `docs/ie2310/` (`scripts/ie2310.py`; the owner's
+   artifact). The picture tools (Playwright, matplotlib) are in the optional
+   `requirements-docs.lock`, never in requirements.lock (which both freezes fingerprint). The IE 2310 kit is in `docs/ie2310/` (`scripts/ie2310.py`; the owner's
    teammate writes the time study, flow charts and summary). Left for the owner: the repo's
    description and topics on GitHub (open items in `docs/HANDOFF.md`).
 
@@ -529,7 +530,9 @@ python scripts/dispute_packets.py [--prompts]   # 5b: packets, judge prompts (ch
 python scripts/fetch_llm4or.py      # LLM4OR's data at its pinned commit, hashes checked (git-ignored)
 python scripts/reproduce.py         # replay + rebuild every reported number from the tags; no key
 python scripts/reproduce.py --no-replay   # the rebuild alone (about 15 s)
-python scripts/screenshot.py        # docs/demo.png headlessly (needs Playwright; CI keeps one)
+pip install -r requirements-docs.lock -c requirements.lock   # optional: Playwright, matplotlib
+python scripts/screenshot.py        # docs/demo.png headlessly (then: playwright install --only-shell chromium)
+python scripts/ie2310.py            # docs/ie2310/: the numbers table and the figures
 python -m opt_agent.demo            # the demo, examples mode (no key): http://127.0.0.1:8000
 OPT_AGENT_LIVE=1 python -m opt_agent.demo   # live mode: the key in .env; guarded (demo/app.py)
 python scripts/cache_examples.py --plan     # the examples' replies: worst case (the paid run is the owner's)

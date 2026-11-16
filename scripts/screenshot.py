@@ -6,8 +6,9 @@ routed to the TestClient. So nothing listens on a port, nothing needs a key, and
 sent anywhere. The page is used as a visitor would use it (an example's button), and the
 capture runs from the top of the page to the end of the explanation, once it's shown.
 
-Playwright isn't one of the project's dependencies (not in requirements.lock):
-    pip install playwright==1.65.2 && python -m playwright install --only-shell chromium
+Playwright is pinned in the optional requirements-docs.lock, not requirements.lock:
+    pip install -r requirements-docs.lock -c requirements.lock
+    python -m playwright install --only-shell chromium
 Run:  python scripts/screenshot.py [--example paint] [--out docs/demo.png]
 """
 
@@ -47,7 +48,10 @@ def capture(example: str, out: Path) -> None:
         page.wait_for_selector("#result:not([hidden])")
         box = page.locator("#explanation-card").bounding_box()
         height = box["y"] + box["height"] + 24
-        page.screenshot(path=str(out), clip={"x": 0, "y": 0, "width": WIDTH, "height": height})
+        # full_page: without it a clip stops at the viewport's bottom (900 px), which cut the
+        # first capture off above the model and the explanation.
+        page.screenshot(path=str(out), full_page=True,
+                        clip={"x": 0, "y": 0, "width": WIDTH, "height": height})  # fmt: skip
         browser.close()
 
 

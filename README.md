@@ -9,7 +9,7 @@ test problem was opened, that ask whether a solver in the loop helps at all, and
 wrong answer gets through every check. Every reported number rebuilds from committed cached
 replies, with no API key.
 
-![The demo after solving its paint example: Claude's model, the verified optimum, the CBC and HiGHS cross-check, the hand-checked answer it matches, and the explanation](docs/demo.png)
+![The demo after solving its paint example: the problem, the verified optimum, the CBC and HiGHS cross-check, and the hand-checked answer it matches](docs/demo.png)
 
 *The demo in examples mode: no API key, and every Claude reply replayed from the committed
 cache.*
@@ -114,6 +114,9 @@ results; then it rebuilds both reports and both results files and checks them by
 CI runs it on every push, on macOS arm64 like the original runs, along with the tests and the
 demo image. (On Linux, one follow-up model has a second optimal solution that CBC picks
 instead, which changes one pair's revision path but not its answer.)
+To redraw the pictures too (the screenshot and the IE 2310 figures), install the optional
+tools with `pip install -r requirements-docs.lock -c requirements.lock` and
+`python -m playwright install --only-shell chromium`.
 
 ## How it works
 

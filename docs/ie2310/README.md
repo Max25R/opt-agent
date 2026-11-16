@@ -15,9 +15,11 @@ Everything here is about the software half of the project, and every number come
 summary). The agent's time per problem, which the time study compares with hand solving, is
 in `numbers.md` ("time per answer").
 
-**Regenerate** (no API calls; the figures need `pip install matplotlib==3.11.2`):
+**Regenerate** (no API calls; the figures need matplotlib, from the optional
+`requirements-docs.lock`):
 
 ```bash
+pip install -r requirements-docs.lock -c requirements.lock
 python scripts/ie2310.py
 ```
 

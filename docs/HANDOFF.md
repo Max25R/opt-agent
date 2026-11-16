@@ -55,9 +55,12 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
    owner's), and the audit's docs fixes (`docs/audit/2026-11-review.md`, section 5). The
    agent CLI still needs a key even when every call is cached; the demo's examples mode and
    `scripts/reproduce.py` don't.
-2a. **The README's screenshot** came from the desktop app's browser pane (an 800-pixel JPEG
-   capture, saved as PNG). CI's `screenshot` job makes a sharper 2x one headlessly on every
-   push (artifact `demo-screenshot`); swap it in, or run `python scripts/screenshot.py`.
+2a. **The README's screenshot** is the owner's headless capture (`scripts/screenshot.py`,
+   2026-11-15, 2x PNG), trimmed at the gap below the answer and verification cards. That run
+   stopped at the viewport's bottom (900 px), above the model and the explanation, because
+   the script clipped without `full_page=True` (fixed the same day). Rerunning
+   `python scripts/screenshot.py` now captures down to the explanation; CI's `pictures` job
+   does that on every push (artifact `demo-screenshot`).
 3. ~~A CI check of the `followup-freeze` tag~~: done 2026-11-15 (`followup_freeze.tag_problems`,
    see "Decisions made without the owner" below).
 4. **`amendment-5.md`'s status line** still says "DRAFT ... not tagged", though it is tagged
@@ -190,9 +193,13 @@ Logged here as the owner asked: the simplest reasonable option, where the reques
     cropped. `scripts/screenshot.py` captures it headlessly (Playwright, the app in-process,
     no port), and CI's `screenshot` job runs it and keeps a 2x PNG as the `demo-screenshot`
     artifact; either can replace the committed image.
-  - Playwright and matplotlib aren't in the lock: they only make pictures, and each script's
-    docstring pins its install. The demo page now renders the explanations' **bold** (DOM
-    nodes only, no innerHTML).
+  - Playwright and matplotlib are pinned in the optional `requirements-docs.lock` (owner's
+    request, 2026-11-15), installed on top with requirements.lock as a constraint; neither
+    freeze fingerprints it, and `tests/test_lock.py` checks it never re-pins a package of
+    requirements.lock. The name says what it's for: requirements.lock already holds the
+    `dev` extra (pytest, ruff, hypothesis). CI's `pictures` job (was `screenshot`) installs
+    it from a fresh clone and runs both picture scripts. The demo page now renders the
+    explanations' **bold** (DOM nodes only, no innerHTML).
 - **Step 3, the IE 2310 kit** (`docs/ie2310/`; no rubric was in the repository, so the layout
   is my choice). `summary.md` (about 830 words, plain English, framed as verification versus
   validation), `figures/` (accuracy with 95% intervals, silent and loud failures, cost; one
