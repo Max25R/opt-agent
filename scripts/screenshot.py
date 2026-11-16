@@ -45,14 +45,16 @@ MARGIN_TOP, MARGIN = 14, 13.5  # CSS pixels of page background around the cards
 
 def frame(first: dict, last: dict) -> dict:
     """The clip, in CSS pixels, from the top of `first` to the bottom of `last` (two element
-    boxes in one column, as Playwright's bounding_box() gives them), with the margins, its
-    edges on whole device pixels."""
+    boxes in one column, as Playwright's bounding_box() gives them), with the margins. Its
+    edges go to whole device pixels by rounding inward: the margins are as wide as the gaps
+    to the neighbors (the status badge above, the flags card below), so rounding outward
+    could take in a neighbor's border wherever the layout lands on a fraction of a pixel."""
     left = min(first["x"], last["x"]) - MARGIN
     right = max(first["x"] + first["width"], last["x"] + last["width"]) + MARGIN
     top = first["y"] - MARGIN_TOP
     bottom = last["y"] + last["height"] + MARGIN
-    left, top = (math.floor(v * SCALE) / SCALE for v in (left, top))
-    right, bottom = (math.ceil(v * SCALE) / SCALE for v in (right, bottom))
+    left, top = (math.ceil(v * SCALE) / SCALE for v in (left, top))
+    right, bottom = (math.floor(v * SCALE) / SCALE for v in (right, bottom))
     return {"x": left, "y": top, "width": right - left, "height": bottom - top}
 
 

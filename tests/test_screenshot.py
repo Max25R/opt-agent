@@ -32,10 +32,15 @@ def test_the_frame_is_the_committed_pictures():
     assert size == png_size(PICTURE) == (1950, 2211)
 
 
-def test_the_frame_lands_on_whole_device_pixels():
-    clip = screenshot.frame(PROBLEM | {"y": 190.3}, EXPLANATION | {"height": 172.9})
+def test_the_frame_lands_on_whole_device_pixels_inside_the_gaps():
+    """With the cards on fractions of a pixel (other fonts), the frame rounds inward: never
+    into the neighbor above (the gap's top) or below, never into the cards either."""
+    problem, explanation = PROBLEM | {"y": 190.3}, EXPLANATION | {"y": 1097.1, "height": 172.9}
+    clip = screenshot.frame(problem, explanation)
     assert all((value * screenshot.SCALE).is_integer() for value in clip.values())
-    assert clip["y"] <= 190.3 - screenshot.MARGIN_TOP  # rounded outward, never into a card
+    assert 190.3 - screenshot.MARGIN_TOP <= clip["y"] <= 190.3
+    bottom = explanation["y"] + explanation["height"]
+    assert bottom <= clip["y"] + clip["height"] <= bottom + screenshot.MARGIN
 
 
 def test_the_committed_picture_has_the_frames_margins():
