@@ -67,6 +67,15 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
    CI's `pictures` job captures the same frame with Linux fonts (other card heights) and
    checks its margins with `python scripts/screenshot.py --check` (artifact
    `demo-screenshot`). The committed picture wasn't replaced: no new capture was made here.
+   **What CI taught the frame:** with Linux fonts the layout lands on half pixels (the
+   script prints it: badge 152.5 to 176.5, problem card from 190.5, explanation to 1314.5,
+   flags card from 1328.5), and Chromium paints such a box out to the next whole pixel. The
+   top margin is the whole 14 px gap to the badge, so the first Linux captures took in the
+   badge's painted edge (top margin 0, bottom 25). Now `frame()` stops at the next whole
+   pixel beyond each neighbor (the badge above, the flags card below) and rounds its edges
+   inward, and `--check` allows one CSS pixel (two device pixels). None of that moves the
+   frame on the Mac, where every edge is a whole pixel; CI's layout is a test case in
+   `tests/test_screenshot.py`, and its capture now passes the check.
 3. ~~A CI check of the `followup-freeze` tag~~: done 2026-11-15 (`followup_freeze.tag_problems`,
    see "Decisions made without the owner" below).
 4. **`amendment-5.md`'s status line** still says "DRAFT ... not tagged", though it is tagged
