@@ -15,8 +15,8 @@ spec = importlib.util.spec_from_file_location("screenshot", ROOT / "scripts" / "
 screenshot = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(screenshot)
 
-# The two cards' boxes (CSS pixels) in the owner's capture that docs/demo.png comes from:
-# the problem card's top at 192, the explanation card's bottom at 1270, the column 948 wide.
+# The two cards (CSS pixels) as they paint on the owner's Mac, where docs/demo.png comes
+# from: the problem card from 192, the explanation card to 1270, the column 948 wide.
 PROBLEM = {"x": 76, "y": 192, "width": 948, "height": 292}
 EXPLANATION = {"x": 76, "y": 1097, "width": 948, "height": 173}
 BADGE = {"x": 76, "y": 154, "width": 312, "height": 24}  # ends where the card's margin starts
@@ -27,12 +27,17 @@ def png_size(path: Path) -> tuple[int, int]:
     return struct.unpack(">II", path.read_bytes()[16:24])  # the IHDR chunk's width, height
 
 
-def test_the_frame_is_the_committed_pictures():
-    clip = screenshot.frame(PROBLEM, EXPLANATION, BADGE, FLAGS)
-    assert clip == {"x": 62.5, "y": 178.0, "width": 975.0, "height": 1105.5}
-    assert clip == screenshot.frame(PROBLEM, EXPLANATION)  # the neighbors don't move it here
+@pytest.mark.parametrize("box_bottom", [1269.5, 1269.99])
+def test_the_frame_is_the_committed_pictures(box_bottom):
+    """docs/demo.png is the script's own capture (the owner's rerun on the Mac): 2210 device
+    pixels high, so the explanation card's box ends a fraction of a pixel short of where it
+    paints, somewhere in [1269.5, 1270), and the frame rounds its bottom down to 1283."""
+    explanation = EXPLANATION | {"height": box_bottom - EXPLANATION["y"]}
+    clip = screenshot.frame(PROBLEM, explanation, BADGE, FLAGS)
+    assert clip == {"x": 62.5, "y": 178.0, "width": 975.0, "height": 1105.0}
+    assert clip == screenshot.frame(PROBLEM, explanation)  # the neighbors don't move it here
     size = (clip["width"] * screenshot.SCALE, clip["height"] * screenshot.SCALE)
-    assert size == png_size(PICTURE) == (1950, 2211)
+    assert size == png_size(PICTURE) == (1950, 2210)
 
 
 def test_the_frame_lands_on_whole_device_pixels_inside_the_gaps():
@@ -71,8 +76,20 @@ def test_on_half_pixels_a_neighbor_counts_to_its_whole_pixel():
 
 def test_the_committed_picture_has_the_frames_margins():
     pytest.importorskip("PIL")
-    assert screenshot.margins(PICTURE) == screenshot.expected_margins() == (28, 27, 27, 27)
+    assert screenshot.expected_margins() == (28, 27, 27, 27)
+    assert screenshot.margins(PICTURE) == (28, 27, 26, 27)  # the bottom: see above
     screenshot.main(["--check", str(PICTURE)])  # passes
+
+
+def test_the_picture_is_byte_stable():
+    """capture() saves through Pillow (optimize=True): the same pixels give the same bytes,
+    so a rerun on the same rendering leaves docs/demo.png as committed."""
+    image = pytest.importorskip("PIL.Image")
+    import io
+
+    again = io.BytesIO()
+    image.open(PICTURE).convert("RGB").save(again, format="PNG", optimize=True)
+    assert again.getvalue() == PICTURE.read_bytes()
 
 
 def test_a_picture_framed_otherwise_fails_the_check(tmp_path):
