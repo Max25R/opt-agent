@@ -19,6 +19,8 @@ spec.loader.exec_module(screenshot)
 # the problem card's top at 192, the explanation card's bottom at 1270, the column 948 wide.
 PROBLEM = {"x": 76, "y": 192, "width": 948, "height": 292}
 EXPLANATION = {"x": 76, "y": 1097, "width": 948, "height": 173}
+BADGE = {"x": 76, "y": 154, "width": 312, "height": 24}  # ends where the card's margin starts
+FLAGS = {"x": 76, "y": 1284, "width": 948, "height": 120}  # 14 px below the explanation
 
 
 def png_size(path: Path) -> tuple[int, int]:
@@ -26,8 +28,9 @@ def png_size(path: Path) -> tuple[int, int]:
 
 
 def test_the_frame_is_the_committed_pictures():
-    clip = screenshot.frame(PROBLEM, EXPLANATION)
+    clip = screenshot.frame(PROBLEM, EXPLANATION, BADGE, FLAGS)
     assert clip == {"x": 62.5, "y": 178.0, "width": 975.0, "height": 1105.5}
+    assert clip == screenshot.frame(PROBLEM, EXPLANATION)  # the neighbors don't move it here
     size = (clip["width"] * screenshot.SCALE, clip["height"] * screenshot.SCALE)
     assert size == png_size(PICTURE) == (1950, 2211)
 
@@ -41,6 +44,18 @@ def test_the_frame_lands_on_whole_device_pixels_inside_the_gaps():
     assert 190.3 - screenshot.MARGIN_TOP <= clip["y"] <= 190.3
     bottom = explanation["y"] + explanation["height"]
     assert bottom <= clip["y"] + clip["height"] <= bottom + screenshot.MARGIN
+
+
+def test_the_frame_never_takes_in_a_neighbor():
+    """Other fonts can leave less than the top margin between the badge and the problem
+    card: the frame then starts where the badge ends, not on it."""
+    badge = BADGE | {"y": 166.6, "height": 24.0}  # ends at 190.6, 1.4 px above the card...
+    problem = PROBLEM | {"y": 192.0}
+    clip = screenshot.frame(problem, EXPLANATION, badge, FLAGS)
+    assert clip["y"] >= 190.6 and clip["y"] == 191.0  # ...so the frame starts below it
+    flags = FLAGS | {"y": 1275.2}
+    clip = screenshot.frame(PROBLEM, EXPLANATION, BADGE, flags)
+    assert clip["y"] + clip["height"] <= 1275.2
 
 
 def test_the_committed_picture_has_the_frames_margins():
@@ -57,3 +72,11 @@ def test_a_picture_framed_otherwise_fails_the_check(tmp_path):
     assert screenshot.margins(tmp_path / "other.png") == (28, 40, 27, 40)
     with pytest.raises(SystemExit, match="not the frame"):
         screenshot.main(["--check", str(tmp_path / "other.png")])
+
+
+def test_a_margin_within_one_css_pixel_passes(tmp_path):
+    image = pytest.importorskip("PIL.Image")
+    picture = image.new("RGB", (200, 160), (247, 247, 245))
+    picture.paste((255, 255, 255), (27, 29, 173, 135))  # 29 / 27 / 25 / 27
+    picture.save(tmp_path / "close.png")
+    screenshot.main(["--check", str(tmp_path / "close.png")])

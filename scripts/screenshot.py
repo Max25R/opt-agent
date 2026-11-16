@@ -17,8 +17,9 @@ enough to hold it), never the full page. The picture is saved through Pillow
 another machine's fonts the cards' heights change, but the frame doesn't.
 
 `--check PATH` reports a picture's margins and fails unless they're the frame's, to within
-one device pixel (another machine's fonts can put a border between two pixels). CI's
-pictures job runs it on its own capture.
+one CSS pixel (two device pixels: with another machine's fonts the cards can land between
+pixels, and each edge rounds inward). CI's pictures job runs it on its own capture, and
+capture() prints the layout it framed.
 
 Playwright and Pillow are pinned in the optional requirements-docs.lock:
     pip install -r requirements-docs.lock -c requirements.lock
@@ -43,16 +44,21 @@ SCALE = 2  # device pixels per CSS pixel, for a sharp image
 MARGIN_TOP, MARGIN = 14, 13.5  # CSS pixels of page background around the cards
 
 
-def frame(first: dict, last: dict) -> dict:
+def frame(first: dict, last: dict, above: dict | None = None, below: dict | None = None) -> dict:
     """The clip, in CSS pixels, from the top of `first` to the bottom of `last` (two element
-    boxes in one column, as Playwright's bounding_box() gives them), with the margins. Its
-    edges go to whole device pixels by rounding inward: the margins are as wide as the gaps
-    to the neighbors (the status badge above, the flags card below), so rounding outward
-    could take in a neighbor's border wherever the layout lands on a fraction of a pixel."""
+    boxes in one column, as Playwright's bounding_box() gives them), with the margins, but
+    never into `above` or `below` (the status badge and the flags card): the top margin is
+    the whole gap to the badge on the owner's Mac, and other fonts can make it a fraction of
+    a pixel less. Its edges go to whole device pixels by rounding inward, for the same
+    reason."""
     left = min(first["x"], last["x"]) - MARGIN
     right = max(first["x"] + first["width"], last["x"] + last["width"]) + MARGIN
     top = first["y"] - MARGIN_TOP
     bottom = last["y"] + last["height"] + MARGIN
+    if above is not None:
+        top = max(top, above["y"] + above["height"])
+    if below is not None:
+        bottom = min(bottom, below["y"])
     left, top = (math.ceil(v * SCALE) / SCALE for v in (left, top))
     right, bottom = (math.floor(v * SCALE) / SCALE for v in (right, bottom))
     return {"x": left, "y": top, "width": right - left, "height": bottom - top}
@@ -92,8 +98,16 @@ def capture(example: str, out: Path) -> tuple[int, int]:
         page.wait_for_selector("#result:not([hidden])")
         if "ok" not in (page.get_attribute("#verdict", "class") or "").split():
             sys.exit(f"{example} didn't come out verified, so nothing was captured")
-        problem = page.locator(".card").filter(has=page.locator("#problem")).bounding_box()
-        clip = frame(problem, page.locator("#explanation-card").bounding_box())
+        boxes = {
+            "badge": page.locator("#mode").bounding_box(),
+            "problem": page.locator(".card").filter(has=page.locator("#problem")).bounding_box(),
+            "explanation": page.locator("#explanation-card").bounding_box(),
+            "flags": page.locator("#explanation-card + .card").bounding_box(),
+        }  # fmt: skip
+        clip = frame(boxes["problem"], boxes["explanation"], boxes["badge"], boxes["flags"])
+        print("layout (CSS px): " + "; ".join(
+            f"{name} {b['y']:g} to {b['y'] + b['height']:g}" for name, b in boxes.items()
+        ) + f"; clip {clip['y']:g} to {clip['y'] + clip['height']:g}")  # fmt: skip
         if clip["y"] + clip["height"] > HEIGHT:
             sys.exit(f"the frame ends below the {HEIGHT} px viewport: raise HEIGHT")
         png = page.screenshot(clip=clip)
@@ -135,8 +149,8 @@ def main(argv: list[str] | None = None) -> None:
     if args.check:
         found, expected = margins(args.check), expected_margins()
         print(f"{args.check}: margins {found} (top, left, bottom, right); the frame's {expected}")
-        if any(abs(f - e) > 1 for f, e in zip(found, expected, strict=True)):
-            sys.exit("not the frame: a margin differs by more than one device pixel")
+        if any(abs(f - e) > SCALE for f, e in zip(found, expected, strict=True)):
+            sys.exit("not the frame: a margin differs by more than one CSS pixel")
         return
     width, height = capture(args.example, args.out)
     print(f"wrote {args.out} ({width}x{height} px: the problem card through the explanation)")
