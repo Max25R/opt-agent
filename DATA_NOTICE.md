@@ -39,8 +39,20 @@ annotations: Ramamonjison et al., "NL4Opt Competition: Formulating Optimization 
 Based on Their Natural Language Descriptions" (NeurIPS 2022 Competition Track), MIT license,
 Copyright (c) 2022 Huawei Technologies ([`data/nl4opt/LICENSE`](data/nl4opt/LICENSE)). The perturbed problems change
 NL4Opt's numbers (the rule is in `src/opt_agent/perturb.py`; counts in
-`data/nl4opt/ground_truth/PERTURBED.md`). ORLM's NL4Opt answers (CC BY-NC 4.0) are a
-cross-check only and are never committed.
+`data/nl4opt/ground_truth/PERTURBED.md`).
+
+**ORLM's NL4Opt answers.** ORLM's answer set for NL4Opt (Huang, Tang et al., arXiv:2405.17743;
+<https://huggingface.co/datasets/CardinalOperations/NL4OPT>,
+[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)) was a cross-check for the
+answer key. The file itself isn't committed, but some of its answers are cited one problem at
+a time, as the reason for a review ("ORLM says 18", "matching ORLM"):
+- in `data/nl4opt/reviews.json`, and copied from it into `data/nl4opt/ground_truth/`
+  (`test.json`, `test-perturbed.json` and `REPORT.md`);
+- in the owner's review packet, `review/test_reviews/`;
+- in one string in `src/opt_agent/external_check.py` ("ORLM found no solution"), which is in
+  the demo's Docker image.
+
+Those answers stay under CC BY-NC 4.0: **non-commercial only**, with this attribution.
 
 ## The demo's examples (this project's own)
 

@@ -20,6 +20,10 @@ Tags: **must-fix** (wrong or misleading; fix before anyone relies on it), **shou
 
 ## Summary
 
+**Status (2026-11-15, after the review):** M1-M5 were fixed afterwards, on the owner's
+go-ahead. The should-fix and nice-to-have items are open. The findings below are kept as
+written.
+
 **Must-fix**
 
 | # | finding | where |

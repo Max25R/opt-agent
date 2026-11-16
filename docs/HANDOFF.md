@@ -89,8 +89,9 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
    (`review/followup_disputes/README.md`); anything it found would be post hoc, never the
    result of record.
 7. **The final review** (2026-11-15): `docs/audit/2026-11-final-review.md` lists must-fix and
-   should-fix items for the owner; only its mechanical fixes (stale statuses, section names)
-   were made.
+   should-fix items for the owner. Its mechanical fixes (stale statuses, section names) and
+   its five must-fix items (M1-M5, on the owner's go-ahead) are done; the should-fix and
+   nice-to-have items are open.
 
 ## Gotchas
 - **Both studies are frozen at their tags, not at HEAD.** Any change under `src/opt_agent/`

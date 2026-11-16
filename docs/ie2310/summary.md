@@ -27,15 +27,15 @@ staffing, shipping crates from warehouses to stores, and a cattle-feed blend).
 
 ## How it was tested
 
-The testing rules were written down and frozen before anyone looked at the test problems,
-so the results couldn't be tuned to look good. Each test compared the agent with a
+The testing rules were written down and frozen before the agent was run on the test
+problems, so the results couldn't be tuned to look good. Each test compared the agent with a
 **no-solver baseline**: Claude answering directly, the way a person might estimate an answer
 in their head. Two sets of problems were used:
 
 - **Textbook-style problems** (NL4Opt, a public benchmark): 274 test problems.
 - **Harder problems** (ComplexLP and IndustryOR, two other public benchmarks): 128 problems,
   each answered 3 times per method, because the AI doesn't give the same answer every time.
-  The main analysis uses the 121 problems nobody had seen before the test.
+  The main analysis uses the 121 problems the project hadn't seen before the test.
 
 ## What we found
 

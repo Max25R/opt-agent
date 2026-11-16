@@ -415,7 +415,8 @@ point is a trustworthy evaluation, not a demo.
    teammate writes the time study, flow charts and summary). Left for the owner: the repo's
    description and topics on GitHub (open items in `docs/HANDOFF.md`).
    The final review (2026-11-15, `docs/audit/2026-11-final-review.md`) lists what's left to
-   fix; only its mechanical fixes were made.
+   fix. Its mechanical fixes and its five must-fix items are done (the must-fix ones on the
+   owner's go-ahead); the should-fix and nice-to-have items are open.
 
 ## Claude API notes
 
@@ -469,7 +470,9 @@ point is a trustworthy evaluation, not a demo.
   the condition-4 dev smoke run (owner, 2026-11-11). The follow-up test run's cap was $6
   (pre-registration, section 6); it paid $2.7176. The demo examples' replies: cap $0.30,
   paid $0.0139 (owner's terminal, 2026-11-15; `logs/spend/demo-examples.jsonl`). The demo's
-  live mode has its own cap ($0.50 by default, `logs/spend/demo.jsonl`). Spent so far:
+  live mode has its own cap ($0.50 by default, `logs/spend/demo.jsonl`), and so does the
+  agent CLI (`--cap`, $0.50 by default, `logs/spend/agent.jsonl`; since 2026-11-15, from the
+  final review). Spent so far:
   $3.89 of the $20 credit (2026-11-15; the ledger is in `docs/HANDOFF.md`).
 - `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
   paid run. An unlisted model raises instead of being guessed.
@@ -499,7 +502,7 @@ python -m opt_agent.ground_truth    # rebuild data/nl4opt/ground_truth/ (~55 s)
 python -m opt_agent.perturb         # then rebuild the perturbed splits (~4.5 min)
 python scripts/dev_walkthrough.py   # rebuild the 30-problem dev review sheet
 python -m opt_agent.packets integrality|reviews|agreement   # the owner's packets
-OPT_AGENT_LIVE=1 python -m opt_agent.agent "problem text"   # or export ANTHROPIC_API_KEY
+OPT_AGENT_LIVE=1 python -m opt_agent.agent "problem text"   # or export ANTHROPIC_API_KEY; capped (--cap)
 OPT_AGENT_LIVE=1 python -m pytest -m live -s   # the tests that call the real API (not in CI)
 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ... --plan   # worst case, no calls
 OPT_AGENT_LIVE=1 python -m opt_agent.evaluate --out runs/NAME --cap 1.00 ID ...   # dev only; resumable
@@ -594,7 +597,9 @@ docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the im
   Amendment 2 instead: the external cross-check (`review/external_check.csv`) and, for the
   ones it couldn't cover, two LLM judges (`Review.judged`); the owner's packet
   (`review/test_reviews/`) is kept as sent, unused.
-- ORLM's answers (CC BY-NC 4.0) are a cross-check only and are **never committed**.
+- ORLM's answer file (CC BY-NC 4.0) is a cross-check only and is **never committed**.
+  Reviews cite some of its answers one problem at a time, under that license;
+  `DATA_NOTICE.md` lists where.
 - After changing the converter or the solver, rebuild the ground truth, then the perturbed
   splits (they're built from it, and from `reviews.json`: a changed review needs a rebuild
   too). `test_highs_reproduces_every_committed_answer` and
@@ -672,8 +677,8 @@ docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the im
 - MIT license, "Copyright (c) 2026 Max Reese" (owner, 2026-11-04; this reverses the
   2026-10-16 "no license" call, so the repo can be used and installed). The
   data keeps its own licenses: NL4Opt is MIT (`data/nl4opt/LICENSE`), ORLMBenchmark is
-  Apache-2.0 (credited in `review/external_check.md`), and ORLM's CC BY-NC answers are
-  never committed.
+  Apache-2.0 (credited in `review/external_check.md`), and ORLM's CC BY-NC answer file is
+  never committed (the answers reviews cite are listed in `DATA_NOTICE.md`).
 - No API key is ever committed: `tests/test_repo_hygiene.py` checks every tracked file
   (the history was checked by hand on 2026-11-04 and is clean).
 - Don't file the CBC preprocessing bug upstream (owner's call, 2026-10-16).

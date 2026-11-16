@@ -1,9 +1,10 @@
 # Evaluation on NL4Opt (milestone 6)
 
 The study's full write-up. It was the README's Evaluation section until the README was
-rewritten for a short read on 2026-11-15; the text and numbers are unchanged, and
-`tests/test_readme_numbers.py` checks every number here against `results/eval.json`, as the
-pre-registration's section 7 asks of the README. `python scripts/reproduce.py` rebuilds that
+rewritten for a short read on 2026-11-15, and moved here unchanged. The final review the same
+day added the pre-registered rows it had left out, the integrality rule's bug, and links to
+Amendments 4 and 5. `tests/test_readme_numbers.py` checks every number here against
+`results/eval.json`, as the pre-registration's section 7 asks of the README. `python scripts/reproduce.py` rebuilds that
 file from the committed runs with the frozen code.
 
 The NL4Opt test split has 274 scorable problems, and every condition used Claude Haiku 5.5.
@@ -26,12 +27,33 @@ pairs in any comparison). That isn't evidence that the conditions are equivalent
 baseline, which answers directly with no solver, matched the solver conditions. That
 suggests NL4Opt is saturated as a test of what a solver adds.
 
+**The other pre-registered rows** (Amendment 2). The first write-up left them out, and
+[Amendment 4](amendments/amendment-4.md) reports them. Neither replaces the result of
+record.
+
+| condition | lenient: integrality not graded | without the 8 disputed reviews (n = 266) |
+|---|---|---|
+| no-solver baseline | 96.4% (93.4–98.0%), 264/274 | 97.7% (95.2–99.0%), 260/266 |
+| single-shot | 97.1% (94.3–98.5%), 266/274 | 97.7% (95.2–99.0%), 260/266 |
+| self-correction | 97.1% (94.3–98.5%), 266/274 | 97.7% (95.2–99.0%), 260/266 |
+
+Lenient scoring accepts the optimum under either integrality (LP or integer), with nothing
+else changed. It moves both solver conditions to 266 and leaves the baseline at 264. Its
+McNemar tests, exploratory and without Holm, give p = 1 in every comparison too.
+
 **Most shared failures are answer-key errors (exploratory, post hoc).** 8 problems were
 wrong in all three conditions. Two LLM judges labeled each failure on its own, and both
 called 6 of the 8 answer-key errors: a key that is wrong, or that rejects a reading the
 text supports. Counting those 6 as correct gives 98.5% in every condition, which leaves 4
 real failures per condition. This row was added after the results were seen, and it is
 not a pre-registered result.
+
+**The integrality rule's bug (exploratory, post hoc).** 4 of those 6 key errors come from
+one bug: the rule that labels integrality read wording such as "units of chicken meat" as
+continuous, which also switched off the strict reading of "must be larger than" and cost 4
+answers per condition ([deviations](amendments/DEVIATIONS.md), section 3). Relabeling those
+4 problems gives 268/274, 97.8% (95.3–99.0%), in every condition (Amendment 4). 264/274
+stays the result of record.
 
 **Same score, different failures.** By the judge of record's labels, the baseline's 4
 remaining failures are 2 missing constraints, 1 arithmetic slip and 1 wrong coefficient.
@@ -76,6 +98,9 @@ calls.
 **The rules.**
 - Amendments 1 and 2 are at the end of the
   [pre-registration](PREREGISTRATION.md#amendments).
-- Amendment 3 (the exploratory row and blinded judge prompts) and a
-  [note on deviations](amendments/DEVIATIONS.md) are in
-  [`docs/amendments/`](amendments/).
+- [Amendment 3](amendments/AMENDMENT_3.md): the exploratory row and blinded judge prompts.
+- [Amendment 4](amendments/amendment-4.md): the pre-registered rows the first write-up left
+  out, and the corrected-labels row.
+- [Amendment 5](amendments/amendment-5.md): our answers against an outside answer key
+  (LLM4OR's cleaned NL4Opt), exploratory.
+- The [note on deviations](amendments/DEVIATIONS.md), including the integrality rule's bug.

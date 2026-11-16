@@ -14,8 +14,8 @@ from fakes import (
 from problems import CBC_FREE_VARIABLE_BUG
 from pytest import approx
 
-from opt_agent import self_correct
-from opt_agent.agent import render, run
+from opt_agent import agent, self_correct
+from opt_agent.agent import main, render, run
 from opt_agent.ground_truth import GROUND_TRUTH_DIR, load_records
 from opt_agent.runs import Run, Tags
 from opt_agent.solver import Solution, Status
@@ -256,3 +256,50 @@ def test_a_time_out_is_never_confirmed(monkeypatch):
 
 def test_an_api_failure_is_not_confirmed():
     assert not run("...", FakeClient(status_error(400))).confirmed
+
+
+# ---- the command line: every paid call under a dollar cap -------------------------------
+
+
+@pytest.fixture
+def cli(monkeypatch, tmp_path):
+    """main() with a made-up key and FakeClient in place of anthropic.Anthropic. Returns the
+    fake and the flags that keep every file the run writes in tmp_path."""
+    monkeypatch.delenv("OPT_AGENT_LIVE", raising=False)  # never the real .env
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-made-up")
+    fake = FakeClient(GAS_REPLY, GOOD_EXPLANATION)
+    monkeypatch.setattr(agent.anthropic, "Anthropic", lambda api_key: fake)
+    paths = ["--log", str(tmp_path / "log.jsonl"), "--cache", str(tmp_path / "cache"),
+             "--ledger", str(tmp_path / "ledger.jsonl")]  # fmt: skip
+    return fake, paths
+
+
+def test_the_cli_records_every_paid_call_in_its_ledger(cli, tmp_path, capsys):
+    fake, paths = cli
+    main([GAS_PROBLEM, *paths])
+    assert "Objective: 251" in capsys.readouterr().out
+    ledger = (tmp_path / "ledger.jsonl").read_text().splitlines()
+    assert len(ledger) == len(fake.requests) == 2  # formulate, then explain
+
+
+def test_the_cli_stops_before_a_call_that_could_cross_its_cap(cli):
+    fake, paths = cli
+    with pytest.raises(SystemExit, match="the run stopped.*could cost up to"):
+        main([GAS_PROBLEM, *paths, "--cap", "0.00001"])
+    assert fake.requests == []
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--attempts", "0"],
+        ["--attempts", str(self_correct.MAX_ATTEMPTS + 1)],
+        ["--model", "claude-without-a-price"],  # the cap can't be kept without a price
+    ],
+)
+def test_the_cli_refuses_too_many_attempts_and_unpriced_models(cli, flags):
+    fake, paths = cli
+    with pytest.raises(SystemExit) as stop:
+        main([GAS_PROBLEM, *paths, *flags])
+    assert stop.value.code == 2  # argparse's usage error
+    assert fake.requests == []

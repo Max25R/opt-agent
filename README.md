@@ -4,9 +4,9 @@
 problem ("how many litres of each paint should we make?") as a linear or integer program, a
 real solver (CBC) solves it, a second solver (HiGHS) and plain arithmetic check the answer,
 and only a verified answer gets explained, in Claude's words but with the solver's numbers.
-Most of the project is the evaluation: two studies, pre-registered and frozen before any
-test problem was opened, that ask whether a solver in the loop helps at all, and how often a
-wrong answer gets through every check. Every reported number rebuilds from committed cached
+Most of the project is the evaluation: two studies, each pre-registered and frozen before
+its test run, that ask whether a solver in the loop helps at all, and how often a wrong
+answer gets through every check. Every reported number rebuilds from committed cached
 replies, with no API key.
 
 ![The demo after solving its paint example: the problem, the verified optimum (CBC and HiGHS agree, the arithmetic checks pass, and it matches the hand-checked answer), Claude's model, and Claude's explanation using the solver's numbers](docs/demo.png)
@@ -32,15 +32,19 @@ The NL4Opt test split, 274 problems, three conditions:
 
 All three got 264 of 274 right, and none of the 6 pre-registered McNemar tests comes close
 (every p = 1). The baseline, with no solver at all, matched the solver conditions, so NL4Opt
-is too easy to show what a solver adds. And all 10 failures per condition were silent: CBC
-and HiGHS agreed and every check passed, on a model that misread the text. Full write-up:
+is too easy to show what a solver adds. All 10 failures per condition were silent, a wrong
+answer with no warning (in the solver conditions, CBC and HiGHS agreed and every check
+passed), though most of the shared ones may be answer-key errors (see Limitations). Two
+other pre-registered rows: lenient scoring (integrality not graded) gives both solver
+conditions 266/274 and the baseline 264/274 (exploratory McNemar tests, every p = 1), and
+leaving out the 8 disputed reviews gives 260/266 in every condition. Full write-up:
 [`docs/EVALUATION.md`](docs/EVALUATION.md).
 
 ### Harder problems: a small gain, still mostly silent failures
 
 A follow-up on 128 harder problems (LLM4OR's cleaned ComplexLP and IndustryOR), 3 samples
-each, in four conditions. The primary analysis uses the 121 problems no one had seen before
-the split.
+each, in four conditions. The primary analysis uses 121 of them, leaving out the 7 seen
+before the split.
 
 | condition | mean score (95% CI) |
 |---|---|
@@ -175,7 +179,8 @@ ruff check . && ruff format --check .
 
 The agent's command line (`python -m opt_agent.agent "..."`) and the live tests need a key:
 export `ANTHROPIC_API_KEY`, or set `OPT_AGENT_LIVE=1` to use the one in `.env`. Without one
-of them, nothing can spend.
+of them, nothing can spend. The command line's paid calls stop at a dollar cap (`--cap`),
+counted across runs in `logs/spend/agent.jsonl`.
 
 ## License and sources
 

@@ -18,5 +18,6 @@ The problem texts and annotations come from the
 MIT License (see `LICENSE` in this folder).
 
 ORLM's answer set ([CardinalOperations/NL4OPT](https://huggingface.co/datasets/CardinalOperations/NL4OPT),
-CC BY-NC 4.0) is downloaded to `../thirdparty/` for a cross-check only, and isn't
-redistributed here.
+CC BY-NC 4.0) is downloaded to `../thirdparty/` for a cross-check only. The file isn't
+redistributed here, but reviews cite some of its answers, one problem at a time
+([`DATA_NOTICE.md`](../../DATA_NOTICE.md) lists where).

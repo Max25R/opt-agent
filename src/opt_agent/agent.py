@@ -15,6 +15,11 @@ the model becomes a typed flag in `checklist_flags`. Report-only too, in the sam
 Run:  python -m opt_agent.agent "A gas company can transport gas using a pipeline or by train. ..."
       (or pass - and pipe the problem in). Needs ANTHROPIC_API_KEY exported, or
       OPT_AGENT_LIVE=1 to use the key in .env (see .env.example).
+
+Every paid call goes through budget.BudgetedClient, like every other live call in the
+project: --cap dollars in all, counted across runs in the --ledger file, so a loop of runs
+can't spend past it. --attempts stops at self-correction's own limit, and --model must be a
+model pricing.py has a price for, since the cap can't be kept without one.
 """
 
 import argparse
@@ -25,8 +30,9 @@ from pathlib import Path
 import anthropic
 from pydantic import BaseModel
 
-from opt_agent.api import Cache, CallInfo
+from opt_agent.api import Cache, CallInfo, RunStopped
 from opt_agent.baseline import DirectAnswer, answer_directly
+from opt_agent.budget import Budget, BudgetedClient
 from opt_agent.checklist import ChecklistFlag, ChecklistReply
 from opt_agent.checklist import ask as ask_checklist
 from opt_agent.checklist import review as review_checklist
@@ -35,6 +41,7 @@ from opt_agent.explain import Explanation, explain, solver_facts
 from opt_agent.feedback import for_checklist
 from opt_agent.formulate import DEFAULT_MODEL, Formulation
 from opt_agent.ground_truth import TOLERANCE, same_value
+from opt_agent.pricing import PRICES
 from opt_agent.runs import Run, Tags
 from opt_agent.schema import LPModel, Term
 from opt_agent.self_correct import (
@@ -49,6 +56,8 @@ from opt_agent.verify import check_solution, same_answer
 
 DEFAULT_LOG = Path("logs/attempts.jsonl")
 DEFAULT_CACHE = Path("cache/responses")
+DEFAULT_LEDGER = Path("logs/spend/agent.jsonl")  # the CLI's paid calls, kept across runs
+DEFAULT_CAP_USD = 0.50  # in all, across runs: the same default as the demo's live mode
 
 
 class Result(BaseModel):
@@ -458,8 +467,15 @@ def _bounds(lower: float | None, upper: float | None) -> str:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Solve a word problem with Claude + CBC.")
     parser.add_argument("problem", help="the problem text, or - to read it from stdin")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"default: {DEFAULT_MODEL}")
-    parser.add_argument("--attempts", type=int, default=MAX_ATTEMPTS, help="1 = no revisions")
+    parser.add_argument("--model", default=DEFAULT_MODEL, choices=sorted(PRICES),
+                        help=f"a priced model (default: {DEFAULT_MODEL})")  # fmt: skip
+    parser.add_argument("--attempts", type=int, default=MAX_ATTEMPTS,
+                        choices=range(1, MAX_ATTEMPTS + 1), help="1 = no revisions")  # fmt: skip
+    parser.add_argument("--cap", type=float, default=DEFAULT_CAP_USD,
+                        help="dollars of paid calls in all, counted in --ledger "
+                             f"(default: ${DEFAULT_CAP_USD:.2f})")  # fmt: skip
+    parser.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER,
+                        help="JSONL record of every paid call")  # fmt: skip
     parser.add_argument("--log", type=Path, default=DEFAULT_LOG, help="JSONL log of the run")
     parser.add_argument("--cache", type=Path, default=DEFAULT_CACHE, help="response cache")
     parser.add_argument("--no-cache", action="store_true", help="always call the API")
@@ -473,13 +489,17 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     problem = sys.stdin.read() if args.problem == "-" else args.problem
     try:
-        client = anthropic.Anthropic(api_key=get_api_key())
+        api_key = get_api_key()
     except MissingAPIKeyError as error:
         sys.exit(str(error))
+    client = BudgetedClient(anthropic.Anthropic(api_key=api_key), Budget(args.cap, args.ledger))
     cache = None if args.no_cache else Cache(args.cache)
     session = Run.start(log_path=args.log, cache=cache)
-    result = run(problem, client, args.model, not args.no_explanation, args.attempts, session,
-                 estimate=args.estimate, checklist=args.checklist)  # fmt: skip
+    try:
+        result = run(problem, client, args.model, not args.no_explanation, args.attempts,
+                     session, estimate=args.estimate, checklist=args.checklist)  # fmt: skip
+    except RunStopped as stop:  # the dollar cap, or the account's spend limit
+        sys.exit(f"No answer: the run stopped. {stop}")
     print(render(result))
 
 
