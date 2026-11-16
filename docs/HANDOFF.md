@@ -11,8 +11,8 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
   this file.
 - **M6 is done and frozen.** Tag `m6-freeze` = `8f522c0`, the commit both test runs ran on.
   Result of record: 264/274 strict per condition (`results/eval.json`). The M6 reports and
-  `results/eval.json` still rebuild byte-identical at HEAD (checked 2026-11-13, after the CBC
-  fix below).
+  `results/eval.json` rebuild byte-identical from the tag (`scripts/reproduce.py`, in CI;
+  checked again from a fresh clone on 2026-11-15).
 - **Amendments:** 1 and 2 are in the frozen `docs/PREREGISTRATION.md`; 3, 4 and 5 are in
   `docs/amendments/`, tagged.
 - **M7, the follow-up study: done.** On LLM4OR's cleaned ComplexLP (86) and IndustryOR (42),
@@ -27,7 +27,7 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
     McNemar on majority isn't significant (Holm p 0.24); 1.38 pp of it comes from 8 baseline
     replies cut off at max_tokens (descriptive). H1, checklist revision minus single-shot,
     +0.6 pp, **inconclusive**: no difference larger than 4 pp.
-  - **Write-up:** `docs/followup/RESULTS.md` and the README's "Follow-up evaluation" section,
+  - **Write-up:** `docs/followup/RESULTS.md` and the README's "Harder problems" subsection,
     every number from `results/followup.json` (`scripts/followup_results.py`), checked by
     `tests/test_readme_numbers.py` and `tests/test_followup_results.py`.
   - **Deviations** (`docs/followup/DEVIATIONS.md`): 2, the 5b key-dispute check **wasn't
@@ -40,7 +40,7 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
     is committed.
   - **Dev:** `docs/FOLLOWUP_DEV_LOG.md` (checklist revision 1; revision 2 unused; the smoke
     run; the bug fixes made before the freeze, including CBC's optimum at an infeasible point).
-- **Data notice** (`DATA_NOTICE.md`, linked from the README's Sources section and the end of
+- **Data notice** (`DATA_NOTICE.md`, linked from the README's "License and sources" section and the end of
   `LICENSE`): MIT covers the code only. `runs/` holds problem text and answers from Mamo
   ComplexLP (CC BY-SA 4.0) and ORLM's IndustryOR (CC BY-NC 4.0), as cleaned by LLM4OR at
   `75962df` (no license stated), plus NL4Opt (MIT). History was kept (owner, 2026-11-15):
@@ -81,14 +81,16 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
    its capture passes the check.
 3. ~~A CI check of the `followup-freeze` tag~~: done 2026-11-15 (`followup_freeze.tag_problems`,
    see "Decisions made without the owner" below).
-4. **`amendment-5.md`'s status line** still says "DRAFT ... not tagged", though it is tagged
-   `amendment-5` (1cb05ed). Fix only that line, as was done for Amendment 4.
+4. ~~`amendment-5.md`'s status line~~: fixed 2026-11-15 (only that line, as for Amendment 4).
 5. **Known and unfixed since M6:** the integrality rule matches ingredient names (see
    CLAUDE.md and `docs/amendments/DEVIATIONS.md`, section 3); `DEV_WALKTHROUGH.md` predates
    the owner's milestone 3 corrections; no Farkas certificate for infeasible LPs.
 6. **Optional, exploratory only:** the 5b check could still be run later
    (`review/followup_disputes/README.md`); anything it found would be post hoc, never the
    result of record.
+7. **The final review** (2026-11-15): `docs/audit/2026-11-final-review.md` lists must-fix and
+   should-fix items for the owner; only its mechanical fixes (stale statuses, section names)
+   were made.
 
 ## Gotchas
 - **Both studies are frozen at their tags, not at HEAD.** Any change under `src/opt_agent/`
@@ -110,8 +112,9 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
   "not frozen" point `followup_freeze.FREEZE_PATH` at an empty temporary path (the
   `not_frozen` fixture) or patch `PREREGISTRATION_PATH`; five tests broke on this at the
   freeze and were fixed on 2026-11-15.
-- **README numbers:** the Evaluation section comes from `results/eval.json`, the Follow-up
-  evaluation section and `docs/followup/RESULTS.md` from `results/followup.json`. Write
+- **README numbers:** the NL4Opt results subsection and `docs/EVALUATION.md` come from
+  `results/eval.json`, the "Harder problems" subsection and `docs/followup/RESULTS.md` from
+  `results/followup.json`, and the rest of the README is checked against both. Write
   results in digits; the test matches by value at the shown precision, and signs count.
 - **Problem text is licensed data.** Don't commit new problem text or keys outside `runs/`
   without updating `DATA_NOTICE.md`; dispute packets and prompts are git-ignored. IndustryOR
@@ -125,7 +128,8 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
   no spend. Paid runs happen in the owner's terminal (the sandbox breaks Python's TLS); give
   the commands and the `--plan` cost first.
 - The LLM4OR data is in `data/external/` (git-ignored; `docs/EXTERNAL_DATA.md`), so CI skips
-  every test that needs it. `amendment_5` in `eval.json` is copied forward in CI.
+  every test that needs it, and its test job copies `amendment_5` in `eval.json` forward; the
+  `reproduce` job fetches the data and rebuilds it.
 - M6 rebuild order: `opt_agent.report`, then `scripts/amendment3.py`, then
   `scripts/eval_json.py`. CI checks the M6 freeze against its tag (`fetch-depth: 0`), so push
   tags with commits.

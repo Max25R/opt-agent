@@ -49,4 +49,4 @@ would break the `followup-freeze` tag and the commit recorded in `docs/followup/
 [`DATA_NOTICE.md`](../../DATA_NOTICE.md) says the MIT license covers the code only, gives the
 attribution and terms for each source (IndustryOR-derived material is non-commercial only;
 ComplexLP-derived material is ShareAlike), and offers removal on request. The README's
-Sources section and `LICENSE` point to it.
+"License and sources" section and `LICENSE` point to it.

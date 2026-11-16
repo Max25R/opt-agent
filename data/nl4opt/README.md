@@ -6,8 +6,9 @@
   annotations by `python -m opt_agent.ground_truth`. `REPORT.md` summarizes them.
 - `reviews.json` (committed, hand-written): the verdict for every problem the automatic
   checks flag, each with the reason, checked against the problem text.
-- `integrality.json` (committed, hand-written): integer or continuous, for every problem
-  where that choice changes the answer. The label picks the ground-truth answer.
+- `integrality.json` (committed, hand-written): integer, continuous or either (both
+  accepted), for every problem where that choice changes the answer. The label picks the
+  ground-truth answer.
 - `ground_truth/DEV_WALKTHROUGH.md` is the sheet the owner reviewed on 2026-10-16. Their
   corrections are applied in the two hand-written files above, so the sheet itself is
   kept as the record of what was reviewed.

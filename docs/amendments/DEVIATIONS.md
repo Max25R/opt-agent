@@ -57,7 +57,7 @@ builds a strict reading only for labels that aren't continuous, and the hand-lab
 here. So no hand label was required, no strict reading was stored, and every condition's
 strict-reading answer on these four was scored wrong: 4 of the 10 failures in each
 condition. Details: `docs/audit/2026-11-review.md`, section 1.1; the exploratory re-score:
-Amendment 4 (draft).
+Amendment 4 (tagged `amendment-4`).
 
 **Timeline** (times as in the commits and run logs, UTC-5):
 
@@ -82,5 +82,5 @@ frozen, and the runs went ahead with the four scorable and the bug unfixed.
 **The assessment before the runs was wrong.** The bug was judged harmless because it
 doesn't change the annotated answers. That missed its second effect: a continuous label
 also switches off the strict reading. The scores as frozen are unchanged; Amendment 4
-(draft) reports the re-score with corrected labels as an exploratory row, and the result of
+(tagged `amendment-4`) reports the re-score with corrected labels as an exploratory row, and the result of
 record stays 264/274 per condition.

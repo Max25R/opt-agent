@@ -19,8 +19,8 @@ point is a trustworthy evaluation, not a demo.
 ## Hard rules
 
 - **No made-up numbers.** Every number in the README comes from `results/eval.json`
-  (milestone 6 adds a test that enforces this), or, in its "Follow-up evaluation" section,
-  from `results/followup.json` (`scripts/followup_results.py`; the same test).
+  (milestone 6 adds a test that enforces this), or, in its "Harder problems" results
+  subsection, from `results/followup.json` (`scripts/followup_results.py`; the same test).
 - Tests for the schema, solver, and ground-truth layers **never call the Claude API**.
 - Report failures honestly. If something (e.g. self-correction) doesn't help, say so.
 - Bulk eval runs use a small, cheap model. Check current model IDs and prices in the docs
@@ -82,12 +82,12 @@ point is a trustworthy evaluation, not a demo.
      hand-check packets are done; see milestone 6.)
      `python -m opt_agent.freeze` lists what's left before the owner can freeze. Known and
      unfixed: the integrality rule matches ingredient names ("units of chicken" meat), so
-     it labels countable products continuous in at least 3 reviewed test problems
+     it labels countable products continuous in at least 4 reviewed test problems
      (bubble teas, crepes, curry bowls, and the wine/kombucha problem; harmless for the
      annotated answers, but not for the strict reading: 4 answers per condition, see
      DEVIATIONS.md section 3; fix after M6, and check the unreviewed rule labels too); `DEV_WALKTHROUGH.md` predates the owner's milestone 3
      corrections (the owner decides whether to regenerate it); no Farkas certificate for
-     infeasible LPs; the CLI needs a key even when every call is cached (milestone 8).
+     infeasible LPs; the CLI needs a key even when every call is cached (still open after milestone 8).
    - **Pre-milestone-6 step 1 (2026-10-28):** the key works; the live tests passed (5
      calls, $0.0025). Added the budget guard (`budget.py`, `pricing.py`), spend-limit
      stops (`api.SpendLimitReached`), the no-solver baseline (`baseline.py`), and a
@@ -287,7 +287,8 @@ point is a trustworthy evaluation, not a demo.
        the row, and its tests check that the same inputs give the same bytes and that the
        committed file is current.
      - **The README check:** `tests/test_readme_numbers.py` (section 7) checks every number
-       in the README's Evaluation section against `results/eval.json`, at the precision
+       in the README's Evaluation section against `results/eval.json` (since M8: the whole
+       README against both results files, and `docs/EVALUATION.md`), at the precision
        shown. It matches by value, not by place.
      - **Paths under `runs/` are git-ignored:** commit them with `git add -f`.
    - **After the audit (2026-11-08; `docs/audit/2026-11-review.md`, no API calls):**
@@ -321,10 +322,11 @@ point is a trustworthy evaluation, not a demo.
        `results/eval.json` or the README's results. **Follow-up split**
        (`docs/FOLLOWUP_SPLIT.md`): ComplexLP 25 dev / 86 test, IndustryOR all test; the test
        side is sealed (`followup.load` raises `Sealed`) until its pre-registration is frozen.
-     - **Amendment 5 (tagged `amendment-5`, 1cb05ed; its status line still says draft):**
+     - **Amendment 5 (tagged `amendment-5`, 1cb05ed):**
        external corroboration against LLM4OR's cleaned NL4Opt (`docs/EXTERNAL_DATA.md`, data
        git-ignored): it removed 5 of Amendment 4's six key errors. `scripts/amendment5.py` →
-       eval.json `amendment_5`, which CI copies forward without recomputing (no data there).
+       eval.json `amendment_5`, which CI's test job copies forward (no data there) and its
+       `reproduce` job rebuilds (it fetches the data).
 7. [x] **M7: the follow-up study and the demo are done (2026-11-15). Start from
    `docs/HANDOFF.md`.**
    Done: part 1's robustness fixes;
@@ -376,7 +378,7 @@ point is a trustworthy evaluation, not a demo.
      significant, Holm p 0.24; 1.38 pp of it from 8 baseline replies cut off at max_tokens,
      descriptive), **H1 inconclusive** (+0.6 pp; no difference larger than 4 pp).
      `scripts/followup_results.py` writes `results/followup.json` and renders
-     `docs/followup/RESULTS.md`; the README's "Follow-up evaluation" section takes its numbers
+     `docs/followup/RESULTS.md`; the README's "Harder problems" subsection takes its numbers
      from that JSON (the README-number test). Descriptive extras and the HiGHS debug print
      check: `docs/followup/RUN_NOTES.md`.
    - **Deviations** (`docs/followup/DEVIATIONS.md`): **the 5b key-dispute check wasn't
@@ -385,7 +387,7 @@ point is a trustworthy evaluation, not a demo.
      listed by label, and whether any are key errors is unknown. Deviation 1 (Gemini JSON
      encodings) is superseded. `review/followup_disputes/` (plan marked not run, packets
      git-ignored) and `scripts/dispute_packets.py` are kept for an optional, exploratory check.
-   - **Data notice (2026-11-15):** `DATA_NOTICE.md` (linked from the README's Sources and
+   - **Data notice (2026-11-15):** `DATA_NOTICE.md` (linked from the README's "License and sources" and
      `LICENSE`): MIT covers the code only; `runs/` holds Mamo ComplexLP (CC BY-SA 4.0) and
      IndustryOR (CC BY-NC 4.0) text as cleaned by LLM4OR (no license), plus NL4Opt (MIT).
      History kept, since rewriting it would break the freeze tags.
@@ -412,6 +414,8 @@ point is a trustworthy evaluation, not a demo.
    `requirements-docs.lock`, never in requirements.lock (which both freezes fingerprint). The IE 2310 kit is in `docs/ie2310/` (`scripts/ie2310.py`; the owner's
    teammate writes the time study, flow charts and summary). Left for the owner: the repo's
    description and topics on GitHub (open items in `docs/HANDOFF.md`).
+   The final review (2026-11-15, `docs/audit/2026-11-final-review.md`) lists what's left to
+   fix; only its mechanical fixes were made.
 
 ## Claude API notes
 
@@ -487,7 +491,7 @@ point is a trustworthy evaluation, not a demo.
 ```bash
 source .venv/bin/activate
 pip install -r requirements.lock && pip install --no-deps -e .   # the locked versions
-python -m pytest              # ~100 s; property tests explore new random cases each run
+python -m pytest              # ~2.5 min; property tests explore new random cases each run
 HYPOTHESIS_PROFILE=ci python -m pytest   # deterministic, as in CI
 ruff check . && ruff format .            # CI runs ruff format --check
 python -m opt_agent.data            # pinned, SHA-256-checked downloads (git-ignored)
@@ -550,14 +554,16 @@ docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the im
   noted. This rescued 3 problems where `order_mapping` was wrong and changed nothing else.
 - **Integrality:** both optima are stored (`lp`, `ip`), and a per-problem label picks the
   answer. Wherever integrality changes the answer, the label is a hand label in
-  `data/nl4opt/integrality.json` (source `owner` or `claude`). Elsewhere the rule in
+  `data/nl4opt/integrality.json` (source `owner`, `claude` or `judge`). Elsewhere the rule in
   `integrality.py` labels it (source `rule`), which agrees with all 9 owner labels. The
   owner's criteria: countable objects, trips, ads, machines, people and servings are
   integer; mass, volume, area, time, money and "units of" a substance are continuous.
   Before using rule labels to grade an agent's integrality choice (not just to pick
-  answers), review them. **Provenance:** the 9 owner labels are dev problems; every other
-  hand label (the rest of dev, and all of test) is Claude's. The owner is checking a blind
-  sample of 40 test labels (`review/integrality_blind/`, seed 20261019).
+  answers), review them. **Provenance:** 9 dev labels are the owner's. On test, Amendment 2
+  put the two judges' combined labels on the 44 problems they labeled (source `judge`) and
+  4 `either` labels by the owner's decision rules (source `owner`); every other hand label
+  is Claude's. The owner's blind sample (`review/integrality_blind/`, seed 20261019) went
+  unused: the judges replaced it (Amendment 2).
 - **Strict wording** ("more than"; the scheme has no strict operators, so it's annotated
   as >=): for integer problems, `Record.strict` stores the answer with each noted
   constraint read strictly (`strict.py`), and `matching_reading` accepts either reading
@@ -584,8 +590,10 @@ docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the im
   errors that change the answer (`answer_affected`); `blind_gradable()` excludes every
   annotation error. Dev #4 (471112257) is scorable but not blind-gradable (owner's call).
   **Provenance:** Claude wrote every review. The owner confirmed 11 of the 12 dev reviews
-  (not 1670020945, written after the walkthrough); all 62 test reviews are unconfirmed and
-  in the owner's packet (`review/test_reviews/`, least sure first).
+  (not 1670020945, written after the walkthrough). Test reviews were checked under
+  Amendment 2 instead: the external cross-check (`review/external_check.csv`) and, for the
+  ones it couldn't cover, two LLM judges (`Review.judged`); the owner's packet
+  (`review/test_reviews/`) is kept as sent, unused.
 - ORLM's answers (CC BY-NC 4.0) are a cross-check only and are **never committed**.
 - After changing the converter or the solver, rebuild the ground truth, then the perturbed
   splits (they're built from it, and from `reviews.json`: a changed review needs a rebuild

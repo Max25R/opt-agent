@@ -1,6 +1,6 @@
 # Amendment 5: external corroboration (exploratory)
 
-**Status: DRAFT (2026-11-08). Not approved, not tagged.** Drafted by Claude. Like Amendments 3
+**Status: tagged amendment-5 (1cb05ed); text otherwise unchanged since the tag.** Drafted by Claude (2026-11-08). Like Amendments 3
 and 4, it lives here because `docs/PREREGISTRATION.md` is frozen.
 
 **Exploratory and post hoc.** Written after both test runs, every report, the judges' labels,

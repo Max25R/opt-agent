@@ -18,7 +18,8 @@ seeing these failures") and stays out of `results/eval.json` and the README's re
 
 **From 2026-11-10 (owner):** while building the follow-up's freeze code, fixing a bug (code
 not doing what revision 1 specifies) is allowed and gets an entry here; changing what gets
-flagged is not. One so far: see the smoke run of condition 4 below.
+flagged is not. Two so far: see the smoke run of condition 4 and the bug fixed while
+connecting the test split, below.
 
 ## Revision 1 (applied 2026-11-09): comparison logic only, no prompt change
 
