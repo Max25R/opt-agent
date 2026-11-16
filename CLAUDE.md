@@ -531,7 +531,8 @@ python scripts/fetch_llm4or.py      # LLM4OR's data at its pinned commit, hashes
 python scripts/reproduce.py         # replay + rebuild every reported number from the tags; no key
 python scripts/reproduce.py --no-replay   # the rebuild alone (about 15 s)
 pip install -r requirements-docs.lock -c requirements.lock   # optional: Playwright, matplotlib
-python scripts/screenshot.py        # docs/demo.png headlessly (then: playwright install --only-shell chromium)
+python scripts/screenshot.py        # docs/demo.png headlessly, in its committed frame (needs: playwright install --only-shell chromium)
+python scripts/screenshot.py --check docs/demo.png   # a picture's margins against that frame
 python scripts/ie2310.py            # docs/ie2310/: the numbers table and the figures
 python -m opt_agent.demo            # the demo, examples mode (no key): http://127.0.0.1:8000
 OPT_AGENT_LIVE=1 python -m opt_agent.demo   # live mode: the key in .env; guarded (demo/app.py)

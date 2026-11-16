@@ -55,12 +55,18 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
    owner's), and the audit's docs fixes (`docs/audit/2026-11-review.md`, section 5). The
    agent CLI still needs a key even when every call is cached; the demo's examples mode and
    `scripts/reproduce.py` don't.
-2a. **The README's screenshot** is the owner's headless capture (`scripts/screenshot.py`,
-   2026-11-15, 2x PNG, after the `full_page=True` fix), cropped without scaling to the problem
-   card through the explanation card: the page's own title block (the README has the title
-   and pitch) and the side margins went, so the text stays as large as captured and the
-   image is less tall. A fresh `python scripts/screenshot.py` writes the uncropped page top;
-   CI's `pictures` job makes one on every push (artifact `demo-screenshot`).
+2a. **The README's screenshot** is the owner's headless capture (2026-11-15, 2x PNG), cropped
+   once by hand without scaling to the problem card through the explanation card. Since
+   then `scripts/screenshot.py` captures exactly that frame itself (`frame()`: the two cards'
+   boxes plus 14 px of page background above and 13.5 px on the other sides, 28 and 27
+   device pixels; a clip screenshot in a viewport tall enough to hold it, not the full page),
+   and saves through Pillow as the committed file was, so a rerun on the owner's Mac should
+   reproduce `docs/demo.png` as it is. Checked without a browser (the sandbox can't start
+   one): `tests/test_screenshot.py` shows the frame of the cards' boxes in the owner's
+   capture is the committed picture's size, 1950x2211, and its margins are (28, 27, 27, 27).
+   CI's `pictures` job captures the same frame with Linux fonts (other card heights) and
+   checks its margins with `python scripts/screenshot.py --check` (artifact
+   `demo-screenshot`). The committed picture wasn't replaced: no new capture was made here.
 3. ~~A CI check of the `followup-freeze` tag~~: done 2026-11-15 (`followup_freeze.tag_problems`,
    see "Decisions made without the owner" below).
 4. **`amendment-5.md`'s status line** still says "DRAFT ... not tagged", though it is tagged
