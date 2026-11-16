@@ -6,7 +6,8 @@ results section against its own file. So is the full M6 write-up, docs/EVALUATIO
 README's Evaluation section until the README was rewritten on 2026-11-15), every number in
 the "The rows" sections of Amendments 4 and 5 (docs/amendments/amendment-4.md,
 amendment-5.md), whose rows scripts/amendment4.py and amendment5.py generate into eval.json,
-and docs/followup/RESULTS.md (scripts/followup_results.py).
+and docs/followup/RESULTS.md (scripts/followup_results.py), and the IE 2310 summary
+(docs/ie2310/summary.md) against both.
 
 How a number in the README is read:
 - `-123` in backticks is a problem id, and `complexlp:14` a follow-up label: some string in
@@ -22,7 +23,8 @@ How a number in the README is read:
 Not results, so skipped: model names ("Claude Haiku 5.5"), amendment numbers, percentile
 names ("p95"), link targets, dates, hypothesis names ("H1"), and section and condition
 numbers ("section 4", "5b", "conditions 2 to 4"), "SHA-256", a cited paper's venue and year
-("ICML 2024"), license versions ("CC BY-SA 4.0"), and fenced code blocks. Numbers written as
+("ICML 2024"), license versions ("CC BY-SA 4.0"), course numbers ("IE 2310"), and fenced code
+blocks. Numbers written as
 words aren't checked, so results are written in digits.
 
 The check is by value, not by place: a small whole number like 3 matches many values. It
@@ -43,6 +45,7 @@ AMENDMENT_5 = ROOT / "docs" / "amendments" / "amendment-5.md"
 EVAL = ROOT / "results" / "eval.json"
 FOLLOWUP = ROOT / "results" / "followup.json"
 FOLLOWUP_RESULTS = ROOT / "docs" / "followup" / "RESULTS.md"
+IE2310_SUMMARY = ROOT / "docs" / "ie2310" / "summary.md"
 # Each checked document, the section of it that reports results (a heading with its level;
 # None: all of it), the results files its numbers come from, how many problem ids it must
 # cite at least, and how many numbers it must have at least (so a check can't pass by
@@ -55,6 +58,7 @@ CHECKED = [
     (AMENDMENT_4, "## The rows", (EVAL,), 2, 40),
     (AMENDMENT_5, "## The rows", (EVAL,), 2, 40),
     (FOLLOWUP_RESULTS, None, (FOLLOWUP,), 0, 40),
+    (IE2310_SUMMARY, None, (EVAL, FOLLOWUP), 0, 25),
 ]
 
 NOT_RESULTS = [
@@ -70,6 +74,7 @@ NOT_RESULTS = [
     r"\b[Cc]onditions? \d(?: to \d)?\b",  # a condition's number
     r"\b(?:ICML|ICLR|NeurIPS) \d{4}\b",  # a cited paper's venue and year
     r"\bCC BY(?:-[A-Z]{2})* \d\.\d\b",  # a license's version
+    r"\bIE \d{4}\b",  # a course number
 ]
 FENCED = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 PROBLEM_ID = re.compile(r"`(-?\d+)`")

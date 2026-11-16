@@ -3,8 +3,12 @@
 Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
 
 ## Current state
-- **Everything is committed and pushed** (`main` at `f57d993` when this was written; tags
-  `m6-freeze`, `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`).
+- **Everything is committed and pushed** (`main`, 2026-11-15, after the M7 demo and M8;
+  tags `m6-freeze`, `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`).
+- **M7's demo and M8 are done** (2026-11-15): the demo (`src/opt_agent/demo/`, Docker, CI),
+  `scripts/reproduce.py` (every number replayed and rebuilt from the tags, in CI), the
+  rewritten README, and the IE 2310 kit (`docs/ie2310/`). The decisions are at the end of
+  this file.
 - **M6 is done and frozen.** Tag `m6-freeze` = `8f522c0`, the commit both test runs ran on.
   Result of record: 264/274 strict per condition (`results/eval.json`). The M6 reports and
   `results/eval.json` still rebuild byte-identical at HEAD (checked 2026-11-13, after the CBC
@@ -46,12 +50,14 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
   replies). About $6.38 of November's $10 limit is left; it resets on December 1.
 
 ## Open items
-1. **M7 demo** (the rest of milestone 7; needs the owner's go-ahead): FastAPI `POST /solve`,
-   one HTML page, a Dockerfile.
-2. **M8:** README polish (diagram, results table; its `## Limitations` section is still
-   `_TODO._`); one reproduce script (rebuild plus a cache replay, no key; the CLI still needs
-   a key even when every call is cached); the audit's docs fixes (`docs/audit/`, section 5);
-   repo description and topics.
+1. ~~M7 demo~~ and ~~M8's README and reproduce script~~: done 2026-11-15.
+2. **Left from M8:** the repository's description and topics (GitHub's settings: the
+   owner's), and the audit's docs fixes (`docs/audit/2026-11-review.md`, section 5). The
+   agent CLI still needs a key even when every call is cached; the demo's examples mode and
+   `scripts/reproduce.py` don't.
+2a. **The README's screenshot** came from the desktop app's browser pane (an 800-pixel JPEG
+   capture, saved as PNG). CI's `screenshot` job makes a sharper 2x one headlessly on every
+   push (artifact `demo-screenshot`); swap it in, or run `python scripts/screenshot.py`.
 3. ~~A CI check of the `followup-freeze` tag~~: done 2026-11-15 (`followup_freeze.tag_problems`,
    see "Decisions made without the owner" below).
 4. **`amendment-5.md`'s status line** still says "DRAFT ... not tagged", though it is tagged
@@ -177,4 +183,14 @@ Logged here as the owner asked: the simplest reasonable option, where the reques
   - Playwright and matplotlib aren't in the lock: they only make pictures, and each script's
     docstring pins its install. The demo page now renders the explanations' **bold** (DOM
     nodes only, no innerHTML).
+- **Step 3, the IE 2310 kit** (`docs/ie2310/`; no rubric was in the repository, so the layout
+  is my choice). `summary.md` (about 830 words, plain English, framed as verification versus
+  validation), `figures/` (accuracy with 95% intervals, silent and loud failures, cost; one
+  panel per study, light mode, the dataviz reference palette's first two slots), and
+  `numbers.md`/`numbers.csv` (every number with its JSON field; per-answer costs marked
+  derived), all from `scripts/ie2310.py`. Tests keep the table current and check every
+  number in the summary against the results files. The palette validator couldn't run (no
+  Node.js here); the two colors are the reference palette's slots 1 and 2, which it
+  documents as validated. Nothing of the teammate's parts (time study, flow charts,
+  summary) was written.
 

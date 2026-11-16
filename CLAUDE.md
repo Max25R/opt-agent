@@ -325,7 +325,8 @@ point is a trustworthy evaluation, not a demo.
        external corroboration against LLM4OR's cleaned NL4Opt (`docs/EXTERNAL_DATA.md`, data
        git-ignored): it removed 5 of Amendment 4's six key errors. `scripts/amendment5.py` →
        eval.json `amendment_5`, which CI copies forward without recomputing (no data there).
-7. [ ] **M7: the follow-up study is done; the demo is left. Start from `docs/HANDOFF.md`.**
+7. [x] **M7: the follow-up study and the demo are done (2026-11-15). Start from
+   `docs/HANDOFF.md`.**
    Done: part 1's robustness fixes;
    the formulation checklist with dev revision 1 (`docs/FOLLOWUP_DEV_LOG.md`: dev run
    `runs/dev-checklist`, $0 re-score `runs/dev-checklist-rev1`, mutation recall 97% for either
@@ -388,10 +389,28 @@ point is a trustworthy evaluation, not a demo.
      `LICENSE`): MIT covers the code only; `runs/` holds Mamo ComplexLP (CC BY-SA 4.0) and
      IndustryOR (CC BY-NC 4.0) text as cleaned by LLM4OR (no license), plus NL4Opt (MIT).
      History kept, since rewriting it would break the freeze tags.
-   - **Next (needs the owner's go-ahead): the demo**: FastAPI `POST /solve` + one HTML page +
-     Dockerfile. Open items are listed in `docs/HANDOFF.md`.
-8. [ ] README polish: diagram, results table, reproducing from the cache without a key,
-   limitations, repo description/topics.
+   - **The freeze checks read the tags (2026-11-15):** `freeze.approval_at_tag` reads a
+     study's approval and every frozen file from git's objects; both `tag_problems` use it,
+     and CI runs them. `check()` still compares the working tree (it gates a new run), so it
+     refuses at HEAD for both studies now, as it should. `opt_agent.frozen.Tree` extracts a
+     tag's tree (`git archive`) and runs its code there.
+   - **The demo (2026-11-15):** `src/opt_agent/demo/` (FastAPI, imported only there; the
+     `demo` extra; fastapi/uvicorn locked without moving any study package). `GET /`,
+     `/health`, `/examples`; `POST /solve`. Examples mode (default) replays four original
+     examples (`demo/examples.py`, each with a hand-checked answer a test re-derives) from
+     `demo/replies/` through `api.ReplayOnlyClient`; live mode needs `OPT_AGENT_LIVE=1` and a
+     key, and is guarded (one solve at a time, 4,000 characters, `api.max_tokens_cap` of
+     8,000 per reply, a `BudgetedClient` cap of $0.50 by default). The owner cached the
+     replies (16 calls, $0.0139); all four match their keys. Dockerfile + CI `demo-image`
+     job (`scripts/demo_smoke.py`).
+8. [x] **M8 (2026-11-15):** `scripts/reproduce.py` replays every committed answer from the
+   caches and rebuilds every reported number from the tags, byte for byte (CI's `reproduce`
+   job, after `scripts/fetch_llm4or.py`); the README rewritten for a short read, with the M6
+   write-up moved to `docs/EVALUATION.md` and the design to `docs/DESIGN.md`, and every
+   README number checked; `docs/demo.png` (`scripts/screenshot.py` headlessly; CI keeps an
+   artifact). The IE 2310 kit is in `docs/ie2310/` (`scripts/ie2310.py`; the owner's
+   teammate writes the time study, flow charts and summary). Left for the owner: the repo's
+   description and topics on GitHub (open items in `docs/HANDOFF.md`).
 
 ## Claude API notes
 
