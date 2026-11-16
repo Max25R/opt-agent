@@ -164,6 +164,16 @@ Logged here as the owner asked: the simplest reasonable option, where the reques
     files and both results files byte for byte. Locally: all 3,078 answers replay and all 6
     files match, in about 3.5 minutes. The M6 write-up scripts are copied in from HEAD,
     since they were written after the freeze against the same package.
+  - **Linux versus macOS (CI, 2026-11-15).** On ubuntu-latest, M6 replayed and rebuilt
+    exactly, but the follow-up didn't: for `industryor:29`, checklist revision, sample 1, CBC
+    returned another optimal solution of the same model, so the checklist's rule 4 (a
+    difference the optimum shows can't have changed the answer is a note) turned its flags
+    into notes and no revision was made; the committed run (macOS) revised, to the same
+    status and objective. And `stats.sign_flip_exact` gave four p-values that differ in their
+    16th digit (floating-point sums), which changes the bytes of `followup_report.json` and
+    `results/followup.json`, not any reported number. So the job runs on `macos-15`, the
+    studies' platform; the frozen code can't be changed, and both differences are recorded
+    here and in `scripts/reproduce.py`'s docstring.
   - **CI's `reproduce` job** fetches LLM4OR's data first (`scripts/fetch_llm4or.py`: a
     sparse clone at the pinned commit, every file checked against the hashes the studies
     recorded, never committed). Without the data there's no follow-up or Amendment 5 to

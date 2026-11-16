@@ -111,7 +111,9 @@ python scripts/reproduce.py      # no API key; a few minutes
 `followup-freeze`), not the current code. It replays every committed answer from the run's
 cached replies, with a client that refuses any request, and checks it against the committed
 results; then it rebuilds both reports and both results files and checks them byte for byte.
-CI runs it on every push, along with the tests and the demo image.
+CI runs it on every push, on macOS arm64 like the original runs, along with the tests and the
+demo image. (On Linux, one follow-up model has a second optimal solution that CBC picks
+instead, which changes one pair's revision path but not its answer.)
 
 ## How it works
 

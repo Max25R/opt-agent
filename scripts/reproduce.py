@@ -20,7 +20,11 @@ number, and nothing here writes into this checkout. Two checks per study:
    copied in from this checkout.
 
 Latency and cost in the reports come from the recorded runs (a replay is faster, and pays
-nothing), so they're rebuilt, not replayed. Needs the tags (git fetch --tags) and LLM4OR's
+nothing), so they're rebuilt, not replayed. Exact on macOS arm64, where both studies ran
+(CI runs it there). On Linux x86_64 (checked in CI, 2026-11-15) M6 is exact too, but in the
+follow-up CBC returns another, equally optimal solution for one model, so one pair's
+checklist finds no flags and skips a revision, with the same answer, and four sign-flip
+p-values differ in their 16th digit. Needs the tags (git fetch --tags) and LLM4OR's
 data, which holds the follow-up's keys and Amendment 5's external key
 (python scripts/fetch_llm4or.py). Exits 1 on any difference, printing it, or if something
 can't be rebuilt; 0 when everything matches.
