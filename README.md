@@ -216,6 +216,7 @@ anyone can rebuild without a key.
   (deviations in [`docs/followup/DEVIATIONS.md`](docs/followup/DEVIATIONS.md)).
 - [`docs/DESIGN.md`](docs/DESIGN.md): the solver checks, the agent, the NL4Opt answer key,
   and the project structure.
+- [`docs/adr/`](docs/adr/README.md): why it's built this way: the options weighed and their costs.
 - [`docs/audit/2026-11-review.md`](docs/audit/2026-11-review.md) and
   [`docs/audit/2026-11-final-review.md`](docs/audit/2026-11-final-review.md): two audits of
   the project, and what was fixed.

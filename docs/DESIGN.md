@@ -1,7 +1,9 @@
 # How opt-agent works
 
 The design, moved here from the README on 2026-11-15: how the solver layer is verified,
-how the agent works, how the NL4Opt answer key was built, and where everything lives.
+how the agent works, how the NL4Opt answer key was built, and where everything lives. Why
+it's built this way, the options weighed and what each choice cost are in the decision
+records, [`docs/adr/`](adr/README.md).
 
 ## How the solver layer is verified
 
