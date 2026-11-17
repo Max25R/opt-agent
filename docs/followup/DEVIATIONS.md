@@ -20,7 +20,7 @@ readings it chose. The judges receive that JSON, laid out with indentation, in p
 plain-text block. The prompt's own text is unchanged.
 
 **Why.** The JSON is solved exactly as the judges confirmed it
-(`scripts/dispute_packets.py`, `encoding_model`). A plain-text model would have to be retyped
+(`scripts/historical/dispute_packets.py`, `encoding_model`). A plain-text model would have to be retyped
 before the solve, and a retyping error would put a model the judges never saw behind the
 certificate.
 
@@ -56,5 +56,6 @@ or judging, so no part of the check's outcome was seen or could have shaped the 
   to problem.
 - **Deviation 1 is superseded**, and the dispute plan (`review/followup_disputes/README.md`)
   is marked not run. Its packets stay git-ignored and its script
-  (`scripts/dispute_packets.py`) stays, so the check can still be run later; anything it
-  finds then would be exploratory and post hoc, never the result of record.
+  (`scripts/historical/dispute_packets.py`) stays, so the check can still be run later, at
+  the commit it ran at (`scripts/historical/README.md`); anything it finds then would be
+  exploratory and post hoc, never the result of record.

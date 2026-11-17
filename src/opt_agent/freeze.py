@@ -370,19 +370,27 @@ def status() -> str:
     if approval is None:
         lines.append("Not approved yet (no docs/FREEZE.json), so test runs can't start.")
         return "\n".join(lines)
-    try:
-        check()
-    except FreezeError as error:
-        lines.append(f"FROZEN INPUTS CHANGED, so test runs can't start: {error}")
-    else:
-        lines.append(f"Frozen on {approval.approved_on}, and the inputs match: test runs may "
-                     "start.")  # fmt: skip
-    if problems := tag_problems():
+    # The tag first: once the test runs are done, it's what the results rest on.
+    problems = tag_problems()
+    if problems:
         lines.append(f"TAG {FREEZE_TAG} DOESN'T HOLD THE APPROVED INPUTS:\n  "
                      + "\n  ".join(problems))  # fmt: skip
     else:
-        lines.append(f"Tag {FREEZE_TAG} holds exactly the approved inputs: the M6 results "
-                     "rebuild from it.")  # fmt: skip
+        lines.append(f"Tag {FREEZE_TAG} verifies: it holds exactly the approved inputs, so the "
+                     "M6 results rebuild from it (python scripts/reproduce.py).")  # fmt: skip
+    try:
+        check()
+    except FreezeError as error:
+        if problems:
+            lines.append(f"FROZEN INPUTS CHANGED, so test runs can't start: {error}")
+        else:  # the tag is the record; HEAD is free to move on
+            lines.append(f"HEAD has moved on since the freeze, as expected: work after the test "
+                         "runs (the follow-up, the demo) changed these inputs. That stops only "
+                         "a new M6 test run from starting here; the results rest on the tag, "
+                         f"which verifies (above). In detail, {error}")  # fmt: skip
+    else:
+        lines.append(f"Frozen on {approval.approved_on}, and the inputs match: test runs may "
+                     "start.")  # fmt: skip
     return "\n".join(lines)
 
 

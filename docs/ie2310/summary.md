@@ -14,16 +14,17 @@ an industrial engineer turns into a linear program by hand, and does the same st
 2. **Solve.** CBC, a standard open-source optimization solver, finds the optimal solution of
    that model.
 3. **Check.** A second, independent solver (HiGHS) solves the same model, and plain
-   arithmetic checks every constraint. If the two solvers disagree, or a check fails, the
-   agent reports no answer at all. We call that a *loud* failure: you know something went
-   wrong.
+   arithmetic checks every constraint. If the two solvers disagree, a check fails, or
+   Claude's reply can't be used at all, the agent reports no answer. We call that a *loud*
+   failure: you know something went wrong.
 4. **Fix.** If the model has no feasible solution or is unbounded, the agent tells Claude
    which constraints conflict and asks for a revised model, up to three tries.
 5. **Explain.** Claude explains the optimal plan in plain words, using only the solver's
    numbers; any number that can't be traced to the solver is flagged.
 
-The demo page shows all five steps on four sample problems (a paint production mix, café
-staffing, shipping crates from warehouses to stores, and a cattle-feed blend).
+The demo page shows these steps on four sample problems (a paint production mix, café
+staffing, shipping crates from warehouses to stores, and a cattle-feed blend). Each one
+solves on the first try, so the fix step doesn't show.
 
 ## How it was tested
 
@@ -46,7 +47,7 @@ Claude can do the arithmetic itself, so this set can't show what a solver adds.
 **On harder problems, the solver helped a little.** The agent (one formulation, solved and
 checked: "single-shot") averaged 82.1% right against the baseline's 75.8%: a gain of
 +6.3 percentage points, which the pre-registered test
-detected (Holm p 0.0445). Two cautions: a second, stricter test didn't find it significant
+detected (Holm p 0.0445). Two cautions: a second, less sensitive test didn't find it significant
 (Holm p 0.24), and 1.38 points of the gain come from 8 baseline answers that ran out of room
 before finishing. Letting Claude revise its model against a checklist of what the problem
 requires didn't measurably help (+0.6 points, inconclusive).
@@ -75,14 +76,30 @@ real situation, exactly as with a model built by hand.
 ## What this means for an engineer
 
 - Use the agent as a fast first draft of a model, not as a final answer.
-- Trust its arithmetic: when it reports an answer, that answer really is optimal for the
-  model it wrote.
+- Trust its arithmetic: when it reports an answer, that answer is optimal for the model it
+  wrote (proved, for a linear program; for an integer program, two independent solvers
+  agree).
 - Check its model against the problem: every constraint, every coefficient, and whether each
   "must" in the model is really a "must" in the problem.
 
 ## Limitations
 
 - One AI model (Claude Haiku 5.5) was tested, and the harder set is small.
-- The benchmarks' answer keys contain some errors, and some of the "failures" above may be
-  key errors rather than the agent's.
-- Some of the grading was done by AI judges, not people.
+- **The checks never caught anything in these tests.** No loud failure came from the solvers
+  disagreeing or a check failing: the textbook set had no loud failures at all, and every
+  loud failure on the harder set was a reply that couldn't be used or was cut off. The
+  checks did catch real solver bugs in the project's own solver tests.
+- **Self-correction's lack of loud failures isn't a gain.** On the harder set it revised
+  single-shot's unusable replies, and most of the revised answers were wrong, with no
+  warning.
+- **The explanation step was never evaluated.** The tests scored answers only.
+- **The benchmarks are public,** so Claude may have seen them while it was trained. On the
+  textbook set, changing the problems' numbers didn't lower accuracy, which argues against
+  memorized answers; the harder set had no such check.
+- **The answer keys contain errors, both ways.** Some of the "failures" above may be key
+  errors rather than the agent's. And against a second, independently cleaned answer key for
+  the textbook set, every method scored lower, mostly on problems where the two keys
+  disagree.
+- **All of the grading was done by AI judges, not people.** Every "hand check" (grading the
+  models blind, sorting failures by cause, checking the answer key's labels) was done by AI
+  judges, and the main judge is Claude, the agent's own model family.

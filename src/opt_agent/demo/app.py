@@ -9,9 +9,11 @@ Two modes, fixed when the app starts (Settings.from_env):
   other text gets 404, since it would need a live call.
 - **live** (OPT_AGENT_LIVE=1, and a key from config.get_api_key): the examples still replay
   for free; anything else calls Claude through budget.BudgetedClient, with a spend ledger
-  and a dollar cap (OPT_AGENT_DEMO_CAP_USD, default $0.50 in all). The guards: one solve at
-  a time (a second request gets 429 rather than queueing paid calls), problems of at most
-  pipeline.MAX_PROBLEM_CHARS, and every reply capped at pipeline.MAX_TOKENS.
+  and a dollar cap (OPT_AGENT_DEMO_CAP_USD, default $0.50, counted in the ledger: in all for
+  a local run, but per container under `docker run --rm` unless a volume holds /app/logs).
+  The guards: one solve at a time (a second request gets 429 rather than queueing paid
+  calls), problems of at most pipeline.MAX_PROBLEM_CHARS, and every reply capped at
+  pipeline.MAX_TOKENS.
 
 Endpoints: GET / (the page), GET /health, GET /examples, POST /solve {"problem": "..."}.
 """
@@ -43,7 +45,8 @@ class Settings:
     mode: str  # "examples" or "live"
     api_key: str | None = None
     cap_usd: float = DEFAULT_CAP_USD
-    ledger: Path = Path("logs/spend/demo.jsonl")  # live spend, kept across restarts
+    ledger: Path = Path("logs/spend/demo.jsonl")  # live spend, kept across restarts (in Docker:
+    # only with a volume on /app/logs, since `docker run --rm` starts each container empty)
     live_cache: Path = Path("logs/demo/replies")  # live replies: asking again is free
     log: Path = Path("logs/demo/attempts.jsonl")  # every live call, as the CLI logs it
     replies: Path = REPLIES

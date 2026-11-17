@@ -1,8 +1,10 @@
 # Data notice
 
-**The MIT license in [`LICENSE`](LICENSE) covers this project's code only.** Some committed
-files hold problem text and answers from other people's benchmarks. Those parts stay under
-their own licenses, below, and the MIT license doesn't apply to them.
+**The MIT license in [`LICENSE`](LICENSE) covers this project's code only.** (`LICENSE` is
+the plain MIT text, so that GitHub recognizes it; this notice is where the rest is said.)
+Benchmark problem text and answers in this repository, mostly under `runs/` and `data/`, and
+also in `review/`, `tests/` and short quotes in `docs/`, keep their own licenses, below; the
+MIT license doesn't apply to them.
 
 ## The follow-up's problems (ComplexLP and IndustryOR, as cleaned by LLM4OR)
 
@@ -35,7 +37,9 @@ license applies.
 ## Milestone 6's problems (NL4Opt)
 
 `runs/test/`, `runs/test-perturbed/` and `data/nl4opt/` hold NL4Opt problem text and
-annotations: Ramamonjison et al., "NL4Opt Competition: Formulating Optimization Problems
+annotations, and so do the review packets and prompts under `review/` (for example
+`review/test_reviews/PACKET.md`), the test fixtures `tests/problems.py` and `tests/fakes.py`,
+and short quotes in `docs/`: Ramamonjison et al., "NL4Opt Competition: Formulating Optimization Problems
 Based on Their Natural Language Descriptions" (NeurIPS 2022 Competition Track), MIT license,
 Copyright (c) 2022 Huawei Technologies ([`data/nl4opt/LICENSE`](data/nl4opt/LICENSE)). The perturbed problems change
 NL4Opt's numbers (the rule is in `src/opt_agent/perturb.py`; counts in
@@ -53,6 +57,17 @@ a time, as the reason for a review ("ORLM says 18", "matching ORLM"):
   the demo's Docker image.
 
 Those answers stay under CC BY-NC 4.0: **non-commercial only**, with this attribution.
+
+**ORLMBenchmark's NL4Opt answers.** The external cross-check compared our test answers with
+the corrected NL4OPT in ORLMBenchmark (`chenyitian-shanshu/ORLMBenchmark`, `NL4OPT.jsonl`,
+revision `54ca621`, Apache-2.0), from the authors of the SIRL paper (arXiv:2505.11792). The
+file isn't committed; `review/external_check.md` cites some of its answers. Its NL4OPT file is ORLM's answer set with corrections, so an answer it shares
+with ORLM's is arguably ORLM's too: treat those as CC BY-NC 4.0, as above.
+
+**LLM4OR's NL4Opt answers.** Amendment 5 compares our answers with LLM4OR's cleaned NL4Opt
+(the LLM4OR release above, no license stated). Its files aren't committed, but
+`docs/amendments/amendment-5.md` and `results/eval.json` (its `amendment_5` entry) cite some
+of its answers and which problems it removed.
 
 ## The demo's examples (this project's own)
 

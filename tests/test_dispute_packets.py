@@ -1,4 +1,4 @@
-"""Section 5b's packets and judge prompts (scripts/dispute_packets.py): what goes in, and
+"""Section 5b's packets and judge prompts (scripts/historical/dispute_packets.py): what goes in, and
 nothing else. Made-up text; no API calls."""
 
 import importlib.util
@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("dispute_packets",
-                                              ROOT / "scripts" / "dispute_packets.py")  # fmt: skip
+SCRIPT = ROOT / "scripts" / "historical" / "dispute_packets.py"
+spec = importlib.util.spec_from_file_location("dispute_packets", SCRIPT)
 packets = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(packets)
 

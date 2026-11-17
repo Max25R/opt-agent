@@ -1,8 +1,10 @@
 # External data
 
-Data from outside the project, kept in `data/external/` and **not committed** (git-ignored),
-with where it came from and how to check it. Nothing here is used by milestone 6: its
-ground truth, runs and results are frozen (tag `m6-freeze`).
+Data from outside the project, kept in `data/external/`, with where it came from and how to
+check it. **The files aren't committed** (git-ignored), but the follow-up's problem text and
+answers from them are, in its run records under `runs/` ([`DATA_NOTICE.md`](../DATA_NOTICE.md)
+lists where). Milestone 6's ground truth and runs don't use them (they're frozen at tag
+`m6-freeze`); only its exploratory Amendment 5 does.
 
 ## LLM4OR cleaned benchmarks (`data/external/llm4or-clean/`)
 
@@ -17,7 +19,7 @@ https://github.com/LLM4OR/LLM4OR/tree/master/static/clean_benchmarks
 | Commit | `75962df5ddf531906fda76f8708c658114e63c0e` (master, 2025-08-30, "add arxiv link and citation") |
 | Tree `static/clean_benchmarks` | `2cd387a3bf7991104a4df582f6fd50d2ccf7bb03` |
 | Retrieved | 2026-11-08 |
-| License | **None stated** (no LICENSE file; the README gives none). So it isn't committed here. The originals carry their own: NL4Opt is MIT; IndustryOR comes from ORLM, and ComplexLP from MAMO. |
+| License | **None stated** (no LICENSE file; the README gives none). So the files aren't committed here; the problem text and answers the follow-up's run records hold are listed in `DATA_NOTICE.md`. The originals carry their own: NL4Opt is MIT; IndustryOR comes from ORLM, and ComplexLP from MAMO. |
 
 The portal says error samples were tagged with an "error" label. The files hold no such
 label, and the counts below are far smaller than the originals (NL4Opt 289, IndustryOR

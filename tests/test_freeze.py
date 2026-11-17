@@ -2,10 +2,11 @@
 approval here goes to a temporary FREEZE.json; never calls the API."""
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
-from opt_agent import evaluate, external_check, formulate, freeze, packets
+from opt_agent import evaluate, external_check, followup_freeze, formulate, freeze, packets
 from opt_agent.evaluate import CONDITIONS, require_whole_experiment, scorable_records
 from opt_agent.freeze import Approval, FreezeError, differences, fingerprint
 from opt_agent.ground_truth import GROUND_TRUTH_DIR, load_records
@@ -263,3 +264,23 @@ def test_a_file_that_differs_at_the_tag_is_named(monkeypatch):
 
 def test_a_missing_tag_is_named():
     assert freeze.tag_problems("no-such-tag")[0].startswith("no tag no-such-tag here")
+
+
+@pytest.mark.parametrize("study", ["m6", "followup"])
+def test_the_status_calls_heads_drift_expected_only_when_the_tag_verifies(study, monkeypatch):
+    module = freeze if study == "m6" else followup_freeze
+
+    def differs():
+        raise module.FreezeError("the inputs differ:\n  src/opt_agent/agent.py: changed")
+
+    monkeypatch.setattr(module, "unfinished", lambda: [])
+    monkeypatch.setattr(module, "approved", lambda: SimpleNamespace(approved_on="2026-11-04"))
+    monkeypatch.setattr(module, "check", differs)
+    monkeypatch.setattr(module, "tag_problems", lambda: [])
+    text = module.status()
+    assert "verifies" in text and "as expected" in text and "agent.py: changed" in text
+    assert "CHANGED" not in text  # no alarm: the results rest on the tag
+    monkeypatch.setattr(module, "tag_problems", lambda: ["no tag here"])
+    text = module.status()
+    assert "DOESN'T HOLD THE APPROVED INPUTS" in text and "FROZEN INPUTS CHANGED" in text
+    assert "as expected" not in text

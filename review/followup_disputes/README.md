@@ -3,7 +3,8 @@
 **Status: NOT RUN.** The owner decided on 2026-11-15, for time and before any encoding or
 judging, not to perform the check (`docs/followup/DEVIATIONS.md`, deviation 2). No encoding
 was written and no judge saw anything. The plan below is kept as it was prepared; the packets
-stay git-ignored and `scripts/dispute_packets.py` stays, so it could still be run, but
+stay git-ignored and `scripts/historical/dispute_packets.py` stays, so it could still be run
+(at commit `29b7c99`, where the test split opens: `scripts/historical/README.md`), but
 anything it found would be exploratory and post hoc, never the result of record. Deviation
 1, the JSON format for the encodings, is superseded.
 
@@ -32,7 +33,7 @@ applied to all four conditions alike.
 | `sheet.csv` | yes | one row per problem and round: the encoder and the model it showed, the verdicts, reply hashes, the solve and the certificate |
 
 `python scripts/dispute_packets.py` writes the packets and the manifest;
-`python scripts/dispute_packets.py --prompts` writes a prompt for each problem that has an
+`python scripts/dispute_packets.py --prompts` (both at `29b7c99`) writes a prompt for each problem that has an
 encoding.
 
 ## Step 1: the encodings (5b, step 1)

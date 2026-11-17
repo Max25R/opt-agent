@@ -1,7 +1,8 @@
 """Call the real Claude API, so they cost money (a fraction of a cent each). They're excluded
-from the default test run and from CI. Run them all with:
+from the default test run and from CI, and skipped without OPT_AGENT_LIVE=1 whatever -m
+says (tests/conftest.py). Run them all with:
     OPT_AGENT_LIVE=1 python -m pytest -m live -s
-(or export ANTHROPIC_API_KEY; config.get_api_key reads .env only with OPT_AGENT_LIVE=1)
+(the key: an exported ANTHROPIC_API_KEY, or else the one in .env)
 
 Every call goes through a budget guard (budget.py) whose ledger is git-ignored and counts
 every run of these tests: one run makes 4 to 8 calls, and the guard refuses any call that

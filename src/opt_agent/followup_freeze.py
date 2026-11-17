@@ -256,19 +256,28 @@ def status() -> str:
         lines.append("Not approved yet (no docs/followup/FREEZE.json): the test split stays "
                      "sealed.")  # fmt: skip
         return "\n".join(lines)
-    try:
-        check()
-    except FreezeError as error:
-        lines.append(f"FROZEN INPUTS CHANGED, so the test split stays sealed: {error}")
-    else:
-        lines.append(f"Frozen on {approval.approved_on}, and the inputs match: the test split "
-                     "may be read and run.")  # fmt: skip
-    if problems := tag_problems():
+    # The tag first: once the test run is done, it's what the results rest on.
+    problems = tag_problems()
+    if problems:
         lines.append(f"TAG {FREEZE_TAG} DOESN'T HOLD THE APPROVED INPUTS:\n  "
                      + "\n  ".join(problems))  # fmt: skip
     else:
-        lines.append(f"Tag {FREEZE_TAG} holds exactly the approved inputs: the follow-up's "
-                     "results rebuild from it (python scripts/reproduce.py).")  # fmt: skip
+        lines.append(f"Tag {FREEZE_TAG} verifies: it holds exactly the approved inputs, so "
+                     "the follow-up's results rebuild from it "
+                     "(python scripts/reproduce.py).")  # fmt: skip
+    try:
+        check()
+    except FreezeError as error:
+        if problems:
+            lines.append(f"FROZEN INPUTS CHANGED, so the test split stays sealed: {error}")
+        else:  # the tag is the record; HEAD is free to move on
+            lines.append(f"HEAD has moved on since the freeze, as expected: work after the test "
+                         "run (the demo, the docs) changed these inputs. That only keeps the "
+                         "test split sealed here; the results rest on the tag, which verifies "
+                         f"(above). In detail, {error}")  # fmt: skip
+    else:
+        lines.append(f"Frozen on {approval.approved_on}, and the inputs match: the test split "
+                     "may be read and run.")  # fmt: skip
     return "\n".join(lines)
 
 

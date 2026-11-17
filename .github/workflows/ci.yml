@@ -112,6 +112,26 @@ jobs:
         run: |
           python3 -c "import sys; t = open('reproduce.log').read()[-3500:]; print('::error title=reproduce::' + t.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))"
 
+      # The checks the test job has to skip: with the rest of the data (NL4Opt's raw
+      # annotations, ORLM's answers and ORLMBenchmark, pinned and hash-checked by
+      # opt_agent.data; never committed) and Pillow (the committed screenshot's checks), the
+      # whole suite runs here, after the rebuild, and no test may skip.
+      - name: Fetch the rest of the data, and Pillow
+        run: |
+          python -m opt_agent.data
+          pip install -r requirements-docs.lock -c requirements.lock
+
+      - name: Test, with all the data
+        env:
+          HYPOTHESIS_PROFILE: ci
+        run: |
+          set -o pipefail
+          pytest 2>&1 | tee pytest.log
+          if grep -q "^SKIPPED" pytest.log; then
+            grep "^SKIPPED" pytest.log
+            echo "::error title=pytest::a test skipped with all the data present"; exit 1
+          fi
+
   pictures:
     # The docs' pictures, from a fresh clone with the optional requirements-docs.lock: the
     # README's screenshot, captured headlessly (scripts/screenshot.py: the app in-process, in

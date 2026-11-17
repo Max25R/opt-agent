@@ -3,13 +3,14 @@ prompts. No API calls; nothing here judges anything.
 
 **Not run:** the owner decided on 2026-11-15 not to perform the check
 (docs/followup/DEVIATIONS.md, deviation 2). The script is kept so it could be run later, as an
-exploratory, post hoc check.
+exploratory, post hoc check. **Historical:** it ran at 29b7c99 and doesn't run at HEAD, where
+the test split is sealed (scripts/historical/README.md says how to run it there).
 
 The problems are the ones the frozen report lists under `disputes`
 (runs/followup-test/followup_report.json), by label only: this script never reads the key,
 an answer, or any condition's model.
 
-- `python scripts/dispute_packets.py` writes, for each disputed problem,
+- `python scripts/dispute_packets.py` (at 29b7c99) writes, for each disputed problem,
   review/followup_disputes/packets/<label>.md: the problem text and the instructions for
   writing an encoding, nothing else. The encoder (Gemini on the web, a fresh chat per
   problem; review/followup_disputes/README.md) replies with the model as JSON in the project's
@@ -38,7 +39,7 @@ from pathlib import Path
 
 from opt_agent.schema import LPModel
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]  # scripts/historical/ -> the repository
 REPORT = ROOT / "runs" / "followup-test" / "followup_report.json"
 JUDGE_PROMPT = ROOT / "docs" / "followup" / "judge_prompt.md"
 DIR = ROOT / "review" / "followup_disputes"

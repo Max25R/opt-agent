@@ -3,7 +3,10 @@ pipeline (evaluate.run_item, same conditions and extras) with a client that refu
 reading the original run's cache and writing a new run directory. Used after each dev revision
 (docs/FOLLOWUP_DEV_LOG.md).
 
-Run:  python scripts/rescore_dev.py runs/dev-checklist runs/dev-checklist-rev1
+**Historical:** it ran at ba8b151 and f2bd2e3, and stops at HEAD on the first cache miss
+(scripts/historical/README.md).
+
+Run (at ba8b151):  python scripts/rescore_dev.py runs/dev-checklist runs/dev-checklist-rev1
 """
 
 import argparse

@@ -72,7 +72,8 @@ auxiliary variable, and binds at the optimum). Implying the requirement alone wo
 hidden a stricter wrong coefficient (`8000p + 200t >= 1e6` for `8000p + 2000t >= 1e6`). On
 dev every coefficient pair was the looser kind, so the expected numbers didn't move.
 
-**Re-scored at $0** (`scripts/rescore_dev.py runs/dev-checklist runs/dev-checklist-rev1`):
+**Re-scored at $0** (`scripts/rescore_dev.py runs/dev-checklist runs/dev-checklist-rev1`;
+the script is now in `scripts/historical/`, since it doesn't run at HEAD):
 every pair replayed through the pipeline from the run's cache, with a client that refuses any
 call. Every answer, cost and estimate is the same, and nothing was paid. The result is
 exactly the simulation's:

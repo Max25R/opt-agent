@@ -23,9 +23,9 @@ How a number in the README is read:
 Not results, so skipped: model names ("Claude Haiku 5.5"), amendment numbers, percentile
 names ("p95"), link targets, dates, hypothesis names ("H1"), and section and condition
 numbers ("section 4", "5b", "conditions 2 to 4"), "SHA-256", a cited paper's venue and year
-("ICML 2024"), license versions ("CC BY-SA 4.0"), course numbers ("IE 2310"), and fenced code
-blocks. Numbers written as
-words aren't checked, so results are written in digits.
+("ICML 2024"), license versions ("CC BY-SA 4.0"), course numbers ("IE 2310"), Python
+versions ("Python 3.12"), and fenced code blocks. Numbers written as words aren't checked,
+so results are written in digits.
 
 The check is by value, not by place: a small whole number like 3 matches many values. It
 catches numbers that appear nowhere in eval.json, such as a stale or retyped result.
@@ -75,6 +75,7 @@ NOT_RESULTS = [
     r"\b(?:ICML|ICLR|NeurIPS) \d{4}\b",  # a cited paper's venue and year
     r"\bCC BY(?:-[A-Z]{2})* \d\.\d\b",  # a license's version
     r"\bIE \d{4}\b",  # a course number
+    r"\bPython \d+\.\d+\b",  # a Python version, as in "Python 3.12 or newer"
 ]
 FENCED = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 PROBLEM_ID = re.compile(r"`(-?\d+)`")

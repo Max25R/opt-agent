@@ -20,9 +20,17 @@ Tags: **must-fix** (wrong or misleading; fix before anyone relies on it), **shou
 
 ## Summary
 
-**Status (2026-11-15, after the review):** M1-M5 were fixed afterwards, on the owner's
-go-ahead. The should-fix and nice-to-have items are open. The findings below are kept as
-written.
+**Status (2026-11-16, after the review):** M1-M5 were fixed on 2026-11-15 and S1-S11 on
+2026-11-16, each on the owner's go-ahead and with the owner's choices (S7 documented, not
+built; S8 moved to `scripts/historical/`; S9 a pure MIT `LICENSE` and a "How this was built"
+section; S2's limitations in the README and `docs/ie2310/summary.md`). Not done:
+- S9's repository description and topics: GitHub settings, the owner's to change (suggested
+  text in `docs/HANDOFF.md`, open item 2).
+- S11's last bullet, the earlier audit's item 4 (rename the `owner` source of 4 labels): it
+  would change `data/nl4opt/integrality.json`, an input of the frozen answer key, so it's left
+  as is; `docs/DESIGN.md` now says what those labels are.
+
+The nice-to-have items are open. The findings below are kept as written.
 
 **Must-fix**
 

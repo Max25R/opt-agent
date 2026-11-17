@@ -15,9 +15,11 @@ at run time:
 2. **A second solver:** CBC (via PuLP) and HiGHS (via SciPy, no PuLP) must agree on the
    status and the optimal objective. When they don't, no answer is reported.
 3. **Certified statuses:** "unbounded" needs a feasible point and an improving ray (a
-   direction along which the objective improves forever), both checked by arithmetic, and
-   a claimed optimum is overruled only by such a ray (`rays.py`). "Infeasible" comes from
-   a feasibility solve that both solvers must agree on. A time-out is reported as one.
+   direction along which the objective improves forever), both checked by arithmetic. A
+   claimed optimum is overruled by such a ray (`rays.py`), or when the point CBC calls
+   optimal breaks the model's own bounds or constraints: then the model is settled as for an
+   "infeasible or unbounded" label. "Infeasible" comes from a feasibility solve that both
+   solvers must agree on. A time-out is reported as one.
 
 What run-time arithmetic doesn't prove: that a MIP's optimum is optimal, and that an
 infeasible model is infeasible (there's no Farkas certificate yet). Those rest on the
@@ -46,6 +48,9 @@ Problems these checks found, each with a regression test:
   unbounded model, but only in one variable order. Found by the reordering test; fixed by
   the improving-ray check, not by changing solver settings (turning off CBC's scaling
   caused new false optima).
+- CBC claimed an optimum at an infeasible point of an unbounded LP (x3 = 100 against
+  x3 <= 1; `CBC_INFEASIBLE_OPTIMUM_BUG`, found by the CBC-vs-HiGHS property test). A claimed
+  optimum's feasibility is now checked before anything else.
 - HiGHS returned a fractional value (2.5) for an integer variable with a fractional bound,
   which made the cross-check report a false disagreement (found by the audit). Both solvers
   now get integer bounds rounded inward, and an integer variable with no whole number in its
@@ -108,19 +113,23 @@ third-party answer key, `ground_truth.py` builds one from the raw annotations:
    (`data/nl4opt/reviews.json`).
 6. **Score only what's trusted:** a problem is scorable if it converted, its answer is
    confirmed by HiGHS and the arithmetic checks, no annotation error found in review
-   changes it, and it wasn't used while building the agent (`exclusions.json`).
+   changes it, and it isn't excluded (`exclusions.json`: 4 test problems, the 2 used while
+   building the agent and the 2 that Amendment 2's rules exclude).
 
 **Who decided what.** Claude (the AI model that wrote this code) wrote every hand review and
-most hand labels. The owner decided the rest. Claude's work was checked by the owner on dev,
-and by LLM judges on test:
+most hand integrality labels. The other labels are the owner's or the LLM judges' (each
+label's source is recorded in `data/nl4opt/integrality.json`). Claude's work was checked by
+the owner on dev, and by LLM judges on test:
 
 - *Dev split:* the owner set the integrality labels for the problems in the dev
   walkthrough, and confirmed (and corrected) the dev reviews, except one that was written
   after the walkthrough. The other dev hand labels are Claude's.
-- *Test split:* every hand label and every review is Claude's. Two LLM judges from
+- *Test split:* every review, and every hand label but 48, is Claude's. Two LLM judges from
   different vendors checked them instead of the owner (pre-registration, Amendment 2):
-  - **Integrality labels:** they labeled a blind sample and the "says LP" problems. Where
-    they disagree, either answer is accepted.
+  - **Integrality labels:** they labeled a blind sample and the "says LP" problems, 44 in
+    all, and their combined labels replaced Claude's there (source `judge`). Where they
+    disagree, either answer is accepted. The other 4 are `either` labels that the owner's
+    decision rules for the reviews set (source `owner`).
   - **Reviews:** they judged the reviews that an external cross-check against
     ORLMBenchmark couldn't cover. Accuracy is also reported without the reviews they
     disputed, and the hard cases they didn't confirm are excluded.

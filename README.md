@@ -1,13 +1,24 @@
 # opt-agent
 
-**Plain-English operations problems in, verified optimal plans out.** Claude writes a word
-problem ("how many litres of each paint should we make?") as a linear or integer program, a
-real solver (CBC) solves it, a second solver (HiGHS) and plain arithmetic check the answer,
-and only a verified answer gets explained, in Claude's words but with the solver's numbers.
-Most of the project is the evaluation: two studies, each pre-registered and frozen before
-its test run, that ask whether a solver in the loop helps at all, and how often a wrong
-answer gets through every check. Every reported number rebuilds from committed cached
-replies, with no API key.
+**Plain-English operations problems in, solver-verified plans out, and an honest count of
+how often they're still wrong.** Claude writes a word problem ("how many litres of each paint
+should we make?") as a linear or integer program, a real solver (CBC) solves it, a second
+solver (HiGHS) and plain arithmetic check the answer, and only a verified answer gets
+explained, in Claude's words but with the solver's numbers. Most of the project is the
+evaluation: two studies, each pre-registered and frozen before its test run, that ask whether
+a solver in the loop helps at all, and how often a wrong answer gets through every check.
+
+| accuracy (Claude Haiku 5.5) | no-solver baseline | single-shot | self-correction | checklist revision |
+|---|---|---|---|---|
+| NL4Opt, 274 problems | 96.4% | 96.4% | 96.4% | not run |
+| harder problems, 121 (3 samples each) | 75.8% | 82.1% | 82.4% | 82.6% |
+
+On NL4Opt a solver adds nothing: Claude answering directly does as well. On the harder
+problems, solving Claude's model beats answering directly by +6.3 pp (the pre-registered
+test, Holm p 0.0445), and revising on a formulation checklist adds nothing detectable. In
+every condition most wrong answers are *silent*: every check passes, so nothing warns you.
+Every reported number rebuilds from the committed runs with no API key, after fetching the
+follow-up's public benchmark data ([how](#reproduce-every-number)).
 
 ![The demo after solving its paint example: the problem, the verified optimum (CBC and HiGHS agree, the arithmetic checks pass, and it matches the hand-checked answer), Claude's model, and Claude's explanation using the solver's numbers](docs/demo.png)
 
@@ -59,30 +70,61 @@ before the split.
   replies cut off at max_tokens.
 - **H1, checklist revision minus single-shot: inconclusive.** +0.6 pp (95% CI -1.7 to
   3.0 pp): no difference larger than 4 pp, and nothing stronger.
-- **Failures are mostly silent.** Silent / loud, over every sample answer: baseline 83 / 11,
-  single-shot 62 / 4, self-correction 65 / 0, checklist revision 59 / 4.
+- **Failures are mostly silent.** Silent / loud, over every sample answer on all 128
+  problems: baseline 83 / 11, single-shot 62 / 4, self-correction 65 / 0, checklist revision
+  59 / 4.
 
 Full write-up: [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md).
 
 ## Limitations
 
-- **Verification can't see a wrong model.** It proves the solution of Claude's formulation,
-  not that the formulation says what the text says, which is why nearly every failure above
-  is silent. The report-only flags (a direct estimate, a formulation checklist) are attempts
-  at that signal; revising on the checklist's flags didn't measurably help (H1).
+- **Verification can't see a wrong model.** It checks the solution of Claude's formulation
+  (for an LP it proves optimality with a certificate; for a MIP, two solvers agree), not that
+  the formulation says what the text says, which is why nearly every failure above is silent.
+  The report-only flags (a direct estimate, a formulation checklist) are attempts at that
+  signal; revising on the checklist's flags didn't measurably help (H1).
+- **The cross-check never fired in either study.** No loud failure came from the solvers
+  disagreeing or a check failing: NL4Opt had no loud failures at all, and every loud failure
+  in the follow-up was an unusable or cut-off reply. The checks did catch real solver bugs,
+  in the property tests ([`docs/DESIGN.md`](docs/DESIGN.md)).
+- **Self-correction's 0 loud failures aren't a gain.** In the follow-up it revised
+  single-shot's 4 unusable replies: 1 became right, and 3 became wrong answers with no
+  warning. (The silent / loud counts cover all 128 problems; the scores, 121.)
+- **The explanation was never evaluated.** Every study run skipped it and scored answers
+  only, so "every number traced to the solver" is what the code checks, not a measured
+  result.
 - **One model, one sign-flip test.** Every number is Claude Haiku 5.5's. H2 is detected by
   the pre-registered primary test only, and part of it comes from baseline replies that ran
   out of tokens.
-- **The answer keys aren't perfect.** On NL4Opt, two LLM judges labeled 6 of the 8 shared
-  failures answer-key errors (exploratory, post hoc). In the follow-up, 15 problems meet the
-  pre-registered dispute trigger, and the planned key check wasn't performed (a recorded
-  deviation), so whether any of those are key errors is unknown.
-- **The judges are LLMs,** and the judge of record is Claude, the agent's own family.
+- **The answer keys aren't perfect, and their errors cut both ways.** On NL4Opt, two LLM
+  judges labeled 6 of the 8 shared failures answer-key errors (exploratory, post hoc). Against
+  LLM4OR's independently cleaned NL4Opt key, every condition scores 185/210 (88.1%) on the
+  problems both keys cover, against 205 or 206 of the same 210 on ours, mostly where the two
+  keys differ ([Amendment 5](docs/amendments/amendment-5.md), exploratory). In the follow-up,
+  15 problems meet the pre-registered dispute trigger, and the planned key check wasn't
+  performed (a recorded deviation), so whether any of those are key errors is unknown.
+- **No person checked the test results.** Every "hand check" (blind grading of the models,
+  labeling each failure's cause, and checking the answer key's labels and reviews) was done
+  by LLM judges, and the judge of record is Claude, the agent's own family. Claude also wrote
+  the key's reviews and most of its integrality labels.
+- **The benchmarks are public,** so Claude may have seen them in training. On NL4Opt, 240
+  problems with their numbers changed kept their accuracy (96.7–97.1%), and no answer matched
+  the original problem's, which argues against memorized answers; the follow-up has no such
+  check.
 - **A bug in the NL4Opt key's integrality rule** read some countable products as continuous,
   which cost 4 answers per condition; it's recorded as a deviation, and the result of record
   stands as pre-registered.
 - **The demo is local only.** Its live mode is guarded (one solve at a time, a length limit,
   a token cap per reply, a dollar cap), not hardened for a public endpoint.
+
+## Setup
+
+Python 3.12 or newer (the studies ran on Python 3.13), in a virtual environment:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.lock && pip install --no-deps -e .   # the locked versions
+```
 
 ## Try the demo
 
@@ -101,10 +143,17 @@ problems' cached replies; any other text needs live mode and your own Anthropic 
 docker run --rm -p 8000:8000 --env-file .env -e OPT_AGENT_LIVE=1 opt-agent
 ```
 
-Without Docker: `pip install -r requirements.lock && pip install --no-deps -e .`, then
-`python -m opt_agent.demo` (add `OPT_AGENT_LIVE=1` in front for live mode).
+Live mode's dollar cap (`OPT_AGENT_DEMO_CAP_USD`) is counted in a spend ledger inside the
+container, so every `docker run --rm` starts again from zero: the cap holds per container,
+not in all. A volume at `/app/logs` (`-v opt-agent-logs:/app/logs`) keeps one ledger across
+containers.
+
+Without Docker, after [Setup](#setup): `python -m opt_agent.demo` (add `OPT_AGENT_LIVE=1` in
+front for live mode).
 
 ## Reproduce every number
+
+After [Setup](#setup):
 
 ```bash
 python scripts/fetch_llm4or.py   # LLM4OR's cleaned benchmarks: pinned commit, checked hashes
@@ -117,7 +166,9 @@ cached replies, with a client that refuses any request, and checks it against th
 results; then it rebuilds both reports and both results files and checks them byte for byte.
 CI runs it on every push, on macOS arm64 like the original runs, along with the tests and the
 demo image. (On Linux, one follow-up model has a second optimal solution that CBC picks
-instead, which changes one pair's revision path but not its answer.)
+instead, which changes one pair's revision path but not its answer.) Replay can't redo two
+things: the LLM judges' labels come from chat sessions, committed as the sheets they filled
+in, and a new run would give new answers, since Claude samples at temperature 1.
 To redraw the pictures too (the screenshot and the IE 2310 figures), install the optional
 tools with `pip install -r requirements-docs.lock -c requirements.lock` and
 `python -m playwright install --only-shell chromium`.
@@ -141,7 +192,7 @@ flowchart LR
 - **Self-correct:** an unusable reply or an infeasible or unbounded model goes back to
   Claude with specific feedback, and revisions that quietly loosen the problem are flagged.
 - **Explain** only verified answers, and flag any number in the explanation that isn't a
-  solver fact or an input.
+  solver fact or an input (the demo shows it; the studies didn't evaluate it).
 
 The details, including the solver bugs these checks caught, are in
 [`docs/DESIGN.md`](docs/DESIGN.md).
@@ -165,22 +216,32 @@ anyone can rebuild without a key.
   (deviations in [`docs/followup/DEVIATIONS.md`](docs/followup/DEVIATIONS.md)).
 - [`docs/DESIGN.md`](docs/DESIGN.md): the solver checks, the agent, the NL4Opt answer key,
   and the project structure.
-- [`docs/audit/2026-11-review.md`](docs/audit/2026-11-review.md): a full audit of the project.
+- [`docs/audit/2026-11-review.md`](docs/audit/2026-11-review.md) and
+  [`docs/audit/2026-11-final-review.md`](docs/audit/2026-11-final-review.md): two audits of
+  the project, and what was fixed.
+- [`docs/HISTORY.md`](docs/HISTORY.md): how the project got here, milestone by milestone.
 - [`DATA_NOTICE.md`](DATA_NOTICE.md): the benchmarks' licenses and attribution.
 
 ## Development
 
+After [Setup](#setup):
+
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.lock && pip install --no-deps -e .
 pytest                                  # no key needed: tests use a fake Claude client
 ruff check . && ruff format --check .
 ```
 
-The agent's command line (`python -m opt_agent.agent "..."`) and the live tests need a key:
-export `ANTHROPIC_API_KEY`, or set `OPT_AGENT_LIVE=1` to use the one in `.env`. Without one
-of them, nothing can spend. The command line's paid calls stop at a dollar cap (`--cap`),
-counted across runs in `logs/spend/agent.jsonl`.
+The agent's command line (`python -m opt_agent.agent "..."`) needs a key: export
+`ANTHROPIC_API_KEY`, or set `OPT_AGENT_LIVE=1` to use the one in `.env`. Without one of them,
+nothing can spend, and its paid calls stop at a dollar cap (`--cap`), counted across runs in
+`logs/spend/agent.jsonl`. The live tests (`pytest -m live`) call the real API, so they run
+only with `OPT_AGENT_LIVE=1`, whatever `-m` says.
+
+## How this was built
+
+Built with Claude Code as the pair programmer, which is why Claude is a co-author on most
+commits and why the repository has a `CLAUDE.md` (its working instructions). I set the design
+and research decisions, reviewed the work and made the calls.
 
 ## License and sources
 

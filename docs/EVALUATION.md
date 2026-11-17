@@ -11,7 +11,10 @@ The NL4Opt test split has 274 scorable problems, and every condition used Claude
 The inputs (prompts, code, data and ground truth) were frozen before the run, and the
 analysis was pre-registered ([`docs/PREREGISTRATION.md`](PREREGISTRATION.md)). An
 answer is correct if its status and objective match the answer key (relative tolerance
-1e-6). Every number in this section comes from [`results/eval.json`](../results/eval.json),
+1e-6), or match one of the other readings the pre-registration accepts: the strict reading of
+"more than", the "=" reading of a ratio such as "twice as many", or the other optimum of a
+problem labeled `either` (integer or continuous). Every hand check below (the failure labels,
+the blind grading) was done by LLM judges, not a person. Every number in this section comes from [`results/eval.json`](../results/eval.json),
 and a test checks it.
 
 | condition | accuracy (95% Wilson) | silent / loud failures | perturbed set (n = 240) | cost | latency p50 / p95 |
@@ -87,8 +90,9 @@ outcome. It cost 7% more than single-shot across both runs (11% on the test run)
 - **"Prefers" is a systematic weakness.** Reading a stated preference as a requirement
   cost one problem in both solver conditions. The same mistake turned up in a model
   that was scored right, because there the constraint doesn't bind.
-- **Blind grading.** Blind grading agreed with the automatic score on 29 of 30 models
-  scored right and 5 of 10 scored wrong. All 5 wrong-side disagreements are the answer-key
+- **Blind grading, by an LLM judge.** The grader was Claude Opus 5.5 in a claude.ai chat,
+  not a person. It agreed with the automatic score on 29 of 30 models scored right and 5 of
+  10 scored wrong. All 5 wrong-side disagreements are the answer-key
   errors above; the 1 right-side disagreement is a correct answer from a model with a
   non-binding bug.
 

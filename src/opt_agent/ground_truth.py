@@ -318,7 +318,8 @@ def needs_review(record: Record, orlm_verdict: str | None) -> bool:
 
 def scorable(record: Record) -> bool:
     """Usable as ground truth: a trusted answer that no known annotation error changes, on a
-    problem that wasn't used while building the agent."""
+    problem that isn't excluded (exclusions.json: used while building the agent, or
+    excluded by Amendment 2's rules)."""
     return (
         answer(record) is not None
         and record.excluded is None
@@ -458,8 +459,8 @@ def _summary_section(by_split: dict[str, list[Record]]) -> list[str]:
     ]  # fmt: skip
     note = (
         "*Scorable* = converted; its answer is confirmed by HiGHS and passes the arithmetic "
-        "checks; no annotation error found by hand review changes it; and the problem wasn't "
-        "used while building the agent. *Blind-gradable* = scorable with no known annotation "
+        "checks; no annotation error found by hand review changes it; and the problem isn't "
+        "excluded (below). *Blind-gradable* = scorable with no known annotation "
         "error at all. A problem's answer is its IP or LP optimum, picked by its integrality "
         "label."
     )
@@ -477,8 +478,9 @@ def _excluded_section(by_split: dict[str, list[Record]]) -> list[str]:
         [split, f"`{r.id}`", r.excluded] for split, rs in by_split.items() for r in rs if r.excluded
     ]
     intro = (
-        "Used while building the agent, so not scored; the ground truth itself is fine "
-        "(`data/nl4opt/exclusions.json`)."
+        "Not scored (`data/nl4opt/exclusions.json`): the problems used while building the "
+        "agent, whose ground truth is fine, and the ones Amendment 2's rules exclude, whose "
+        "answer key is in doubt."
     )
     return ["## Excluded from scoring", "", intro, "", *_table(["split", "id", "reason"], rows)]
 
@@ -522,11 +524,13 @@ def _review_section(by_split: dict[str, list[Record]], verdicts: dict[str, dict]
         "",
         "Every problem with no optimum, a do-nothing optimum, an ORLM disagreement, an",
         "unlisted variable, or an overridden order_mapping is checked by hand against the text",
-        "(`data/nl4opt/reviews.json`). Claude wrote every review; the owner confirms them.",
+        "(`data/nl4opt/reviews.json`). Claude wrote every review. The owner confirmed the dev",
+        "reviews; the test reviews were checked under Amendment 2 instead, by the external",
+        "cross-check (`review/external_check.csv`) and, where it couldn't, by two LLM judges.",
         "",
         *_table(["verdict", *by_split], counts),
-        f"Confirmed by the owner: {confirmed}. Unconfirmed test reviews are in "
-        "`review/test_reviews/`.",
+        f"Confirmed by the owner: {confirmed}. The owner's packet of test reviews "
+        "(`review/test_reviews/`) is kept as sent, unused.",
         "",
         f"Flagged but not reviewed: {', '.join(missing) or 'none'}.",
         f"Reviewed but no longer flagged: {', '.join(stale) or 'none'}.",
