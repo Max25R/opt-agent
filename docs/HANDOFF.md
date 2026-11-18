@@ -24,7 +24,8 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
   - The final review's nice-to-have items are done (item 7).
   - Later on 2026-11-18 (the owner's second list): the two bugs mypy found are fixed (item 8);
     the failure-type figure's legend is below the plots; wherever the answer-key-dispute share
-    appears, it says an LLM judge flagged it, not verified by a person; and
+    appears, it leads with problems (13 of the 35 follow-up problems with a wrong answer) and
+    says an LLM judge flagged them, not verified by a person; and
     `docs/analysis/dispute_spotcheck.md` lists 10 disputed follow-up problems (seeded) for a
     person to check.
 - **M7's demo and M8 are done** (2026-11-15): the demo (`src/opt_agent/demo/`, Docker, CI),
@@ -95,8 +96,8 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
 6. **Optional, exploratory only:** the 5b check could still be run later
    (`review/followup_disputes/README.md`), at the commit its script ran at
    (`scripts/historical/README.md`); anything it found would be post hoc, never the result
-   of record. The failure-type analysis is a reason to: an LLM judge (Claude) flagged many of the
-   follow-up's wrong answers as answer-key disputes, not verified by a person, some checkable
+   of record. The failure-type analysis is a reason to: an LLM judge (Claude) flagged the key on 13
+   of the 35 follow-up problems with a wrong answer, not verified by a person, some checkable
    by arithmetic (the routing keys that are two separate round trips;
    `docs/analysis/failure_types.md`). `docs/analysis/dispute_spotcheck.md` draws 10 of the
    disputed problems (seeded) for a person to check first.

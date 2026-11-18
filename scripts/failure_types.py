@@ -301,6 +301,8 @@ def summarize(rows: list[dict], verdicts: dict) -> dict:
             "answers": len(mine), "silent": sum(not r["loud"] for r in mine),
             "loud": sum(r["loud"] for r in mine), "models": len(models),
             "problems": len({(r["run"], r["problem"]) for r in mine}),
+            "dispute_problems": len({(r["run"], r["problem"]) for r in mine
+                                     if r["primary"] == "answer-key dispute"}),  # fmt: skip
             "primary": tally(mine), "primary_models": tally(list(models.values())),
             "any_error": any_error,
             "confirmed": {t: sum(r["primary"] == t and r["confirmed"] == "yes" for r in mine)
@@ -457,11 +459,14 @@ def results_markdown(summary: dict) -> str:
               "\"Found at all\" counts answers whose model has the error as its primary or a "
               "secondary type.", ""]  # fmt: skip
     d = "answer-key dispute"
-    lines += [f"**The disputes are flags.** An LLM judge (Claude) flagged "
-              f"{pct(m6['primary'][d], m6['answers'])} of M6's wrong answers and "
-              f"{pct(fu['primary'][d], fu['answers'])} of the follow-up's as answer-key "
-              "disputes (it found no error in the model), not verified by a person: where to "
-              "look, not proof that a key is wrong. [`dispute_spotcheck.md`]"
+    lines += [f"**The disputes are flags, on a few problems.** An LLM judge (Claude) flagged "
+              f"the key on {fu['dispute_problems']} of the {fu['problems']} follow-up problems "
+              f"with a wrong answer, and on {m6['dispute_problems']} of M6's {m6['problems']} "
+              "(a run's problem; the perturbed run's are its own), not verified by a person: "
+              "where to look, not proof that a key is wrong. Each problem repeats across "
+              "conditions and samples, so the same flags make "
+              f"{pct(fu['primary'][d], fu['answers'])} of the follow-up's wrong answers and "
+              f"{pct(m6['primary'][d], m6['answers'])} of M6's. [`dispute_spotcheck.md`]"
               "(dispute_spotcheck.md) lists 10 of the follow-up's for a person to check.",
               ""]  # fmt: skip
     c = summary["checks"]

@@ -88,7 +88,7 @@ Classified by Claude (an LLM), not a person. 229 wrong answers (105 distinct mod
 
 "Found at all" counts answers whose model has the error as its primary or a secondary type.
 
-**The disputes are flags.** An LLM judge (Claude) flagged 46% of M6's wrong answers and 46% of the follow-up's as answer-key disputes (it found no error in the model), not verified by a person: where to look, not proof that a key is wrong. [`dispute_spotcheck.md`](dispute_spotcheck.md) lists 10 of the follow-up's for a person to check.
+**The disputes are flags, on a few problems.** An LLM judge (Claude) flagged the key on 13 of the 35 follow-up problems with a wrong answer, and on 8 of M6's 18 (a run's problem; the perturbed run's are its own), not verified by a person: where to look, not proof that a key is wrong. Each problem repeats across conditions and samples, so the same flags make 46% of the follow-up's wrong answers and 46% of M6's. [`dispute_spotcheck.md`](dispute_spotcheck.md) lists 10 of the follow-up's for a person to check.
 
 **Re-solving.** 41 of 58 corrected models re-solve to the key (41 on their first check); the rest stay unconfirmed (`confirmed` = no in the CSV). Answer-key disputes and loud failures have no corrected model. 76 checks were run in all. 8 corrected models restate a whole instance (over 100 KB, IndustryOR's non-commercial data), so they aren't committed (`fix_committed` = no); their verdicts are.
 
@@ -130,14 +130,15 @@ The dispute is the classifier's flag, not verified by a person.
 
 ## Reading the results
 
-- **An LLM judge (Claude) flagged nearly half of the wrong answers as answer-key disputes, not
-  verified by a person**: in each, it found no error in the model. In the follow-up it flagged
-  90 answers on 13 problems, and 43 of them come from five routing problems (`complexlp:63`,
-  `78`, `81`, `83`, `94`) whose key, by its reading, is two separate round trips, what a model
+- **An LLM judge (Claude) flagged the key on 13 of the 35 follow-up problems with a wrong
+  answer, and on 8 of M6's 18, not verified by a person**: in each, it found no error in the
+  model. Repeated across conditions and samples, those problems make 90 of the follow-up's
+  wrong answers and 16 of M6's, nearly half of each. Five of the 13 are routing problems
+  (`complexlp:63`, `78`, `81`, `83`, `94`; 43 of the 90 answers) whose key, by its reading, is two separate round trips, what a model
   without subtour elimination finds. The other flags: keys that are the
   continuous optimum of a problem in countable units (`industryor:28`, `41`), a key 1000 times
   the model's answer from another reading of the units (`industryor:27`), a text that states no
-  objective (`industryor:24`). In M6 the 16 flagged answers are 8 problem-runs: integer-sensitive
+  objective (`industryor:24`). In M6 the 8 flagged problems (16 answers): integer-sensitive
   problems the integrality rule labeled continuous (the known bug,
   `docs/amendments/DEVIATIONS.md`, section 3), annotated operators that contradict the
   wording, and one perturbed problem whose new numbers make the text's full-investment reading

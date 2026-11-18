@@ -127,6 +127,8 @@ def our_answers(problem: str, rows: list[dict], run: dict) -> str:
 
 def render() -> str:
     rows, pool = disputed_rows(), disputed()
+    with CSV.open() as f:  # every follow-up problem with a wrong answer: what was classified
+        wrong = {r["problem"] for r in csv.DictReader(f) if r["study"] == "followup"}
     if set(pool) != set(REASONS):
         raise SystemExit(
             f"a reason is needed for each disputed problem: {sorted(set(pool) ^ set(REASONS))}"
@@ -138,10 +140,12 @@ def render() -> str:
         "*Exploratory and post hoc. Written by `python scripts/dispute_spotcheck.py`; please "
         "don't edit the table by hand, except the verdict column.*",
         "",
-        f"An LLM judge (Claude) flagged {len(rows)} of the follow-up's wrong answers, on "
-        f"{len(pool)} problems, as answer-key disputes "
-        "([`failure_types.md`](failure_types.md)): it found no error in the model, so either "
-        "the key is wrong or it rests on another reading of the text. **No person has verified "
+        f"An LLM judge (Claude) flagged the key on {len(pool)} of the {len(wrong)} follow-up "
+        "problems with a wrong answer, not verified by a person "
+        f"([`failure_types.md`](failure_types.md); {len(rows)} wrong answers, since each "
+        "problem repeats across conditions and samples). In each it found no error in the "
+        "model, so either "
+        "the key is wrong or it rests on another reading of the text. **No person has checked "
         f"any of them.** Here are {SIZE} of the {len(pool)} problems, drawn at random (seed "
         f"{SEED}, from the {len(pool)} in id order; the table is in draw order), for a person "
         "to check. Nothing here changes a reported result: the raw keys are the result of "
