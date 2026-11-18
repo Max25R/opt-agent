@@ -63,6 +63,7 @@ def solver_facts(model: LPModel, solution: Solution) -> Facts:
         for c in model.constraints
         if abs(solution.slacks[c.name]) <= tolerance_for(c.terms, solution.values)
     ]
+    assert solution.objective is not None  # optimal (checked above), so it has one
     return Facts(
         objective=_clean(solution.objective),
         values={k: _clean(v) for k, v in solution.values.items()},

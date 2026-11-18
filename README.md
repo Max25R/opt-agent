@@ -1,5 +1,9 @@
 # opt-agent
 
+[![CI](https://github.com/Max25R/opt-agent/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Max25R/opt-agent/actions/workflows/ci.yml)
+[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FMax25R%2Fopt-agent%2Fmain%2Fdocs%2Fbadges%2Fcoverage.json)](https://github.com/Max25R/opt-agent/actions/workflows/ci.yml)
+[![types: mypy](https://img.shields.io/badge/types-mypy-blue)](pyproject.toml)
+
 **Plain-English operations problems in, solver-verified plans out, and an honest count of
 how often they're still wrong.** Claude writes a word problem ("how many litres of each paint
 should we make?") as a linear or integer program, a real solver (CBC) solves it, a second
@@ -240,7 +244,15 @@ After [Setup](#setup):
 ```bash
 pytest                                  # no key needed: tests use a fake Claude client
 ruff check . && ruff format --check .
+pip install -r requirements-checks.lock -c requirements.lock   # mypy and coverage
+python -m mypy                          # src/, with the settings in pyproject.toml
+python -m coverage run -m pytest && python -m coverage report
 ```
+
+mypy is the plain (not `--strict`) check; the line-by-line exceptions say why in a comment.
+The coverage badge is the whole suite's figure with all the data, as CI's reproduce job
+measures it (`scripts/coverage_badge.py`, which fails CI if the badge drifts by more than a
+point); without the data, the tests that need it skip and the figure reads lower.
 
 The agent's command line (`python -m opt_agent.agent "..."`) needs a key: export
 `ANTHROPIC_API_KEY`, or set `OPT_AGENT_LIVE=1` to use the one in `.env`. Without one of them,

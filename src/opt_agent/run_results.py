@@ -40,8 +40,9 @@ class Pair(BaseModel):
 
     @property
     def no_answer(self) -> str | None:
-        if self.state != "scored" or self.score.correct or self.score.failure != "loud":
+        if self.state != "scored" or self.score.correct or self.score.failure != "loud":  # type: ignore[union-attr]  # scored: has a score
             return None
+        assert self.item is not None  # a scored pair has an item
         return self.item.no_answer if self.item.outcome == "done" else "api error"
 
 
@@ -120,6 +121,7 @@ def final_models(run_dir: Path) -> dict[tuple[str, str, str], LPModel]:
 
 def model_of(pair: Pair, models: dict[tuple[str, str, str], LPModel]) -> LPModel:
     """The model behind a scored pair's confirmed answer (single-shot, self-correction)."""
+    assert pair.item is not None and pair.item.run_id is not None  # a scored item names its pass
     return models[(pair.problem_id, pair.condition, pair.item.run_id)]
 
 

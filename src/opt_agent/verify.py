@@ -120,6 +120,7 @@ def same_answer(model: LPModel, a: Solution, b: Solution) -> bool:
         return True
     terms = model.objective.terms
     tol = max(tolerance_for(terms, a.values), tolerance_for(terms, b.values))
+    assert a.objective is not None and b.objective is not None  # optimal: both have one
     return abs(a.objective - b.objective) <= tol
 
 

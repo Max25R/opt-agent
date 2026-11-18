@@ -17,6 +17,7 @@ sampling settings). scripts/cache_examples.py calls the same solve().
 """
 
 from pathlib import Path
+from typing import cast
 
 import anthropic
 from pydantic import BaseModel
@@ -26,6 +27,7 @@ from opt_agent.api import Cache
 from opt_agent.explain import solver_facts
 from opt_agent.formulate import DEFAULT_MODEL
 from opt_agent.runs import Run
+from opt_agent.schema import LPModel
 from opt_agent.self_correct import MAX_ATTEMPTS
 from opt_agent.solver import Solution, Status
 
@@ -111,11 +113,12 @@ def to_response(result: agent.Result, mode: str, example=None) -> SolveResponse:
     reference = example.reference_objective if example else None
     matches = None
     if reference is not None and result.verified:
+        assert s is not None and s.objective is not None  # verified: an optimum
         matches = abs(s.objective - reference) <= 1e-6 * max(1.0, abs(reference))
     e = result.explanation
     # The verified optimum as the explanation was told it (round-off dropped), and which
     # constraints bind, by the same tolerance the explanation's facts use.
-    facts = solver_facts(model, s) if result.verified else None
+    facts = solver_facts(cast(LPModel, model), cast(Solution, s)) if result.verified else None
     return SolveResponse(
         mode=mode,
         example=example.id if example else None,

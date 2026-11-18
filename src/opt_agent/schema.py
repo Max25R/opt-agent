@@ -8,7 +8,7 @@ JSON object to have fixed keys.
 
 import math
 from collections import Counter
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -140,7 +140,7 @@ def _bound_problems(model: LPModel) -> list[str]:
     return problems
 
 
-def drop_unused(data: object) -> tuple[object, list[str]]:
+def drop_unused(data: Any) -> tuple[object, list[str]]:
     """A raw reply with every variable that has no nonzero coefficient anywhere taken out,
     and the names dropped (follow-up pre-registration, 5a). Its zero-coefficient terms go
     too, or they'd name an undeclared variable. Such a variable can't change the optimum,

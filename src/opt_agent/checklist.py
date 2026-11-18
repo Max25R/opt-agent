@@ -18,6 +18,7 @@ answer, a score or a revision.
 
 import math
 from collections import Counter
+from collections.abc import Sequence
 from typing import Literal
 
 import anthropic
@@ -295,6 +296,7 @@ def _requirements(
             rows.remove(row)
     model_rows = [(x.coefs, x.sense, x.rhs) for x in _model_rows(model)]
     requirement_rows = [(_coefs(r.terms), r.sense, r.rhs) for r in usable]
+    unflagged: Counter[str]
     flags, unflagged = [], Counter()
     for r in left:
         support = _coefs(r.terms).keys()
@@ -381,7 +383,7 @@ def _model_rows(model: LPModel) -> list[_Row]:
     return rows
 
 
-def _variants(r: Requirement, model: LPModel) -> list[tuple]:
+def _variants(r: Requirement, model: LPModel) -> list[tuple | None]:
     """The canonical forms a correct row may take: as written; "=" if the wording names no
     inequality; and, over integer variables only, the strict reading of strict wording, as
     scoring accepts them (ground_truth.readings)."""
@@ -434,6 +436,7 @@ def _differences(r: Requirement, row: _Row) -> int:
     and right-hand side, each difference counted once."""
     ours = _canonical(_coefs(r.terms), r.sense, r.rhs)
     theirs = _canonical(row.coefs, row.sense, row.rhs)
+    assert ours is not None and theirs is not None  # a usable requirement, and a row on its terms
     coefficients = sum(not _close(ours[1][v], theirs[1][v]) for v in ours[1])
     return coefficients + (ours[0] != theirs[0]) + (not _close(ours[2], theirs[2]))
 
@@ -443,7 +446,7 @@ def _implied(
     sense: str,
     rhs: float,
     variables: list[Variable],
-    rows: list[tuple[dict[str, float], str, float]],
+    rows: Sequence[tuple[dict[str, float], str, float]],
 ) -> bool:
     """Do `rows` (with the variables' lower bounds) imply `coefs sense rhs`? Its left side's
     max (and/or min) over their LP relaxation decides; unbounded or unsolved means no."""
@@ -460,7 +463,7 @@ def _extreme_at_most(
     coefs: dict[str, float],
     limit: float,
     variables: list[Variable],
-    rows: list[tuple[dict[str, float], str, float]],
+    rows: Sequence[tuple[dict[str, float], str, float]],
 ) -> bool:
     """Is the max of coefs . x over {rows, lower bounds} at most `limit`? HiGHS, in-process."""
     rows = [r for r in rows if r[0]]

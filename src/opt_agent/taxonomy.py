@@ -28,6 +28,7 @@ import argparse
 import csv
 from collections import Counter
 from pathlib import Path
+from typing import cast
 
 from pydantic import BaseModel
 
@@ -42,7 +43,7 @@ from opt_agent.ground_truth import (
 from opt_agent.packets import REVIEW_DIR, graders, kept_marks, merge_reply
 from opt_agent.run_results import ScoredRun, answer_key, final_models, load, model_key, model_of
 from opt_agent.schema import LPModel
-from opt_agent.scoring import score
+from opt_agent.scoring import Score, score
 
 TAXONOMY_DIR = REVIEW_DIR / "taxonomy"
 CATEGORIES = {
@@ -86,8 +87,9 @@ def failures(run: ScoredRun) -> list[Failure]:
     models = final_models(run.directory)
     found: dict[str, Failure] = {}
     for p in run.pairs:
-        if p.state != "scored" or p.score.failure != "silent":
+        if p.state != "scored" or cast(Score, p.score).failure != "silent":
             continue
+        assert p.item is not None  # scored: it has an item
         model = None if p.condition == "baseline" else model_of(p, models)
         key = (answer_key(p.problem_id, p.item.status, p.item.objective) if model is None
                else model_key(p.problem_id, model))  # fmt: skip
@@ -124,7 +126,7 @@ def facts(failure: Failure, record: Record, rows: list[Failure]) -> list[str]:
 def _same(a: tuple[str, float | None], b: tuple[str, float | None]) -> bool:
     if a[0] != b[0]:
         return False
-    return a[0] != "optimal" or same_value(a[1], b[1])
+    return a[0] != "optimal" or same_value(cast(float, a[1]), cast(float, b[1]))
 
 
 # ---- the packet and its sheet ---------------------------------------------------------
@@ -198,6 +200,7 @@ def _row(
                          for reading, s in readings(record))  # fmt: skip
     label = record.integrality
     source = "" if neutral else f" ({label.source})"
+    assert record.lp is not None and record.ip is not None  # a scored problem: converted
     lines = [
         f"## {number}. `{f.problem_id}`: {', '.join(f.conditions)} (key `{f.key}`)",
         "",
@@ -270,7 +273,7 @@ def summary(run: ScoredRun) -> dict:
     if not path.exists():
         return {"pending": f"no packet yet: python -m opt_agent.taxonomy {run.directory}"}
     labels = read_labels(path)
-    counts = {c: Counter() for c in run.manifest.conditions}
+    counts: dict[str, Counter[str]] = {c: Counter() for c in run.manifest.conditions}
     for f in failures(run):
         for c in f.conditions:
             counts[c][labels.get(f.key, UNLABELED)] += 1

@@ -99,7 +99,7 @@ def formulate(
     request = build_request(problem, model_id, revision)
     response, info = api.call(client, request, cache)
     if response is None:
-        error = f"the API call failed: {info.error}"
+        error: str | None = f"the API call failed: {info.error}"
         return Formulation(request=request, model=None, error=error, raw_text="",
                            stop_reason=None, usage=api.usage_of(None), call=info,
                            model_id=model_id)  # fmt: skip

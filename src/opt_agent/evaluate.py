@@ -57,7 +57,7 @@ import time
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import anthropic
 from pydantic import BaseModel
@@ -151,7 +151,7 @@ class Manifest(BaseModel):
 
 def manifest_for(
     split: str,
-    records: list[Record],
+    records: list[Record | followup.Problem],
     conditions: tuple[Condition, ...],
     model_id: str,
     extras: tuple[str, ...] = (),
@@ -160,7 +160,7 @@ def manifest_for(
     """`extras`: "estimate" and/or "checklist", recorded with their request settings.
     `samples`: the repeated samples the run directory holds. Sample 0 alone isn't recorded,
     and one other sample is recorded as before, so older manifests still match."""
-    settings = {c: settings_sha256(c, model_id) for c in conditions}
+    settings: dict[str, str] = {c: settings_sha256(c, model_id) for c in conditions}
     settings |= {extra: extra_settings_sha256(extra, model_id) for extra in extras}
     if len(samples) > 1:
         settings["samples"] = ",".join(map(str, samples))
@@ -206,7 +206,7 @@ def settings_sha256(condition: Condition, model_id: str) -> str:
 
 
 def evaluate(
-    records: list[Record],
+    records: list[Record | followup.Problem],
     conditions: tuple[Condition, ...],
     client: anthropic.Anthropic,
     out: Path,
@@ -269,7 +269,7 @@ def evaluate(
 
 
 def require_whole_experiment(
-    split: str, records: list[Record], conditions: tuple[Condition, ...]
+    split: str, records: list[Record | followup.Problem], conditions: tuple[Condition, ...]
 ) -> None:
     """A test run is the pre-registered experiment: every scorable problem in the split, in
     file order, in every condition. A subset would be another experiment."""
@@ -281,7 +281,9 @@ def require_whole_experiment(
 
 
 def require_whole_followup(
-    records: list[Record], conditions: tuple[Condition, ...], samples: tuple[int, ...]
+    records: list[Record | followup.Problem],
+    conditions: tuple[Condition, ...],
+    samples: tuple[int, ...],
 ) -> None:
     """The follow-up test run is its pre-registered experiment: every scorable problem, in
     the pre-registered order, in all four conditions, with samples 0, 1 and 2."""
@@ -302,7 +304,7 @@ def followup_problems(split: str) -> list[followup.Problem]:
     return followup.load_test() if split == FOLLOWUP_TEST else followup.load(split)
 
 
-def scorable_records(split: str) -> list[Record]:
+def scorable_records(split: str) -> list[Record | followup.Problem]:
     if split in FOLLOWUP_DEV_SPLITS or split == FOLLOWUP_TEST:
         # a key that can't be parsed leaves its problem out, by format alone (section 4)
         return [p for p in followup_problems(split) if p.scorable]
@@ -316,7 +318,7 @@ def _correct(record, item: Item) -> bool:
 
 
 def run_item(
-    record: Record,
+    record: Record | followup.Problem,
     condition: Condition,
     client: anthropic.Anthropic,
     session: Run,
@@ -339,7 +341,7 @@ def run_item(
 
 
 def _baseline_item(
-    record: Record,
+    record: Record | followup.Problem,
     client: anthropic.Anthropic,
     session: Run,
     tags: Tags,
@@ -368,7 +370,7 @@ def _baseline_item(
 
 
 def _solver_item(
-    record: Record,
+    record: Record | followup.Problem,
     condition: Condition,
     client: anthropic.Anthropic,
     session: Run,
@@ -383,6 +385,7 @@ def _solver_item(
                        estimate="estimate" in extras, checklist="checklist" in extras,
                        checklist_revision=revising)  # fmt: skip
     # Every call the answer used: for checklist-revision that includes its checklist.
+    calls: list[formulate.Formulation | formulation_checklist.ChecklistReply]
     calls = list(result.formulations)
     if revising and result.checklist is not None:
         calls.append(result.checklist)
@@ -402,14 +405,15 @@ def _solver_item(
     if result.api_error is not None:
         return Item(**base, **spend, outcome="errored", reason=result.api_error)
     s = result.solution
-    status, objective = (s.status, s.objective) if result.confirmed else (None, None)
-    revision = {}
+    status, objective = (s.status, s.objective) if result.confirmed else (None, None)  # type: ignore[union-attr]  # confirmed: there's a solution
+    revision: dict[str, Any] = {}
     if revising:
         revision = {"revised": result.checklist_revision is not None,
                     "revision_kept": result.revision_kept,
                     "revision_reason": result.revision_reason}  # fmt: skip
         if revision["revised"]:  # it started from a confirmed optimum: record it
             first = result.outcome.attempts[0].solution
+            assert first is not None  # a revision starts from a confirmed optimum
             revision |= {"original_status": first.status, "original_objective": first.objective}
     return Item(**base, **spend, **_report_only(result, revising), **revision, outcome="done",
                 status=status, objective=objective, no_answer=_no_answer(result),
@@ -471,7 +475,7 @@ def done_pairs(results: Path, model_id: str) -> set[tuple[str, str, int]]:
     an earlier one (errored, then done on resume)."""
     if not results.exists():
         return set()
-    latest: dict[tuple[str, str, int], dict] = {}
+    latest: dict[tuple[str, Condition, int], dict] = {}
     for line in results.read_text().splitlines():
         entry = json.loads(line)
         if entry["kind"] == "item":
@@ -516,7 +520,7 @@ PLANNED_NAMES = ["a_long_variable_name_for_the_worst_case"] * 30
 
 
 def worst_case_plan(
-    records: list[Record],
+    records: list[Record | followup.Problem],
     conditions: tuple[Condition, ...],
     done: set,
     model_id: str,
@@ -562,7 +566,7 @@ def _extra_request(extra: str, problem: str, model_id: str) -> dict:
     return formulation_checklist.build_request(problem, PLANNED_NAMES, model_id)
 
 
-def render(items: list[Item], records: dict[str, Record], budget: Budget) -> str:
+def render(items: list[Item], records: dict[str, Record | followup.Problem], budget: Budget) -> str:
     rows = [["problem", "condition", "result", "tries", "tokens in/out", "cost", "paid",
              "low conf", "checklist"]]  # fmt: skip
     right: dict[str, int] = {}
@@ -632,6 +636,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.split in [*TEST_SPLITS, FOLLOWUP_TEST] and not args.all:
         sys.exit(f"a {args.split} run covers every scorable problem: use --all")
     followup_split = args.split in FOLLOWUP_DEV_SPLITS or args.split == FOLLOWUP_TEST
+    by_id: dict[str, Record | followup.Problem]  # follow-up problems or NL4Opt records
     if followup_split:
         try:
             by_id = {p.id: p for p in followup_problems(args.split)}
@@ -640,7 +645,7 @@ def main(argv: list[str] | None = None) -> None:
     else:
         by_id = {r.id: r for r in load_records(GROUND_TRUTH_DIR / f"{args.split}.json")}
     unknown = [i for i in args.ids if i not in by_id or not (
-        by_id[i].scorable if followup_split else is_scorable(by_id[i]))]  # fmt: skip
+        by_id[i].scorable if followup_split else is_scorable(by_id[i]))]  # type: ignore[union-attr, arg-type]  # followup_split says which kind  # fmt: skip
     if unknown:
         sys.exit(f"not scorable {args.split} problems: {', '.join(unknown)}")
     records = scorable_records(args.split) if args.all else [by_id[i] for i in args.ids]
@@ -674,7 +679,7 @@ def main(argv: list[str] | None = None) -> None:
     except MissingAPIKeyError as error:
         sys.exit(str(error))
     try:
-        evaluate(records, conditions, client, args.out, args.split, args.model, extras,
+        evaluate(records, conditions, client, args.out, args.split, args.model, extras,  # type: ignore[arg-type]  # BudgetedClient stands in for anthropic.Anthropic
                  samples)  # fmt: skip
     except RunStopped as stop:
         print(render(latest_items(args.out / "results.jsonl"), by_id, budget))

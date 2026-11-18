@@ -18,7 +18,7 @@ Every attempt is one line in the run's JSONL log (runs.py), with the full reques
 
 import hashlib
 import time
-from typing import Literal
+from typing import Literal, cast
 
 import anthropic
 from pydantic import BaseModel
@@ -158,11 +158,17 @@ def _judge(
 def _feedback(attempt: Attempt) -> str:
     f = attempt.formulation
     if f.model is None:
-        return for_invalid_reply(f.error)
+        return for_invalid_reply(cast(str, f.error))  # an unusable reply always says why
+    assert attempt.solution is not None  # a usable model is always solved (_judge)
     return for_status(f.model, attempt.solution.status)
 
 
-def _log(session: Run, tags: Tags | None, attempt: Attempt, stopped: StopReason | None) -> None:
+def _log(
+    session: Run,
+    tags: Tags | None,
+    attempt: Attempt,
+    stopped: StopReason | Literal["revised once"] | None,  # revise_once logs "revised once"
+) -> None:
     f, s, h = attempt.formulation, attempt.solution, attempt.highs_solution
     session.write(
         "attempt",

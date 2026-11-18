@@ -26,6 +26,7 @@ import csv
 import random
 from collections import Counter
 from pathlib import Path
+from typing import cast
 
 from pydantic import BaseModel
 
@@ -34,6 +35,7 @@ from opt_agent.ground_truth import blind_gradable, reference_model
 from opt_agent.packets import REVIEW_DIR, graders, kept_marks, merge_reply
 from opt_agent.run_results import ScoredRun, final_models, load, model_key, model_of
 from opt_agent.schema import LPModel
+from opt_agent.scoring import Score
 from opt_agent.stats import wilson
 
 BLIND_GRADING_DIR = REVIEW_DIR / "blind_grading"
@@ -55,13 +57,14 @@ def pool(run: ScoredRun) -> list[Formulation]:
     models = final_models(run.directory)
     found: dict[str, Formulation] = {}
     for p in run.pairs:
-        confirmed = p.state == "scored" and p.score.failure != "loud"
+        confirmed = p.state == "scored" and cast(Score, p.score).failure != "loud"
         if p.condition == "baseline" or not confirmed:
             continue
         if not blind_gradable(run.by_id[p.problem_id]):
             continue
         model = model_of(p, models)
         key = model_key(p.problem_id, model)
+        assert p.score is not None  # confirmed: scored
         found.setdefault(key, Formulation(key=key, problem_id=p.problem_id, model=model,
                                           scored_right=p.score.correct))  # fmt: skip
     return sorted(found.values(), key=lambda f: f.key)

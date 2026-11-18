@@ -26,6 +26,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from typing import cast
 
 import anthropic
 from pydantic import BaseModel
@@ -136,7 +137,7 @@ class Result(BaseModel):
     @property
     def verified(self) -> bool:
         """Confirmed, and optimal: an answer with numbers that can be explained."""
-        return self.confirmed and self.solution.status is Status.OPTIMAL
+        return self.confirmed and cast(Solution, self.solution).status is Status.OPTIMAL
 
 
 def run(
@@ -176,6 +177,7 @@ def run(
     if checklist and not checklist_revision:  # likewise after everything that decides it
         _check_formulation(problem, client, model_id, session, tags, result)
     if with_explanation and result.verified:  # never explain an answer that failed a check
+        assert model is not None and solution is not None  # verified: a model, solved
         facts = solver_facts(model, solution)
         result.explanation = explain(problem, model, facts, client, model_id, session.cache)
         _log_explanation(session, tags, result.explanation)
@@ -188,8 +190,9 @@ def _check_answer(result: Result) -> None:
     """HiGHS's second opinion and the arithmetic checks, for the final attempt's answer."""
     model, solution = result.formulation.model, result.solution
     if solution is not None:
+        model = cast(LPModel, model)  # a solution comes from a usable model
         result.highs_solution = result.outcome.final.highs_solution  # solved with both
-        result.highs_agrees = same_answer(model, solution, result.highs_solution)
+        result.highs_agrees = same_answer(model, solution, cast(Solution, result.highs_solution))
         result.check_problems = check_solution(model, solution)
 
 
@@ -204,6 +207,7 @@ def _revise_on_checklist(
         _log_revision(session, tags, result)
         return
     _check_formulation(problem, client, model_id, session, tags, result)
+    assert result.checklist is not None  # verified: there's a model, so it was asked
     if result.checklist.api_failed:
         result.revision_api_error = result.checklist.call.error
         result.revision_reason = "the checklist call failed (API error): re-run the pair"
@@ -244,6 +248,7 @@ def _why_not(trial: Result) -> str:
         return "failed (API error)"
     if f.model is None:
         return f"was unusable ({f.error})"
+    assert s is not None  # a usable model is always solved
     if s.failed or (trial.highs_solution and trial.highs_solution.failed):
         return "couldn't be solved (time-out or solver error)"
     if trial.highs_agrees is False:
@@ -264,11 +269,15 @@ def confidence(result: Result) -> tuple[bool | None, str]:
     """Does Claude's direct estimate disagree with the confirmed answer, beyond the scoring
     tolerance (ground_truth.TOLERANCE, 1e-6)? None when there's nothing to compare."""
     e, s = result.estimate, result.solution
+    assert e is not None  # run() asks for the estimate first
     if e.status is None:
         return None, f"no direct estimate to compare ({e.error})"
     if not result.confirmed:
         return None, "no confirmed answer to compare the direct estimate with"
-    return compare_estimate(e.status, e.objective, s.status, s.objective, result.formulation.model)
+    assert s is not None  # confirmed: a solution, of the final model
+    return compare_estimate(
+        e.status, e.objective, s.status, s.objective, cast(LPModel, result.formulation.model)
+    )
 
 
 def compare_estimate(
@@ -283,9 +292,12 @@ def compare_estimate(
     if estimated_status != status:
         said, solved = _said(Status(estimated_status), estimated), _said(Status(status), objective)
         return True, f"the direct estimate says {said}, the solver {solved}"
-    if status == Status.OPTIMAL and not same_value(estimated, objective, TOLERANCE):
+    # An optimal estimate and an optimal answer both have values.
+    if status == Status.OPTIMAL and not same_value(
+        cast(float, estimated), cast(float, objective), TOLERANCE
+    ):
         relaxed = _lp_relaxation(model)
-        if relaxed is not None and same_value(estimated, relaxed, TOLERANCE):
+        if relaxed is not None and same_value(cast(float, estimated), relaxed, TOLERANCE):
             # Revision 1, rule 5: the estimate ignored integrality. That's left to the
             # checklist's integrality check, so it's a note, not low confidence.
             return False, (f"the direct estimate {estimated:g} equals the model's LP "
@@ -326,7 +338,7 @@ def _check_formulation(
         return
     # The optimum, if there is a confirmed one: a difference it shows can't have changed
     # the answer is a note, not a flag (revision 1, rule 4).
-    values = result.solution.values if result.verified else None
+    values = cast(Solution, result.solution).values if result.verified else None
     found = review_checklist(model, c.checklist, values)
     result.checklist_flags, result.checklist_notes = found.flags, found.notes
 
@@ -373,9 +385,11 @@ def render(result: Result) -> str:
     lines += [f"  flagged revision: {flag}" for flag in result.outcome.flags]
     f = result.formulation
     if f.model is None:
+        assert f.error is not None  # an unusable reply always says why
         return "\n".join(lines + ["", "No usable model:", f.error])
     lines += ["", *format_model(f.model), ""]
     s = result.solution
+    assert s is not None and result.highs_solution is not None  # a usable model, solved by both
     failed = [x for x in (s, result.highs_solution) if x.failed]
     if failed:  # checked first: a time-out is no verdict, so it can't "disagree"
         lines += [f"NO ANSWER: {_failure(x)}." for x in failed]
@@ -496,7 +510,7 @@ def main(argv: list[str] | None = None) -> None:
     cache = None if args.no_cache else Cache(args.cache)
     session = Run.start(log_path=args.log, cache=cache)
     try:
-        result = run(problem, client, args.model, not args.no_explanation, args.attempts,
+        result = run(problem, client, args.model, not args.no_explanation, args.attempts,  # type: ignore[arg-type]  # BudgetedClient stands in for anthropic.Anthropic
                      session, estimate=args.estimate, checklist=args.checklist)  # fmt: skip
     except RunStopped as stop:  # the dollar cap, or the account's spend limit
         sys.exit(f"No answer: the run stopped. {stop}")

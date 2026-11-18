@@ -48,6 +48,31 @@ jobs:
         env:
           HYPOTHESIS_PROFILE: ci
 
+  types:
+    # mypy on src/ (its settings are in pyproject.toml), from the optional
+    # requirements-checks.lock: a new type error fails CI.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            requirements.lock
+            requirements-checks.lock
+
+      - name: Install
+        run: |
+          pip install -r requirements.lock
+          pip install --no-deps -e .
+          pip install -r requirements-checks.lock -c requirements.lock
+
+      - name: mypy
+        run: python -m mypy
+
   demo-image:
     # The demo's Docker image, built and started with no key (examples mode): /health, the
     # examples, and one example solved through the replay path. Then live mode without a
@@ -120,22 +145,31 @@ jobs:
       # The checks the test job has to skip: with the rest of the data (NL4Opt's raw
       # annotations, ORLM's answers and ORLMBenchmark, pinned and hash-checked by
       # opt_agent.data; never committed) and Pillow (the committed screenshot's checks), the
-      # whole suite runs here, after the rebuild, and no test may skip.
-      - name: Fetch the rest of the data, and Pillow
+      # whole suite runs here, after the rebuild, and no test may skip. It runs under
+      # coverage (requirements-checks.lock), since only here does every test run.
+      - name: Fetch the rest of the data, Pillow and coverage
         run: |
           python -m opt_agent.data
           pip install -r requirements-docs.lock -c requirements.lock
+          pip install -r requirements-checks.lock -c requirements.lock
 
-      - name: Test, with all the data
+      - name: Test, with all the data, under coverage
         env:
           HYPOTHESIS_PROFILE: ci
         run: |
           set -o pipefail
-          pytest 2>&1 | tee pytest.log
+          python -m coverage run -m pytest 2>&1 | tee pytest.log
           if grep -q "^SKIPPED" pytest.log; then
             grep "^SKIPPED" pytest.log
             echo "::error title=pytest::a test skipped with all the data present"; exit 1
           fi
+
+      # The report goes on the run's page; the README's badge must be within a point of it.
+      - name: Coverage report
+        run: |
+          python -m coverage report
+          python -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+          python scripts/coverage_badge.py --check
 
   pictures:
     # The docs' pictures, from a fresh clone with the optional requirements-docs.lock: the

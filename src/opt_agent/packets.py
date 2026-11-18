@@ -32,6 +32,7 @@ import random
 import re
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -93,6 +94,7 @@ def integrality_packet(sample: list[Record], pool_size: int) -> str:
         "",
     ]
     for number, r in enumerate(sample, 1):
+        assert r.model is not None  # drawn from scorable problems, which are converted
         names = ", ".join(f"`{v.name}`" for v in r.model.variables)
         lines += [f"## {number}. `{r.id}`", "", f"> {r.document}", "", f"Variables: {names}", ""]
     return "\n".join(lines)
@@ -103,6 +105,7 @@ def label_sheet(sample: list[Record], path: Path) -> None:
         writer = csv.writer(f)
         writer.writerow(["number", "problem_id", "variable", "label"])
         for number, r in enumerate(sample, 1):
+            assert r.model is not None  # drawn from scorable problems, which are converted
             for v in r.model.variables:
                 writer.writerow([number, r.id, v.name, ""])
 
@@ -216,6 +219,7 @@ def review_packet(rows: list[tuple[Record, str, str | None]], blind: set[str]) -
     ]
     for number, (r, level, why) in enumerate(rows, 1):
         v = r.review
+        assert v is not None  # review_order lists reviewed problems only
         lines += [f"## {number}. `{r.id}`: {v.verdict} (sureness: {level})", ""]
         if why:
             lines += [f"**Why I'm not sure:** {why}", ""]
@@ -245,6 +249,7 @@ def review_packet(rows: list[tuple[Record, str, str | None]], blind: set[str]) -
 
 
 def _answers(r: Record) -> list[str]:
+    assert r.lp is not None and r.ip is not None  # called for converted records only
     lines = [f"**LP:** {_show(r.lp)}  ", f"**IP:** {_show(r.ip)}"]
     if r.strict:
         lines[-1] += "  "
@@ -266,6 +271,7 @@ def mark_sheet(rows: list[tuple[Record, str, str | None]], path: Path) -> None:
         writer = csv.writer(f)
         writer.writerow(["number", "problem_id", "verdict", "sureness", "mark", "comment"])
         for number, (r, level, _) in enumerate(rows, 1):
+            assert r.review is not None  # review_order lists reviewed problems only
             writer.writerow([number, r.id, r.review.verdict, level, "", ""])
 
 
@@ -337,6 +343,7 @@ def says_lp_packet(records: list[Record]) -> str:
     ]
     for number, problem_id in enumerate(SAYS_LP, 1):
         r = by_id[problem_id]
+        assert r.model is not None  # scorable, so converted
         lines += [f"## {number}. `{r.id}`", "", f"> {r.document}", ""]
         lines += ["| variable | label |", "|---|---|"]
         lines += [f"| `{v.name}` | ? |" for v in r.model.variables]
@@ -402,6 +409,7 @@ def judge_prompt(problems: list[tuple[str, Record]]) -> str:
         "",
     ]
     for number, (_, r) in enumerate(problems, 1):
+        assert r.model is not None  # the blind sample and SAYS_LP: scorable, so converted
         names = ", ".join(f"`{v.name}`" for v in r.model.variables)
         lines += [f"## {number}. `{r.id}`", "", f"> {r.document}", "", f"Decisions: {names}", ""]
     return "\n".join(lines)
@@ -465,7 +473,7 @@ def apply_judged_labels(path: Path = INTEGRALITY_PATH) -> int:
 def claude_label(r: Record) -> str:
     """Claude's own label, also once a judges' label has replaced it."""
     label = r.integrality
-    return label.replaced if label.source == "judge" else label.kind
+    return label.replaced if label.source == "judge" else label.kind  # type: ignore[return-value]  # a judge label keeps what it replaced; loading never checks
 
 
 def judges_agreement(records: list[Record]) -> dict:
@@ -476,7 +484,9 @@ def judges_agreement(records: list[Record]) -> dict:
     judge, second = (read_judge_labels(JUDGE_DIR / name) for name in JUDGE_SHEETS.values())
     sample = blind_sample(records)
     n = len(sample)
-    summary = {"graders": {name: graders(JUDGE_DIR / f) for name, f in JUDGE_SHEETS.items()}}
+    summary: dict[str, dict[str, Any]] = {
+        "graders": {name: graders(JUDGE_DIR / f) for name, f in JUDGE_SHEETS.items()}
+    }
     for name, labels in (("judge", judge), ("second", second)):
         verdicts = Counter(_verdict(labels[r.id], claude_label(r)) for r in sample)
         accepts = verdicts["same"] + verdicts["either"]

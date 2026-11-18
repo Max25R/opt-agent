@@ -55,6 +55,7 @@ import re
 from collections import Counter
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
+from typing import cast
 
 from pydantic import BaseModel
 
@@ -136,7 +137,7 @@ def new_number(text: str, rng: random.Random, percent: bool = False) -> str:
     [match] = NUMBER.finditer(text)  # one number per span: true of every NL4Opt span
     written = match.group()
     old = _value(written)
-    places = max(0, -old.as_tuple().exponent)
+    places = max(0, -cast(int, old.as_tuple().exponent))  # finite, so the exponent is an int
     digits = len(old.normalize().as_tuple().digits)
     low, high = (math.log(f) for f in FACTOR)
     for _ in range(1000):  # "2" becomes "3" or "4" in about 1 draw in 3, the hardest case
@@ -241,7 +242,7 @@ def ineligible_record(original: Record) -> str | None:
         return "not scorable"
     if not blind_gradable(original):
         return "a known annotation error"
-    if answer(original).status is not Status.OPTIMAL:
+    if cast(CheckedSolve, answer(original)).status is not Status.OPTIMAL:  # scorable: has one
         return "no optimum as written"
     if does_nothing(original):
         return "does nothing as written"
@@ -257,7 +258,7 @@ def rejection(original: Record, candidate: Record) -> str | None:
         return "different judgment calls"
     if not all(trusted(s) for s in _solves(candidate)):
         return "a solve doesn't check out"
-    if answer(candidate).status is not Status.OPTIMAL:
+    if cast(CheckedSolve, answer(candidate)).status is not Status.OPTIMAL:  # all trusted: has one
         return "no optimum"
     if does_nothing(candidate):
         return "does nothing"
@@ -270,7 +271,7 @@ def rejection(original: Record, candidate: Record) -> str | None:
 
 
 def _solves(record: Record) -> list[CheckedSolve]:
-    solves = [record.lp, record.ip]
+    solves = cast(list[CheckedSolve], [record.lp, record.ip])  # converted (rejection checks)
     if record.strict is not None:
         solves.append(record.strict.ip)
     if record.equality is not None:
@@ -282,7 +283,7 @@ def _same(a: CheckedSolve, b: CheckedSolve) -> bool:
     """Would one answer be right for both? At the looser tolerance, to be safe."""
     return a.status is b.status and (
         a.status is not Status.OPTIMAL
-        or same_value(a.objective, b.objective, SENSITIVITY_TOLERANCE)
+        or same_value(cast(float, a.objective), cast(float, b.objective), SENSITIVITY_TOLERANCE)
     )
 
 

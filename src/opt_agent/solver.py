@@ -1,5 +1,7 @@
 """Build a PuLP model from an LPModel and solve it with CBC."""
 
+from typing import cast
+
 import pulp
 
 from opt_agent.rays import certified_ray, describe
@@ -70,7 +72,10 @@ def _solve_once(model: LPModel) -> Solution:
         # Never read values after a failed solve: PuLP still holds CBC's last (junk) iterate.
         return Solution(solver="cbc", status=Status.ERROR)
 
-    values = {name: var.varValue for name, var in pulp_vars.items()}
+    # PuLP leaves varValue None for a variable CBC never saw. CBC sees every one here: each has
+    # a nonzero coefficient somewhere (schema.py), and the objective isn't zeroed as in
+    # _feasibility.
+    values = cast(dict[str, float], {name: var.varValue for name, var in pulp_vars.items()})
     return Solution(
         solver="cbc",
         status=status,
@@ -157,7 +162,9 @@ def build_problem(model: LPModel) -> tuple[pulp.LpProblem, dict[str, pulp.LpVari
     # or symbols, which could make two of our names collide. We map back by position.
     pulp_vars = {
         v.name: problem.add_variable(
-            f"x{i}", *v.solver_bounds(), pulp.LpInteger if v.integer else pulp.LpContinuous
+            f"x{i}",
+            *v.solver_bounds(),
+            pulp.LpInteger if v.integer else pulp.LpContinuous,  # type: ignore[arg-type]  # PuLP types its constants as str
         )
         for i, v in enumerate(model.variables)
     }
@@ -189,6 +196,6 @@ def _duals(problem: pulp.LpProblem, model: LPModel) -> dict[str, float]:
     # Negating them for max makes every dual mean d(objective)/d(rhs) of *our* objective.
     sign = -1.0 if model.objective.sense == "max" else 1.0
     return {
-        c.name: sign * problem.get_constraint_by_name(_constraint_id(i)).pi
+        c.name: sign * problem.get_constraint_by_name(_constraint_id(i)).pi  # type: ignore[union-attr, operator]  # added under this name; CBC gives an LP's rows duals
         for i, c in enumerate(model.constraints)
     }

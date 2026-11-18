@@ -34,6 +34,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
+from typing import Any
 
 import anthropic
 from anthropic.types import Message
@@ -127,7 +128,7 @@ class CallInfo(BaseModel):
     error: str | None = None  # the API error, if every try failed
 
 
-def canonical_json(request: dict) -> str:
+def canonical_json(request: object) -> str:  # any JSON value: freeze.py hashes an int too
     return json.dumps(request, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
@@ -223,7 +224,7 @@ def wait_s(error: anthropic.APIError, number: int) -> float:
     """What the server asks for (retry-after), else exponential backoff: 0.5, 1, 2, ... s."""
     if isinstance(error, anthropic.APIStatusError):
         try:
-            return min(max(float(error.response.headers.get("retry-after")), 0.0), MAX_WAIT_S)
+            return min(max(float(error.response.headers.get("retry-after")), 0.0), MAX_WAIT_S)  # type: ignore[arg-type]  # no header: float(None) raises the TypeError caught below
         except (TypeError, ValueError):
             pass  # missing, or an HTTP date: fall back to backoff
     return min(FIRST_WAIT_S * 2 ** (number - 1), MAX_WAIT_S)
@@ -277,6 +278,7 @@ class Cache:
         return cache_key(request, self.sample)
 
     def get(self, key: str) -> tuple[Message, CallInfo] | None:
+        path: Path | None  # None: no file holds the key
         path = self._path(key)
         if not path.exists():
             path = self._indexed().get(key)
@@ -288,7 +290,7 @@ class Cache:
 
     def put(self, key: str, request: dict, response: Message, info: CallInfo) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
-        entry = {
+        entry: dict[str, Any] = {
             "request": request,
             "response": response.model_dump(mode="json"),
             "info": info.model_dump(mode="json"),

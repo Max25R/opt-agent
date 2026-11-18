@@ -36,7 +36,9 @@ Run:  python -m opt_agent.followup_report runs/NAME   # dev, or the test run onc
 import argparse
 import json
 import math
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 from scipy.stats import fisher_exact
@@ -81,6 +83,7 @@ def same_answer(a: Answer | None, b: Answer | None) -> bool:
     if a[0] != Status.OPTIMAL:
         return True
     tol = followup.TOLERANCE
+    assert a[1] is not None and b[1] is not None  # both optimal: both have objectives
     return math.isclose(a[1], b[1], rel_tol=tol, abs_tol=tol)
 
 
@@ -97,7 +100,12 @@ def majority_answer(answers: list[Answer | None]) -> Answer | None:
 
 def key_of(problem: followup.Problem) -> float | str:
     """The key as the report writes it: the objective, or the status it names."""
-    return problem.answer if problem.key_status == Status.OPTIMAL else str(problem.key_status)
+    # An optimal key has a value (Problem's validator).
+    return (
+        cast(float, problem.answer)
+        if problem.key_status == Status.OPTIMAL
+        else str(problem.key_status)
+    )
 
 
 def is_right(problem: followup.Problem, answer: Answer | None) -> bool:
@@ -115,13 +123,14 @@ def table(
     """{label: {condition: items in sample order}} for complete problems, and the labels
     of incomplete ones (a pair pending or errored). `expected`: the manifest's problems, as
     labels, so a problem with no line yet is incomplete too; without it, the items' own."""
+    by_pair: dict[tuple[str, str, int], Item]  # looked up with the strings in `conditions`
     by_pair = {(followup.label(i.split, i.problem_id), i.condition, i.sample): i for i in items}
     labels = sorted(expected) if expected is not None else sorted({key[0] for key in by_pair})
     complete, incomplete = {}, []
     for label in labels:
         row = {c: [by_pair.get((label, c, s)) for s in samples] for c in conditions}
         if all(i is not None and i.outcome == "done" for cells in row.values() for i in cells):
-            complete[label] = row
+            complete[label] = cast(dict[str, list[Item]], row)  # every cell is a done item
         else:
             incomplete.append(label)
     return complete, incomplete
@@ -285,6 +294,7 @@ def failures(grid, problems, condition: str) -> dict:
 def revisions(grid, problems) -> dict:
     """Condition 4's revisions, per sample answer: how many were made, kept and discarded,
     and how the answer moved from the single-shot answer each started from."""
+    out: dict[str, Any]
     out = {"answers": 0, "revised": 0, "kept": 0, "discarded": 0, "right_to_wrong": 0,
            "wrong_to_right": 0, "flags_by_kind": {}}  # fmt: skip
     for label, row in grid.items():
@@ -347,7 +357,7 @@ def build(
     exposed: set[str],
     corrected_keys: dict[str, float | str] | None = None,
     expected: list[str] | None = None,
-    unscorable: list[str] = (),
+    unscorable: Sequence[str] = (),
 ) -> dict:
     """The whole report. `problems`: label -> Problem (the raw key). `corrected_keys`: label
     -> the key that replaces it, for overturned keys only (5b): an objective, or

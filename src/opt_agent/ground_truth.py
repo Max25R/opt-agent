@@ -20,8 +20,9 @@ from those files, so every number in it comes from the code, not from typing.
 import json
 import math
 import re
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import BaseModel
 
@@ -192,7 +193,8 @@ def reference_model(record: Record) -> LPModel:
     """The annotated model as its answer reads it: every variable integer if the label
     says so (or says `either`, whose answer is the integer one). The stored model is
     all-continuous, since both optima are solved from it."""
-    return as_integer(record.model) if label_kinds(record)[0] == "ip" else record.model
+    model = cast(LPModel, record.model)  # callers pass converted records, which have one
+    return as_integer(model) if label_kinds(record)[0] == "ip" else model
 
 
 def label_kinds(record: Record) -> list[str]:
@@ -264,8 +266,10 @@ def matching_reading(
     """Which reading an agent's answer matches, "annotated" first; None if none does. A
     score records this, so the report can say how many correct answers needed another."""
     for reading, truth in readings(record, lenient):
+        # An optimal answer always has an objective: the casts say so to mypy.
         if status is truth.status and (
-            status is not Status.OPTIMAL or same_value(objective, truth.objective, tolerance)
+            status is not Status.OPTIMAL
+            or same_value(cast(float, objective), cast(float, truth.objective), tolerance)
         ):
             return reading
     return None
@@ -284,14 +288,17 @@ def needs_hand_label(record: Record) -> bool:
 def integrality_matters(record: Record) -> bool:
     """Does requiring whole numbers change the answer?"""
     lp, ip = record.lp, record.ip
+    assert lp is not None and ip is not None  # a converted record is solved both ways
     if lp.status != ip.status:
         return True
     if lp.status is not Status.OPTIMAL:
         return False
+    assert lp.objective is not None and ip.objective is not None  # both optimal
     return not same_value(lp.objective, ip.objective)
 
 
 def lacks_optimum(record: Record) -> bool:
+    assert record.lp is not None and record.ip is not None  # converted: solved both ways
     return Status.OPTIMAL not in (record.lp.status, record.ip.status) or (
         record.lp.status != record.ip.status
     )
@@ -306,6 +313,7 @@ def says_lp(record: Record) -> bool:
 
 def does_nothing(record: Record) -> bool:
     """The optimum is to make nothing at all: a sign of a degenerate problem text."""
+    assert record.lp is not None  # converted records only: solved
     return record.lp.status is Status.OPTIMAL and all(x == 0 for x in record.lp.values.values())
 
 
@@ -323,7 +331,8 @@ def scorable(record: Record) -> bool:
     return (
         answer(record) is not None
         and record.excluded is None
-        and not (_annotation_error(record) and record.review.answer_affected)
+        # an annotation error is a review's verdict, so there is a review
+        and not (_annotation_error(record) and cast(Review, record.review).answer_affected)
     )
 
 
@@ -343,6 +352,7 @@ def orlm_verdicts(records: list[Record], answers: dict[str, str]) -> dict[str, o
     for r in records:
         answer = answers.get(orlm.normalize(r.document))
         if answer is not None and r.error is None:
+            assert r.lp is not None and r.ip is not None  # converted: solved both ways
             verdicts[r.id] = orlm.verdict(answer, r.lp.objective, r.ip.objective)
     return verdicts
 
@@ -369,7 +379,7 @@ def load_records(path: Path) -> list[Record]:
     return [Record.model_validate(row) for row in json.loads(path.read_text())]
 
 
-def write_records(records: list[Record], path: Path) -> None:
+def write_records(records: Sequence[Record], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     rows = [r.model_dump(mode="json", exclude_none=True) for r in records]
     path.write_text(json.dumps(rows, indent=1) + "\n")
@@ -438,16 +448,17 @@ def _summary_section(by_split: dict[str, list[Record]]) -> list[str]:
     rows = []
     for split, records in by_split.items():
         ok = _converted(records)
-        solves = [s for r in ok for s in (r.lp, r.ip)]
+        # Converted records are solved both ways: the casts say so to mypy.
+        solves = cast(list[CheckedSolve], [s for r in ok for s in (r.lp, r.ip)])
         rows.append([
             split,
             len(records),
             len(ok),
             sum(scorable(r) for r in records),
             sum(blind_gradable(r) for r in records),
-            sum(r.lp.status is Status.OPTIMAL for r in ok),
-            sum(r.ip.status is Status.OPTIMAL for r in ok),
-            sum(answer(r).status is Status.OPTIMAL for r in ok if scorable(r)),
+            sum(cast(CheckedSolve, r.lp).status is Status.OPTIMAL for r in ok),
+            sum(cast(CheckedSolve, r.ip).status is Status.OPTIMAL for r in ok),
+            sum(cast(CheckedSolve, answer(r)).status is Status.OPTIMAL for r in ok if scorable(r)),
             sum(integrality_matters(r) for r in ok),
             sum(not s.highs_agrees for s in solves),
             sum(bool(s.check_problems) for s in solves),
@@ -487,16 +498,16 @@ def _excluded_section(by_split: dict[str, list[Record]]) -> list[str]:
 
 def _review_section(by_split: dict[str, list[Record]], verdicts: dict[str, dict]) -> list[str]:
     reviewed = [(split, r) for split, rs in by_split.items() for r in rs if r.review]
-    kinds = list(Review.model_fields["verdict"].annotation.__args__)
-    counts = [[k, *(sum(r.review.verdict == k for s, r in reviewed if s == sp) for sp in by_split)]
+    kinds = list(Review.model_fields["verdict"].annotation.__args__)  # type: ignore[union-attr]  # read at run time: the Literal's values
+    counts = [[k, *(sum(r.review.verdict == k for s, r in reviewed if s == sp) for sp in by_split)]  # type: ignore[union-attr]  # reviewed: has a review
               for k in kinds]  # fmt: skip
     rows = [
         [
             s,
             f"`{r.id}`",
-            r.review.verdict,
-            "yes" if r.review.confirmed_by_owner else "",
-            r.review.reason,
+            r.review.verdict,  # type: ignore[union-attr]  # reviewed: has a review
+            "yes" if r.review.confirmed_by_owner else "",  # type: ignore[union-attr]  # likewise
+            r.review.reason,  # type: ignore[union-attr]  # likewise
         ]
         for s, r in reviewed
     ]
@@ -512,10 +523,10 @@ def _review_section(by_split: dict[str, list[Record]], verdicts: dict[str, dict]
     stale = [
         f"`{r.id}` ({split})"
         for split, r in reviewed
-        if r.review.verdict in flag_verdicts and not needs_review(r, verdicts[split].get(r.id))
+        if r.review.verdict in flag_verdicts and not needs_review(r, verdicts[split].get(r.id))  # type: ignore[union-attr]  # reviewed: has a review
     ]
     confirmed = ", ".join(
-        f"{split} {sum(r.review.confirmed_by_owner for s, r in reviewed if s == split)} of "
+        f"{split} {sum(r.review.confirmed_by_owner for s, r in reviewed if s == split)} of "  # type: ignore[union-attr]  # reviewed: has a review
         f"{sum(s == split for s, _ in reviewed)}"
         for split in by_split
     )
@@ -598,12 +609,14 @@ def _strict_section(by_split: dict[str, list[Record]]) -> list[str]:
     show = _show_answer
     with_strict = [(split, r) for split, rs in by_split.items() for r in rs if r.strict]
     rows = [
-        [split, f"`{r.id}`", show(r.ip), show(r.strict.ip), "; ".join(r.strict.changed)]
+        [split, f"`{r.id}`", show(r.ip), show(r.strict.ip), "; ".join(r.strict.changed)]  # type: ignore[arg-type, union-attr]  # with_strict: converted, with a reading
         for split, r in with_strict
     ]
     changes = {
         split: sum(
-            show(r.ip) != show(r.strict.ip) for s, r in with_strict if s == split and scorable(r)
+            show(r.ip) != show(r.strict.ip)  # type: ignore[arg-type, union-attr]  # likewise
+            for s, r in with_strict
+            if s == split and scorable(r)
         )
         for split in by_split
     }
@@ -628,6 +641,7 @@ def _equality_section(by_split: dict[str, list[Record]]) -> list[str]:
     with_equality = [(split, r) for split, rs in by_split.items() for r in rs if r.equality]
     rows = []
     for split, r in with_equality:
+        assert r.equality is not None  # with_equality: it has one
         kind = label_kinds(r)[0]
         annotated, equal = getattr(r, kind), getattr(r.equality, kind)
         sources = [("wording", r.ratio_wording), ("review", r.review and r.review.equality)]
@@ -667,7 +681,7 @@ def _does_nothing_section(by_split: dict[str, list[Record]]) -> list[str]:
 def _orlm_section(test: list[Record], answers: dict[str, str], verdicts: dict) -> list[str]:
     ours = {orlm.normalize(r.document): r for r in test}
     matched = [ours[text] for text in answers if text in ours]
-    counts = [[v, sum(x == v for x in verdicts.values())] for v in orlm.Verdict.__args__]
+    counts = [[v, sum(x == v for x in verdicts.values())] for v in orlm.Verdict.__args__]  # type: ignore[attr-defined]  # read at run time: the Literal's values
     return [
         "## Cross-check against ORLM (test split)",
         "",

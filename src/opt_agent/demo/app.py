@@ -124,7 +124,7 @@ def create_app(settings: Settings | None = None, client=None) -> FastAPI:
 
 def _replay(problem: str, example: examples.Example, settings: Settings):
     try:
-        result = pipeline.solve(problem, ReplayOnlyClient(), Cache(settings.replies))
+        result = pipeline.solve(problem, ReplayOnlyClient(), Cache(settings.replies))  # type: ignore[arg-type]  # it stands in for anthropic.Anthropic
     except NotCached:
         raise HTTPException(503, f"the replies for example '{example.id}' aren't cached yet "
                             "(scripts/cache_examples.py)") from None  # fmt: skip

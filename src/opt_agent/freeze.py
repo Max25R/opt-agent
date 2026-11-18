@@ -180,13 +180,13 @@ def tag_problems(tag: str = FREEZE_TAG) -> list[str]:
     return approval_at_tag(tag, "docs/FREEZE.json", FREEZE_PATH)[1]
 
 
-def approval_at_tag(
+def approval_at_tag[A: Approval](
     tag: str,
     freeze_file: str,
     working_copy: Path,
-    kind: type[Approval] = Approval,
+    kind: type[A] = Approval,  # type: ignore[assignment]  # mypy can't check a type variable's default
     untracked: tuple[str, ...] = (),
-) -> tuple[Approval | None, list[str]]:
+) -> tuple[A | None, list[str]]:
     """A study's approval as committed at `tag`, and how the tag differs from it (empty if
     it doesn't). Both studies use it (followup_freeze.tag_problems too). Everything is read
     from git's objects, not the working tree, so it holds however far HEAD has moved:

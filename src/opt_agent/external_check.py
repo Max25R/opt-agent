@@ -51,7 +51,7 @@ import difflib
 import json
 import math
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import BaseModel
 
@@ -148,7 +148,10 @@ def _same(solve: CheckedSolve, value: float | None) -> bool:
     if value is None:
         return solve.status is not Status.OPTIMAL
     return solve.status is Status.OPTIMAL and math.isclose(
-        value, solve.objective, rel_tol=orlm.MATCH_TOLERANCE, abs_tol=orlm.MATCH_TOLERANCE
+        value,
+        cast(float, solve.objective),  # optimal, so it has one
+        rel_tol=orlm.MATCH_TOLERANCE,
+        abs_tol=orlm.MATCH_TOLERANCE,
     )
 
 
@@ -159,7 +162,7 @@ def to_decide(records: list[Record], matches: list[Match]) -> dict[str, list[str
     """Why -> the problems the owner decides for that reason (Amendment 2), in file order.
     An edited text is listed as such, whatever its verdict."""
     matched = {m.problem_id: m for m in matches}
-    found = {why: [] for why in DECISIONS}
+    found: dict[str, list[str]] = {why: [] for why in DECISIONS}
     for r in records:
         m = matched.get(r.id)
         if m is None:
@@ -235,6 +238,7 @@ def _not_scorable(records: list[Record], matched: dict[str, Match]) -> list[str]
     for r in rows:
         answer = matched[r.id].answer
         same = any(s is not None and _same(s, _value(answer)) for s in (r.lp, r.ip))
+        assert r.review is not None  # rows are reviewed problems
         review = r.review.verdict + (" (excluded)" if r.excluded else "")
         lines.append(f"| `{r.id}` | {review} | {_show(r.lp)} / {_show(r.ip)} | "
                      f"{answer} | {_sameness(r, same)} |")  # fmt: skip
@@ -269,6 +273,7 @@ def _sameness(r: Record, same: bool) -> str:
     """The benchmark having an annotated answer questions only an annotation-error review."""
     if not same:
         return "differs"
+    assert r.review is not None  # _not_scorable's rows are reviewed problems
     return (
         "**the same** (questions the review)"
         if r.review.verdict == "annotation-error"
@@ -282,6 +287,7 @@ def _uncovered(ids: list[str], by_id: dict[str, Record]) -> list[str]:
     lines += ["| id | review | scorable |", "|---|---|---|"]
     for i in ids:
         r = by_id[i]
+        assert r.review is not None  # UNCOVERED lists reviewed problems
         lines.append(f"| `{i}` | {r.review.verdict} | {'yes' if scorable(r) else 'no'} |")
     return [*lines, ""]
 
@@ -404,6 +410,7 @@ def review_prompt(records: list[Record]) -> str:
 def _shown_reason(r: Record) -> str:
     """The review's reason, less any REDACTED words. A redaction that no longer matches is an
     error, so a changed review can't slip an answer key's verdict back in."""
+    assert r.review is not None  # called for reviewed problems only
     cut = REDACTED.get(r.id)
     if cut is None:
         return r.review.reason

@@ -25,6 +25,7 @@ import json
 import math
 import re
 from pathlib import Path
+from typing import cast
 
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
@@ -206,7 +207,8 @@ def written_decimals(raw: object) -> int | None:
     number ("4.53" -> 2); None otherwise. A whole-number key ("14", "14.0") gets None, so it
     stays at 1e-4 and a missed integrality constraint still fails."""
     status, value = parse_key(raw)
-    if status != Status.OPTIMAL or value == round(value) or isinstance(raw, bool):
+    # parse_key gives every optimal key a value
+    if status != Status.OPTIMAL or value == round(cast(float, value)) or isinstance(raw, bool):
         return None
     found = _KEY_NUMBER.fullmatch(str(raw).strip())
     if found is None or found["exponent"] or "." not in found["number"]:
@@ -234,6 +236,7 @@ def right_by(problem: Problem, status: str | None, objective: float | None) -> s
         return "tolerance" if status == problem.key_status else None
     if status != Status.OPTIMAL:
         return None
+    assert objective is not None and problem.answer is not None  # both optimal: both have one
     if math.isclose(objective, problem.answer, rel_tol=TOLERANCE, abs_tol=TOLERANCE):
         return "tolerance"
     if problem.key_decimals is not None and rounds_to(objective, problem.answer,

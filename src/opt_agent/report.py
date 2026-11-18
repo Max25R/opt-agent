@@ -34,17 +34,20 @@ import argparse
 import hashlib
 import json
 from collections import Counter
+from collections.abc import Sequence, Set
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 
 from opt_agent import blind_grading, freeze, packets, run_results, taxonomy
-from opt_agent.evaluate import CONDITIONS, Manifest
+from opt_agent.evaluate import CONDITIONS, Item, Manifest
 from opt_agent.ground_truth import (
     GROUND_TRUTH_DIR,
     REVIEWS_PATH,
     SENSITIVITY_TOLERANCE,
     TOLERANCE,
+    CheckedSolve,
     Record,
     answer,
     integrality_matters,
@@ -126,7 +129,8 @@ def subsets(records: list[Record]) -> dict[str, list[str]]:
     def verdict(r: Record, v: str) -> bool:
         return r.review is not None and r.review.verdict == v
 
-    optimal = {r.id for r in records if answer(r).status is Status.OPTIMAL}
+    # A run's problems are scorable, so each has an answer.
+    optimal = {r.id for r in records if cast(CheckedSolve, answer(r)).status is Status.OPTIMAL}
     return {
         "all": [r.id for r in records],
         "has an optimum": [r.id for r in records if r.id in optimal],
@@ -144,32 +148,35 @@ def condition_summary(
     pairs: list[Pair],
     by_id: dict[str, Record],
     groups: dict[str, list[str]],
-    disputed: set[str] = frozenset(),
+    disputed: Set[str] = frozenset(),
 ) -> dict:
     """`disputed`: problems whose review the judges disputed (Amendment 2, part 6). They're
     scored as usual, and the accuracy without them is given as well."""
+    # A scored pair has an item and a score (run_results.load_pairs); the casts say so.
     scored = {p.problem_id: p for p in pairs if p.state == "scored"}
-    done = [p for p in scored.values() if p.item.outcome == "done"]
+    done = [p for p in scored.values() if cast(Item, p.item).outcome == "done"]
 
     def accuracy(ids: list[str], lenient: bool = False) -> dict:
         mine = [scored[i] for i in ids if i in scored]
         if lenient:
             right = sum(_rescore(p, by_id, lenient=True).correct for p in mine)
         else:
-            right = sum(p.score.correct for p in mine)
+            right = sum(cast(Score, p.score).correct for p in mine)
         return rate(right, len(mine))
 
-    sensitivity = Counter()
+    sensitivity: Counter[str] = Counter()
     for p in done:
         loose = _rescore(p, by_id, tolerance=SENSITIVITY_TOLERANCE).correct
-        if loose != p.score.correct:
+        if loose != cast(Score, p.score).correct:
             sensitivity["wrong to right" if loose else "right to wrong"] += 1
 
     claimed = [p for p in done if p.problem_id in groups["is a status"]
-               and p.item.status == Status.OPTIMAL]  # fmt: skip
-    wrong = [p for p in scored.values() if not p.score.correct]
-    rerun = [p for p in scored.values() if p.item.outcome == "done" and p.errored_passes]
-    latency = [p.item.latency_s for p in done]
+               and cast(Item, p.item).status == Status.OPTIMAL]  # fmt: skip
+    wrong = [p for p in scored.values() if not cast(Score, p.score).correct]
+    rerun = [
+        p for p in scored.values() if cast(Item, p.item).outcome == "done" and p.errored_passes
+    ]
+    latency = [cast(Item, p.item).latency_s for p in done]
     return {
         "accuracy": {name: accuracy(ids) for name, ids in groups.items()},
         "lenient accuracy": {name: accuracy(ids, lenient=True) for name, ids in groups.items()},
@@ -177,25 +184,29 @@ def condition_summary(
             name: accuracy([i for i in ids if i not in disputed]) for name, ids in groups.items()
         },
         "correct by reading": dict(
-            Counter(p.score.reading for p in scored.values() if p.score.correct)
+            Counter(p.score.reading for p in scored.values() if p.score.correct)  # type: ignore[union-attr]  # scored: has a score
         ),  # fmt: skip
         "flips at 1e-4": {
             "wrong to right": sensitivity["wrong to right"],
             "right to wrong": sensitivity["right to wrong"],
         },  # fmt: skip
         "says LP: answered with the LP optimum": sum(
-            p.item.status == Status.OPTIMAL
-            and same_value(p.item.objective, by_id[p.problem_id].lp.objective)
+            p.item.status == Status.OPTIMAL  # type: ignore[union-attr]  # done: has an item
+            and same_value(p.item.objective, by_id[p.problem_id].lp.objective)  # type: ignore[union-attr, arg-type]  # a converted record; both optimal: both have one
             for p in done
             if p.problem_id in groups["says LP, labeled integer"]
         ),
         "is a status: claimed an optimum": {
             "problems": len(claimed),
-            "with revision flags": sum(bool(p.item.flags) for p in claimed),
+            "with revision flags": sum(bool(cast(Item, p.item).flags) for p in claimed),
         },
         "failures": {
-            "silent": sorted(p.problem_id for p in wrong if p.score.failure == "silent"),
-            "loud": dict(Counter(p.no_answer for p in wrong if p.score.failure == "loud")),
+            "silent": sorted(
+                p.problem_id for p in wrong if cast(Score, p.score).failure == "silent"
+            ),
+            "loud": dict(
+                Counter(p.no_answer for p in wrong if cast(Score, p.score).failure == "loud")
+            ),
             "api errors after every pass": sorted(
                 p.problem_id for p in wrong if p.no_answer == "api error"
             ),
@@ -208,16 +219,17 @@ def condition_summary(
         "retry_s": sum(p.retry_s for p in pairs),
         "wall_s": sum(p.wall_s for p in pairs),
         "tokens": {
-            "input": sum(p.item.input_tokens for p in scored.values()),
-            "output": sum(p.item.output_tokens for p in scored.values()),
+            "input": sum(cast(Item, p.item).input_tokens for p in scored.values()),
+            "output": sum(cast(Item, p.item).output_tokens for p in scored.values()),
         },  # fmt: skip
-        "cost_usd": sum(p.item.cost_usd for p in scored.values()),
+        "cost_usd": sum(cast(Item, p.item).cost_usd for p in scored.values()),
     }
 
 
 def _rescore(pair: Pair, by_id: dict[str, Record], **how) -> Score:
+    assert pair.item is not None  # only scored pairs are rescored: an item and a score
     if pair.item.outcome != "done":
-        return pair.score  # an API error is wrong under any tolerance
+        return cast(Score, pair.score)  # an API error is wrong under any tolerance
     return score(by_id[pair.problem_id], pair.item.status, pair.item.objective, **how)
 
 
@@ -237,7 +249,7 @@ def percentiles(values: list[float]) -> dict:
 def comparisons(
     pairs: list[Pair],
     groups: dict[str, list[str]],
-    conditions: list[str],
+    conditions: Sequence[str],
     by_id: dict[str, Record] | None = None,
     lenient: bool = False,
 ) -> list[dict]:
@@ -245,9 +257,9 @@ def comparisons(
     answer, using only the problems both have scored. Holm's correction over all of them.
     With `lenient` (and `by_id`), the same tests on the lenient scores: exploratory and
     outside the Holm family (Amendment 2), so they carry no Holm p and no verdict."""
-    right = {(p.problem_id, p.condition): _rescore(p, by_id, lenient=True).correct if lenient
-             else p.score.correct for p in pairs if p.state == "scored"}  # fmt: skip
-    rows = []
+    right = {(p.problem_id, p.condition): _rescore(p, by_id, lenient=True).correct if lenient  # type: ignore[arg-type]  # lenient comes with by_id
+             else p.score.correct for p in pairs if p.state == "scored"}  # type: ignore[union-attr]  # scored: has a score  # fmt: skip
+    rows: list[dict[str, Any]] = []
     for a, b in COMPARISONS:
         if a not in conditions or b not in conditions:
             continue
@@ -280,9 +292,10 @@ def perturbed_summary(pairs: list[Pair], manifest: Manifest, original_run: Path 
     condition's answers moved between the two. Counts and intervals, no tests (section 4)."""
     split = PERTURBED_SPLITS[manifest.split]
     originals = {r.id: r for r in load_records(GROUND_TRUTH_DIR / f"{split}.json")}
-    done = [p for p in pairs if p.state == "scored" and p.item.outcome == "done"]
+    done = [p for p in pairs if p.state == "scored" and cast(Item, p.item).outcome == "done"]
 
     def original_answer(p: Pair) -> bool:
+        assert p.item is not None  # a done pair has an item
         return score(originals[p.problem_id], p.item.status, p.item.objective,
                      lenient=True).correct  # fmt: skip
 
@@ -314,9 +327,9 @@ def against_original(
     if theirs.split != split or not same:
         raise ValueError(f"{original_run} isn't a run of the same model and prompts on {split}")
     results = original_run / "results.jsonl"
-    before = {(p.problem_id, p.condition): p.score.correct
+    before = {(p.problem_id, p.condition): p.score.correct  # type: ignore[union-attr]  # scored: has a score
               for p in load_pairs(theirs, results, originals) if p.state == "scored"}  # fmt: skip
-    after = {(p.problem_id, p.condition): p.score.correct for p in pairs if p.state == "scored"}
+    after = {(p.problem_id, p.condition): p.score.correct for p in pairs if p.state == "scored"}  # type: ignore[union-attr]  # scored: has a score
     rows = {}
     for c in shared:
         both = [i for i in manifest.problem_ids if (i, c) in before and (i, c) in after]
