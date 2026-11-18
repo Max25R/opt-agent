@@ -82,10 +82,11 @@ def section(result: dict) -> str:
              f"of {p['correct']}), so as a warning it would mostly cry wolf: a right model "
              "needn't carry every number of the text as written (why each flagged right answer "
              "lacks its numbers wasn't checked). Nothing was tuned after the run.", "",
-             "**Post hoc** (after the run, joining [`failure_types.csv`](failure_types.csv); "
-             "not part of the declared report). " + " ".join(by_failure_type(result))
-             + " It can't see an integrality error by design (no number is missing), and an "
-             "answer-key dispute isn't a model error at all.", "", END]  # fmt: skip
+             "**Post hoc** (after the run, joining [`failure_types.csv`](failure_types.csv), "
+             "whose types are Claude's labels, not verified by a person; not part of the "
+             "declared report). " + " ".join(by_failure_type(result))
+             + " It can't see an integrality error by design (no number is missing), and in an "
+             "answer-key dispute Claude found no model error to see.", "", END]  # fmt: skip
     return "\n".join(lines)
 
 

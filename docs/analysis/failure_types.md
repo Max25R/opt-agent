@@ -88,6 +88,8 @@ Classified by Claude (an LLM), not a person. 229 wrong answers (105 distinct mod
 
 "Found at all" counts answers whose model has the error as its primary or a secondary type.
 
+**The disputes are flags.** An LLM judge (Claude) flagged 46% of M6's wrong answers and 46% of the follow-up's as answer-key disputes (it found no error in the model), not verified by a person: where to look, not proof that a key is wrong. [`dispute_spotcheck.md`](dispute_spotcheck.md) lists 10 of the follow-up's for a person to check.
+
 **Re-solving.** 41 of 58 corrected models re-solve to the key (41 on their first check); the rest stay unconfirmed (`confirmed` = no in the CSV). Answer-key disputes and loud failures have no corrected model. 76 checks were run in all. 8 corrected models restate a whole instance (over 100 KB, IndustryOR's non-commercial data), so they aren't committed (`fix_committed` = no); their verdicts are.
 
 **By condition** (wrong answers by primary type):
@@ -113,6 +115,7 @@ Classified by Claude (an LLM), not a person. 229 wrong answers (105 distinct mod
 ## One example per type
 
 Each is one distinct model, by problem ID, in the classifier's words (no problem text is quoted).
+The dispute is the classifier's flag, not verified by a person.
 
 | Type | Example | Re-solved to the key |
 |---|---|---|
@@ -127,22 +130,25 @@ Each is one distinct model, by problem ID, in the classifier's words (no problem
 
 ## Reading the results
 
-- **Nearly half of the wrong answers are answer-key disputes**: in each, the classifier found no
-  error in the model. In the follow-up they're 90 answers on 13 problems, and 43 of them come
-  from five routing problems (`complexlp:63`, `78`, `81`, `83`, `94`) whose key is two separate
-  round trips, what a model without subtour elimination finds. Others: keys that are the
+- **An LLM judge (Claude) flagged nearly half of the wrong answers as answer-key disputes, not
+  verified by a person**: in each, it found no error in the model. In the follow-up it flagged
+  90 answers on 13 problems, and 43 of them come from five routing problems (`complexlp:63`,
+  `78`, `81`, `83`, `94`) whose key, by its reading, is two separate round trips, what a model
+  without subtour elimination finds. The other flags: keys that are the
   continuous optimum of a problem in countable units (`industryor:28`, `41`), a key 1000 times
   the model's answer from another reading of the units (`industryor:27`), a text that states no
-  objective (`industryor:24`). In M6 the 16 answers are 8 problem-runs: integer-sensitive
+  objective (`industryor:24`). In M6 the 16 flagged answers are 8 problem-runs: integer-sensitive
   problems the integrality rule labeled continuous (the known bug,
   `docs/amendments/DEVIATIONS.md`, section 3), annotated operators that contradict the
   wording, and one perturbed problem whose new numbers make the text's full-investment reading
   infeasible.
-- **These are an LLM's readings, not verified keys.** The follow-up's pre-registered key-dispute
+- **These are an LLM's flags, not verified keys.** The follow-up's pre-registered key-dispute
   check (5b) wasn't performed (`docs/followup/DEVIATIONS.md`, deviation 2), so the raw keys stay
   the result of record, and nothing here changes a reported accuracy. Where a dispute's
   arithmetic is plain (the routing keys, where the one-tour optimum and the two round trips can
-  be added up by hand), it was checked that way; the rest rest on the classifier's reading.
+  be added up by hand), Claude checked it that way; the rest rest on its reading alone. No
+  person has checked any of them: [`dispute_spotcheck.md`](dispute_spotcheck.md) draws 10 of
+  the follow-up's disputed problems, with a fixed seed, for a person to check.
 - **Of the model errors, integrality is the most common** (mostly diet problems solved with
   fractional servings), then wrong objective (in the follow-up, mostly max-flow objectives that
   count flow leaving the source, including flow that comes back) and missing constraint.

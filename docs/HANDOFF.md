@@ -22,6 +22,11 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
     explanation; `docs/adr/` holds retrospective decision records.
   - The owner's interview notes are in `private/` (git-ignored, never committed).
   - The final review's nice-to-have items are done (item 7).
+  - Later on 2026-11-18 (the owner's second list): the two bugs mypy found are fixed (item 8);
+    the failure-type figure's legend is below the plots; wherever the answer-key-dispute share
+    appears, it says an LLM judge flagged it, not verified by a person; and
+    `docs/analysis/dispute_spotcheck.md` lists 10 disputed follow-up problems (seeded) for a
+    person to check.
 - **M7's demo and M8 are done** (2026-11-15): the demo (`src/opt_agent/demo/`, Docker, CI),
   `scripts/reproduce.py` (every number replayed and rebuilt from the tags, in CI), the
   rewritten README, and the IE 2310 kit (`docs/ie2310/`). The decisions are at the end of
@@ -90,10 +95,11 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
 6. **Optional, exploratory only:** the 5b check could still be run later
    (`review/followup_disputes/README.md`), at the commit its script ran at
    (`scripts/historical/README.md`); anything it found would be post hoc, never the result
-   of record. The failure-type analysis is a reason to: Claude labeled many of the follow-up's
-   wrong answers answer-key disputes, some checkable by arithmetic (the routing keys that are
-   two separate round trips; `docs/analysis/failure_types.md`), and no person has checked
-   those labels.
+   of record. The failure-type analysis is a reason to: an LLM judge (Claude) flagged many of the
+   follow-up's wrong answers as answer-key disputes, not verified by a person, some checkable
+   by arithmetic (the routing keys that are two separate round trips;
+   `docs/analysis/failure_types.md`). `docs/analysis/dispute_spotcheck.md` draws 10 of the
+   disputed problems (seeded) for a person to check first.
 7. **The final review** (2026-11-15): `docs/audit/2026-11-final-review.md`. Its mechanical
    fixes, its must-fix items (M1-M5) and its should-fix items (S1-S11) are done, on the
    owner's go-ahead (2026-11-16), except what only the owner can do (item 2) and what would

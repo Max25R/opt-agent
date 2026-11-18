@@ -394,9 +394,14 @@ def figure(summary: dict) -> None:
         "axes.spines.top": False, "axes.spines.right": False, "axes.spines.left": False,
         "svg.hashsalt": "failure-types", "path.simplify": False,
     })  # fmt: skip
-    fig, axes = plt.subplots(1, 2, figsize=(11, 2.0 + 0.42 * len(TYPES)), sharey=True)
-    title = "Why the wrong answers were wrong (primary type; classified by Claude, an LLM)"
-    fig.suptitle(title, x=0.01, y=0.985, ha="left", fontsize=12, fontweight="bold")
+    # Constrained layout makes room for the title, both panels' subtitles and the legend
+    # whatever the fonts measure, so nothing overlaps on another machine either.
+    fig, axes = plt.subplots(1, 2, figsize=(11, 2.4 + 0.42 * len(TYPES)), sharey=True,
+                             layout="constrained")  # fmt: skip
+    fig.get_layout_engine().set(w_pad=0.15, h_pad=0.12)  # inches of margin all round
+    title = ("Why the wrong answers were wrong (primary type; classified by Claude, an LLM, "
+             "not verified by a person)")  # fmt: skip
+    fig.suptitle(title, x=0.01, ha="left", fontsize=12, fontweight="bold")
     confirmed = "its corrected model re-solves to the key"
     unconfirmed = "not confirmed: no corrected model, or it misses the key"
     for ax, (study, title) in zip(axes, STUDIES.items(), strict=True):
@@ -419,9 +424,9 @@ def figure(summary: dict) -> None:
         ax.set_xlabel("wrong answers")
         ax.set_title(f"{title}\n{s['answers']} wrong answers ({s['models']} distinct models)",
                      fontsize=10, color=MUTED, loc="left")  # fmt: skip
-    fig.tight_layout(rect=(0, 0, 1, 0.9))  # room for the title and, under it, the legend
-    fig.legend(*axes[1].get_legend_handles_labels(), loc="upper left", ncol=2,
-               bbox_to_anchor=(0.005, 0.95), frameon=False, fontsize=9)  # fmt: skip
+    # Below the plots, clear of the title and the subtitles.
+    fig.legend(*axes[1].get_legend_handles_labels(), loc="outside lower center", ncol=2,
+               frameon=False, fontsize=9)  # fmt: skip
     fig.savefig(FIG_OUT, dpi=200, metadata={"Software": None})
     plt.close(fig)
 
@@ -451,6 +456,14 @@ def results_markdown(summary: dict) -> str:
     lines += [f"| **all** | {m6['answers']} | | {fu['answers']} | | {fu['models']} | |", "",
               "\"Found at all\" counts answers whose model has the error as its primary or a "
               "secondary type.", ""]  # fmt: skip
+    d = "answer-key dispute"
+    lines += [f"**The disputes are flags.** An LLM judge (Claude) flagged "
+              f"{pct(m6['primary'][d], m6['answers'])} of M6's wrong answers and "
+              f"{pct(fu['primary'][d], fu['answers'])} of the follow-up's as answer-key "
+              "disputes (it found no error in the model), not verified by a person: where to "
+              "look, not proof that a key is wrong. [`dispute_spotcheck.md`]"
+              "(dispute_spotcheck.md) lists 10 of the follow-up's for a person to check.",
+              ""]  # fmt: skip
     c = summary["checks"]
     lines += [f"**Re-solving.** {c['right']} of {c['fixes']} corrected models re-solve to "
               f"the key ({c['right_on_the_first_check']} on their first check); the rest stay "

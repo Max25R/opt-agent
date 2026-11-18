@@ -96,8 +96,9 @@ real situation, exactly as with a model built by hand.
 - **The benchmarks are public,** so Claude may have seen them while it was trained. On the
   textbook set, changing the problems' numbers didn't lower accuracy, which argues against
   memorized answers; the harder set had no such check.
-- **The answer keys contain errors, both ways.** Some of the "failures" above may be key
-  errors rather than the agent's. And against a second, independently cleaned answer key for
+- **The answer keys may contain errors, both ways.** AI judges (large language models)
+  flagged some of the "failures" above as answer-key errors rather than the agent's, not
+  verified by a person. And against a second, independently cleaned answer key for
   the textbook set, every method scored lower, mostly on problems where the two keys
   disagree.
 - **All of the grading was done by AI judges, not people.** Every "hand check" (grading the

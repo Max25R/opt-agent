@@ -54,7 +54,8 @@ All three got 264 of 274 right, and none of the 6 pre-registered McNemar tests c
 (every p = 1). The baseline, with no solver at all, matched the solver conditions, so NL4Opt
 is too easy to show what a solver adds. All 10 failures per condition were silent, a wrong
 answer with no warning (in the solver conditions, CBC and HiGHS agreed and every check
-passed), though most of the shared ones may be answer-key errors (see Limitations). Two
+passed), though two LLM judges flagged most of the shared ones as answer-key errors, not
+verified by a person (see Limitations). Two
 other pre-registered rows: lenient scoring (integrality not graded) gives both solver
 conditions 266/274 and the baseline 264/274 (exploratory McNemar tests, every p = 1), and
 leaving out the 8 disputed reviews gives 260/266 in every condition. Full write-up:
@@ -107,7 +108,8 @@ Full write-up: [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md).
   the pre-registered primary test only, and part of it comes from baseline replies that ran
   out of tokens.
 - **The answer keys aren't perfect, and their errors cut both ways.** On NL4Opt, two LLM
-  judges labeled 6 of the 8 shared failures answer-key errors (exploratory, post hoc). Against
+  judges flagged 6 of the 8 shared failures as answer-key errors, not verified by a person
+  (exploratory, post hoc). Against
   LLM4OR's independently cleaned NL4Opt key, every condition scores 185/210 (88.1%) on the
   problems both keys cover, against 205 or 206 of the same 210 on ours, mostly where the two
   keys differ ([Amendment 5](docs/amendments/amendment-5.md), exploratory). In the follow-up,

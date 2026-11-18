@@ -22,7 +22,7 @@ and a test checks it.
 | no-solver baseline | 96.4% (93.4–98.0%) | 10 / 0 | 97.1% | $0.124 | 3.8 s / 8.1 s |
 | single-shot | 96.4% (93.4–98.0%) | 10 / 0 | 96.7% | $0.150 | 3.6 s / 6.7 s |
 | self-correction | 96.4% (93.4–98.0%) | 10 / 0 | 97.1% | $0.167 | 3.7 s / 9.5 s |
-| *exploratory, post hoc:* answer-key errors counted as correct | 98.5% (96.3–99.4%) in each | | | | |
+| *exploratory, post hoc:* the failures LLM judges flagged as key errors (not verified by a person) counted as correct | 98.5% (96.3–99.4%) in each | | | | |
 
 **No detectable difference on NL4Opt.** All three conditions got 264 of 274 right. None of
 the 6 pre-registered McNemar tests comes close (every p = 1, with at most 3 discordant
@@ -44,14 +44,15 @@ Lenient scoring accepts the optimum under either integrality (LP or integer), wi
 else changed. It moves both solver conditions to 266 and leaves the baseline at 264. Its
 McNemar tests, exploratory and without Holm, give p = 1 in every comparison too.
 
-**Most shared failures are answer-key errors (exploratory, post hoc).** 8 problems were
-wrong in all three conditions. Two LLM judges labeled each failure on its own, and both
-called 6 of the 8 answer-key errors: a key that is wrong, or that rejects a reading the
-text supports. Counting those 6 as correct gives 98.5% in every condition, which leaves 4
-real failures per condition. This row was added after the results were seen, and it is
+**Two LLM judges flagged most shared failures as answer-key errors, not verified by a
+person (exploratory, post hoc).** 8 problems were wrong in all three conditions. Two LLM
+judges labeled each failure on its own, and both flagged 6 of the 8 as answer-key errors:
+a key that is wrong, or that rejects a reading the text supports. No person has checked
+those flags. Counting those 6 as correct gives 98.5% in every condition, which would leave
+4 failures per condition. This row was added after the results were seen, and it is
 not a pre-registered result.
 
-**The integrality rule's bug (exploratory, post hoc).** 4 of those 6 key errors come from
+**The integrality rule's bug (exploratory, post hoc).** 4 of those 6 flagged keys come from
 one bug: the rule that labels integrality read wording such as "units of chicken meat" as
 continuous, which also switched off the strict reading of "must be larger than" and cost 4
 answers per condition ([deviations](amendments/DEVIATIONS.md), section 3). Relabeling those
