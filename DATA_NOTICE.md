@@ -69,6 +69,15 @@ with ORLM's is arguably ORLM's too: treat those as CC BY-NC 4.0, as above.
 `docs/amendments/amendment-5.md` and `results/eval.json` (its `amendment_5` entry) cite some
 of its answers and which problems it removed.
 
+## The failure-type analysis (`docs/analysis/`)
+
+`docs/analysis/fixes/` holds corrected versions of Claude's models for problems of both
+studies (their variable names and numbers come from the problems), and
+`docs/analysis/failure_types.csv` short notes on what went wrong, in this project's words. No
+problem text is quoted. Each file keeps the license of its problem, which its name gives
+(`test__` and `test-perturbed__`: NL4Opt, MIT; `followup-test__complexlp-`: ComplexLP, CC BY-SA
+4.0; `followup-test__industryor-`: IndustryOR, CC BY-NC 4.0, non-commercial only).
+
 ## The demo's examples (this project's own)
 
 The four example problems in `src/opt_agent/demo/examples.py` (paint production, café

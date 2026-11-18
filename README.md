@@ -217,6 +217,8 @@ anyone can rebuild without a key.
 - [`docs/DESIGN.md`](docs/DESIGN.md): the solver checks, the agent, the NL4Opt answer key,
   and the project structure.
 - [`docs/adr/`](docs/adr/README.md): why it's built this way: the options weighed and their costs.
+- [`docs/analysis/failure_types.md`](docs/analysis/failure_types.md): why the wrong answers
+  were wrong, classified by Claude (an LLM), not a person; exploratory and post hoc.
 - [`docs/audit/2026-11-review.md`](docs/audit/2026-11-review.md) and
   [`docs/audit/2026-11-final-review.md`](docs/audit/2026-11-final-review.md): two audits of
   the project, and what was fixed.
