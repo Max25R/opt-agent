@@ -455,7 +455,10 @@ def apply_judged_labels(path: Path = INTEGRALITY_PATH) -> int:
 def claude_label(r: Record) -> str:
     """Claude's own label, also once a judges' label has replaced it."""
     label = r.integrality
-    return label.replaced if label.source == "judge" else label.kind  # type: ignore[return-value]  # a judge label keeps what it replaced; loading never checks
+    if label.source == "judge":
+        assert label.replaced is not None  # Integrality refuses a judges' label without it
+        return label.replaced
+    return label.kind
 
 
 def judges_agreement(records: list[Record]) -> dict:

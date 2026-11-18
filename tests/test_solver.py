@@ -1,3 +1,6 @@
+from types import SimpleNamespace
+
+import pulp
 from problems import (
     BLEND,
     CBC_FREE_VARIABLE_BUG,
@@ -130,6 +133,21 @@ def test_an_infeasible_claimed_optimum_of_an_infeasible_model_is_infeasible(monk
     monkeypatch.setattr(solver, "_solve_once", claims_an_optimum)
     assert feasibility_problems(INFEASIBLE, fake_point)
     assert solve(INFEASIBLE).status is Status.INFEASIBLE
+
+
+def test_an_lp_optimum_with_a_constraint_left_without_a_dual_is_an_error(monkeypatch):
+    """Regression (found by mypy): if CBC ever left a constraint's dual unset, _duals raised a
+    TypeError that would end the run. With no dual certificate to check and no shadow price
+    to explain, it's ERROR: a loud failure, never a crash and never an answer."""
+    real = pulp.LpProblem.get_constraint_by_name
+
+    def first_row_without_a_dual(problem, name):
+        return SimpleNamespace(pi=None) if name == "c0" else real(problem, name)
+
+    monkeypatch.setattr(pulp.LpProblem, "get_constraint_by_name", first_row_without_a_dual)
+    s = solve(WYNDOR)
+    assert s.status is Status.ERROR and s.objective is None and s.duals is None
+    assert "without a dual" in s.note
 
 
 def test_a_feasible_optimum_is_left_alone():

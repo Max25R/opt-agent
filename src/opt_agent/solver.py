@@ -76,13 +76,20 @@ def _solve_once(model: LPModel) -> Solution:
     # a nonzero coefficient somewhere (schema.py), and the objective isn't zeroed as in
     # _feasibility.
     values = cast(dict[str, float], {name: var.varValue for name, var in pulp_vars.items()})
+    duals = None
+    if not model.is_mip:
+        duals = _duals(problem, model)
+        if duals is None:
+            # No dual certificate to check and no shadow price to explain: no answer (loud).
+            note = "CBC left a constraint without a dual, so its optimum can't be certified"
+            return Solution(solver="cbc", status=Status.ERROR, note=note)
     return Solution(
         solver="cbc",
         status=status,
         objective=stats.objective,
         values=values,
         slacks={c.name: c.slack(values) for c in model.constraints},
-        duals=None if model.is_mip else _duals(problem, model),
+        duals=duals,
     )
 
 
@@ -191,11 +198,16 @@ def _pulp_constraint(c: Constraint, pulp_vars: dict[str, pulp.LpVariable]):
     return lhs == c.rhs
 
 
-def _duals(problem: pulp.LpProblem, model: LPModel) -> dict[str, float]:
+def _duals(problem: pulp.LpProblem, model: LPModel) -> dict[str, float] | None:
+    """Each constraint's dual, or None if CBC left any of them without one."""
     # PuLP hands CBC a max problem as min(-objective) and returns that problem's duals.
     # Negating them for max makes every dual mean d(objective)/d(rhs) of *our* objective.
     sign = -1.0 if model.objective.sense == "max" else 1.0
-    return {
-        c.name: sign * problem.get_constraint_by_name(_constraint_id(i)).pi  # type: ignore[union-attr, operator]  # added under this name; CBC gives an LP's rows duals
-        for i, c in enumerate(model.constraints)
-    }
+    duals = {}
+    for i, c in enumerate(model.constraints):
+        row = problem.get_constraint_by_name(_constraint_id(i))
+        pi = None if row is None else row.pi
+        if pi is None:
+            return None
+        duals[c.name] = sign * pi
+    return duals

@@ -3,9 +3,11 @@ import json
 import re
 
 import pytest
+from pydantic import ValidationError
 
 from opt_agent import packets
 from opt_agent.ground_truth import GROUND_TRUTH_DIR, load_records
+from opt_agent.integrality import Integrality
 from opt_agent.packets import (
     BLIND_DIR,
     REVIEWS_DIR,
@@ -256,6 +258,16 @@ def test_applying_the_judges_labels_keeps_what_they_replaced(tmp_path, monkeypat
         assert after[r.id]["source"] == "judge"
         assert after[r.id]["replaced"] == before[r.id]["kind"]
     assert packets.apply_judged_labels(labels) == 0  # applying again changes nothing
+
+
+def test_a_judges_label_that_drops_the_label_it_replaced_is_refused():
+    """Regression (found by mypy): claude_label returned None for a judges' label without
+    `replaced`, and the agreement statistic counted that None as a disagreement. Every
+    committed one keeps it; now a label without it is refused when it's loaded."""
+    judged = next(r for r in SAMPLE if r.integrality.source == "judge")
+    assert packets.claude_label(judged) == judged.integrality.replaced
+    with pytest.raises(ValidationError, match="must keep the label it replaced"):
+        Integrality.model_validate({**judged.integrality.model_dump(), "replaced": None})
 
 
 def test_the_judges_agreement_with_claude_and_each_other(tmp_path, monkeypatch):

@@ -6,9 +6,9 @@ there the label can't change the ground-truth answer, so a mistake by the rule c
 """
 
 import re
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class Integrality(BaseModel):
@@ -18,6 +18,14 @@ class Integrality(BaseModel):
     note: str | None = None
     # The label a judges' label replaced, kept for the agreement statistic (Amendment 2).
     replaced: Literal["integer", "continuous"] | None = None
+
+    @model_validator(mode="after")
+    def _judges_label_keeps_what_it_replaced(self) -> Self:
+        # The agreement statistic compares the judges with the label they replaced
+        # (packets.claude_label); without it, that comparison would quietly count a None.
+        if self.source == "judge" and self.replaced is None:
+            raise ValueError("a judges' label must keep the label it replaced (`replaced`)")
+        return self
 
 
 # Divisible quantities: "kilograms of rice", "how many acres". Servings and cups are counted

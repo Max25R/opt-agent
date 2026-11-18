@@ -100,10 +100,18 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
    change frozen inputs. Its nice-to-have items are done (2026-11-18), except the two it
    marks as notes: stale status lines in frozen or tagged files, and the lightweight
    `followup-freeze` tag (no tag is rewritten). Its status line says so.
-8. **Two possible bugs mypy found, not fixed** (a fix changes behavior; each line has a
-   `type: ignore` saying why): `packets.claude_label` returns None for a judge label without
-   `replaced` (all 44 have it; loading never checks), and `solver._duals` would raise a
-   TypeError, not a loud ERROR, if CBC ever left a row's dual unset.
+8. ~~Two possible bugs mypy found~~: fixed 2026-11-18, each with a regression test, and
+   neither affected the studies. `integrality.Integrality` refuses a judges' label without
+   `replaced` (`packets.claude_label` returned None for one, which the agreement statistic
+   would have counted as a disagreement), and `solver.solve` returns ERROR, a loud failure,
+   when CBC leaves an LP's constraint without a dual (it raised a TypeError that would end a
+   run). The evidence: every judges' label in the committed data keeps `replaced` (all 40 in
+   the blind sample, the statistic's only input); an instrumented replay of the three
+   committed runs in their tags' trees found no unset dual in 2,726 LP solves (16,309
+   constraints) and no difference; `scripts/reproduce.py` matches; and the ground truth and
+   perturbed splits rebuild byte for byte with the fixed solver. (`claude_label` still
+   returns `either` for the owner's 4 `either` labels, whose `replaced` holds Claude's label;
+   none is in the blind sample.)
 
 ## Gotchas
 - **pip inside Claude Code's sandbox** fails TLS like Python does (`OSStatus -26276`):
