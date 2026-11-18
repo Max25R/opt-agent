@@ -73,8 +73,9 @@ of its answers and which problems it removed.
 
 `docs/analysis/fixes/` holds corrected versions of Claude's models for problems of both
 studies (their variable names and numbers come from the problems), and
-`docs/analysis/failure_types.csv` short notes on what went wrong, in this project's words. No
-problem text is quoted. Each file keeps the license of its problem, which its name gives
+`docs/analysis/failure_types.csv` short notes on what went wrong, in this project's words;
+`docs/analysis/silent_detector.json` lists, per follow-up answer, the numbers of its problem's
+text that its model lacks. No problem text is quoted. Each file keeps the license of its problem, which its name gives
 (`test__` and `test-perturbed__`: NL4Opt, MIT; `followup-test__complexlp-`: ComplexLP, CC BY-SA
 4.0; `followup-test__industryor-`: IndustryOR, CC BY-NC 4.0, non-commercial only).
 

@@ -53,3 +53,24 @@ model misses one is flagged.
   problem), so they're too narrow; the per-model counts show by how much.
 - **Exploratory, once.** The results are written to `docs/analysis/silent_detector.json` and
   summarized below, whatever they are. A weak result is reported as weak.
+
+<!-- results: written by `python scripts/silent_detector_report.py` -->
+
+## Results (the one run)
+
+Run once, at `6ca49db` with no uncommitted changes (2026-11-18T03:36:17+00:00), over 1144 answers that reported one (8 loud failures left out). Exploratory.
+
+| | Answers | Silent failures | Flagged silent | Flagged right | Precision (95% CI) | Recall (95% CI) | Right answers flagged |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| all three conditions, pooled | 1144 | 186 | 96 | 395 | 19.6% (16.3 to 23.3) | 51.6% (44.5 to 58.7) | 41.2% |
+| single-shot | 380 | 62 | 32 | 132 | 19.5% (14.2 to 26.2) | 51.6% (39.4 to 63.6) | 41.5% |
+| self-correction | 384 | 65 | 32 | 132 | 19.5% (14.2 to 26.2) | 49.2% (37.5 to 61.1) | 41.4% |
+| checklist revision | 380 | 59 | 32 | 131 | 19.6% (14.3 to 26.4) | 54.2% (41.7 to 66.3) | 40.8% |
+| the 121 unexposed problems | 1081 | 184 | 94 | 343 | 21.5% (17.9 to 25.6) | 51.1% (43.9 to 58.2) | 38.2% |
+| distinct models (one per problem and model) | 412 | 85 | 46 | 147 | 23.8% (18.4 to 30.3) | 54.1% (43.6 to 64.3) | 45.0% |
+
+**A weak detector.** 16.3% of these answers are silent failures, so a flag picked at random would be right 16.3% of the time; this one's flags are right 19.6% of the time. It finds about half the silent failures (96 of 186) and flags 41.2% of the right answers (395 of 958), so as a warning it would mostly cry wolf: a right model needn't carry every number of the text as written (why each flagged right answer lacks its numbers wasn't checked). Nothing was tuned after the run.
+
+**Post hoc** (after the run, joining [`failure_types.csv`](failure_types.csv); not part of the declared report). Flagged, of each type's silent failures: answer-key dispute 47 of 90; integrality 0 of 32; wrong objective 13 of 21; missing constraint 16 of 19; other 10 of 10; wrong number/coefficient 7 of 8; units/misread quantity 3 of 6. Of the silent failures with a model error (not a dispute), it flags 49 of 96. It can't see an integrality error by design (no number is missing), and an answer-key dispute isn't a model error at all.
+
+<!-- end of results -->

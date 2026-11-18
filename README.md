@@ -218,7 +218,9 @@ anyone can rebuild without a key.
   and the project structure.
 - [`docs/adr/`](docs/adr/README.md): why it's built this way: the options weighed and their costs.
 - [`docs/analysis/failure_types.md`](docs/analysis/failure_types.md): why the wrong answers
-  were wrong, classified by Claude (an LLM), not a person; exploratory and post hoc.
+  were wrong, classified by Claude (an LLM), not a person; exploratory and post hoc. And
+  [`docs/analysis/silent_detector.md`](docs/analysis/silent_detector.md): a rule for spotting
+  silent failures, committed before its one run, and how weak it is.
 - [`docs/audit/2026-11-review.md`](docs/audit/2026-11-review.md) and
   [`docs/audit/2026-11-final-review.md`](docs/audit/2026-11-final-review.md): two audits of
   the project, and what was fixed.
