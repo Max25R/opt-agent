@@ -20,7 +20,7 @@ Tags: **must-fix** (wrong or misleading; fix before anyone relies on it), **shou
 
 ## Summary
 
-**Status (2026-11-16, after the review):** M1-M5 were fixed on 2026-11-15 and S1-S11 on
+**Status (2026-11-18, after the review):** M1-M5 were fixed on 2026-11-15 and S1-S11 on
 2026-11-16, each on the owner's go-ahead and with the owner's choices (S7 documented, not
 built; S8 moved to `scripts/historical/`; S9 a pure MIT `LICENSE` and a "How this was built"
 section; S2's limitations in the README and `docs/ie2310/summary.md`). Not done:
@@ -30,7 +30,10 @@ section; S2's limitations in the README and `docs/ie2310/summary.md`). Not done:
   would change `data/nl4opt/integrality.json`, an input of the frozen answer key, so it's left
   as is; `docs/DESIGN.md` now says what those labels are.
 
-The nice-to-have items are open. The findings below are kept as written.
+The nice-to-have items were done on 2026-11-18 (commit "The final review's nice-to-have
+items"), except two the review gives as notes only: the stale status lines in frozen or tagged
+files (section 5), and the lightweight `followup-freeze` tag (no tag is rewritten). The
+findings below are kept as written.
 
 **Must-fix**
 

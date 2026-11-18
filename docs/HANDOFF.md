@@ -1,11 +1,27 @@
-# Handoff (2026-11-16)
+# Handoff (2026-11-18)
 
 Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
 
 ## Current state
-- **Everything is committed and pushed** (`main`, 2026-11-16, after M8 and the final
-  review's fixes; tags `m6-freeze`, `amendment-3`, `amendment-4`, `amendment-5`,
-  `followup-freeze`). The project's history is in `docs/HISTORY.md`.
+- **Everything is committed and pushed** (`main`, 2026-11-18; tags `m6-freeze`,
+  `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`). The project's history is
+  in `docs/HISTORY.md`.
+- **Since 2026-11-16** (the owner's list of 2026-11-17, each item its own commit, CI green
+  each time; no API calls):
+  - CI's jobs have `timeout-minutes` as a hang guard (10; 30 for reproduce), and a new
+    `types` job runs mypy on `src/`. The reproduce job runs the whole suite under coverage
+    and fails if the README's coverage badge (`docs/badges/coverage.json`,
+    `scripts/coverage_badge.py`) is more than a point off. mypy and coverage come from the
+    optional `requirements-checks.lock`.
+  - **Two exploratory, post hoc analyses** in `docs/analysis/` (the numbers are in their own
+    JSON files; nothing in them is a result of record): why every wrong answer of the solver
+    conditions was wrong (`failure_types.md`: a taxonomy committed before classifying, and
+    the classifying is Claude's, not a person's), and a silent-failure detector whose rule
+    was committed before its one run (`silent_detector.md`; it refuses to run again).
+  - The README's architecture diagram follows problem, Claude, model, CBC, checks,
+    explanation; `docs/adr/` holds retrospective decision records.
+  - The owner's interview notes are in `private/` (git-ignored, never committed).
+  - The final review's nice-to-have items are done (item 7).
 - **M7's demo and M8 are done** (2026-11-15): the demo (`src/opt_agent/demo/`, Docker, CI),
   `scripts/reproduce.py` (every number replayed and rebuilt from the tags, in CI), the
   rewritten README, and the IE 2310 kit (`docs/ie2310/`). The decisions are at the end of
@@ -58,30 +74,10 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
    docs fixes (`docs/audit/2026-11-review.md`, section 5) are done, except renaming the
    `owner` source of the 4 rule-set `either` labels: that changes `integrality.json`, an
    input of the frozen answer key, so it's left as is (`docs/DESIGN.md` explains them).
-2a. **The README's screenshot** is `scripts/screenshot.py`'s own output, from the owner's
-   rerun on the Mac (2026-11-15, 2x PNG, 1950x2210): pixel for pixel the earlier hand crop
-   minus its last row of plain background (the explanation card's box ends a fraction of a
-   pixel short of where it paints, so the frame's bottom rounds one device pixel higher; the
-   bottom margin is 26 device pixels, not 27). Pillow's encoder is deterministic, so a rerun
-   on the same rendering leaves the file byte for byte as committed
-   (`test_the_picture_is_byte_stable`). Before that it was the owner's capture cropped once
-   by hand; `scripts/screenshot.py` captures exactly that frame itself (`frame()`: the two cards'
-   boxes plus 14 px of page background above and 13.5 px on the other sides, 28 and 27
-   device pixels; a clip screenshot in a viewport tall enough to hold it, not the full page),
-   and saves through Pillow, so a rerun on the owner's Mac reproduces `docs/demo.png`. `tests/test_screenshot.py` checks the frame against
-   the committed picture's size and margins, (28, 27, 26, 27), without a browser.
-   CI's `pictures` job captures the same frame with Linux fonts (other card heights) and
-   checks its margins with `python scripts/screenshot.py --check` (artifact
-   `demo-screenshot`).
-   **What CI taught the frame:** with Linux fonts the layout lands on half pixels (the
-   script prints it: badge 152.5 to 176.5, problem card from 190.5, explanation to 1314.5,
-   flags card from 1328.5), and Chromium paints such a box out to the next whole pixel. The
-   top margin is the whole 14 px gap to the badge, so the first Linux captures took in the
-   badge's painted edge (top margin 0, bottom 25). Now `frame()` stops at the next whole
-   pixel beyond each neighbor (the badge above, the flags card below) and rounds its edges
-   inward, and `--check` allows one CSS pixel (two device pixels). The neighbor rule doesn't
-   move the frame on the Mac; CI's layout is a test case in `tests/test_screenshot.py`, and
-   its capture passes the check.
+2a. ~~The README's screenshot~~: done 2026-11-15. It's `scripts/screenshot.py`'s own output
+   from the owner's Mac, byte-stable (`test_the_picture_is_byte_stable`); `frame()`'s rules
+   and what CI's Linux fonts taught it are in the script and `tests/test_screenshot.py`, and
+   CI's `pictures` job checks a Linux capture's margins (artifact `demo-screenshot`).
 3. ~~A CI check of the `followup-freeze` tag~~: done 2026-11-15 (`followup_freeze.tag_problems`,
    see "Decisions made without the owner" below).
 4. ~~`amendment-5.md`'s status line~~: fixed 2026-11-15 (only that line, as for Amendment 4).
@@ -94,13 +90,34 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
 6. **Optional, exploratory only:** the 5b check could still be run later
    (`review/followup_disputes/README.md`), at the commit its script ran at
    (`scripts/historical/README.md`); anything it found would be post hoc, never the result
-   of record.
+   of record. The failure-type analysis is a reason to: Claude labeled many of the follow-up's
+   wrong answers answer-key disputes, some checkable by arithmetic (the routing keys that are
+   two separate round trips; `docs/analysis/failure_types.md`), and no person has checked
+   those labels.
 7. **The final review** (2026-11-15): `docs/audit/2026-11-final-review.md`. Its mechanical
    fixes, its must-fix items (M1-M5) and its should-fix items (S1-S11) are done, on the
    owner's go-ahead (2026-11-16), except what only the owner can do (item 2) and what would
-   change frozen inputs; its status line lists those. The nice-to-have items are open.
+   change frozen inputs. Its nice-to-have items are done (2026-11-18), except the two it
+   marks as notes: stale status lines in frozen or tagged files, and the lightweight
+   `followup-freeze` tag (no tag is rewritten). Its status line says so.
+8. **Two possible bugs mypy found, not fixed** (a fix changes behavior; each line has a
+   `type: ignore` saying why): `packets.claude_label` returns None for a judge label without
+   `replaced` (all 44 have it; loading never checks), and `solver._duals` would raise a
+   TypeError, not a loud ERROR, if CBC ever left a row's dual unset.
 
 ## Gotchas
+- **pip inside Claude Code's sandbox** fails TLS like Python does (`OSStatus -26276`):
+  `pip install --use-deprecated=legacy-certs ...` uses certifi's bundle and works. `gh`
+  isn't installed on the owner's Mac; CI's status is in the public GitHub API
+  (`api.github.com/repos/Max25R/opt-agent/actions/runs?head_sha=...`).
+- **The analyses' working files** (`review/failure_types/`, git-ignored: they hold problem
+  text) come from `python scripts/failure_cases.py` (a replay in each tag's tree, no key);
+  `python scripts/failure_types.py build` needs them and the labels there. The detector
+  never runs again (`docs/analysis/silent_detector.json` exists); its doc's results section
+  rebuilds with `python scripts/silent_detector_report.py`.
+- **mypy:** new code must keep `python -m mypy` clean; a `type: ignore` needs its code and a
+  reason on the line. The coverage badge moves only when `scripts/coverage_badge.py` is
+  rerun after a full suite with all the data, and CI fails if it's more than a point off.
 - **Both studies are frozen at their tags, not at HEAD.** Any change under `src/opt_agent/`
   (and to the frozen docs, the lock, `split.json` or the LLM4OR files) makes
   `python -m opt_agent.freeze` and `python -m opt_agent.followup_freeze` report a mismatch.
@@ -222,7 +239,7 @@ Logged here as the owner asked: the simplest reasonable option, where the reques
     denies Chromium's Mach port registration), so `docs/demo.png` was captured in the
     desktop app's browser pane from the real demo (examples mode, the committed replies) and
     cropped. `scripts/screenshot.py` captures it headlessly (Playwright, the app in-process,
-    no port), and CI's `screenshot` job runs it and keeps a 2x PNG as the `demo-screenshot`
+    no port), and CI's `pictures` job runs it and keeps a 2x PNG as the `demo-screenshot`
     artifact; either can replace the committed image.
   - Playwright and matplotlib are pinned in the optional `requirements-docs.lock` (owner's
     request, 2026-11-15), installed on top with requirements.lock as a constraint; neither
