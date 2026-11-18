@@ -33,11 +33,16 @@ cache.*
 
 Both studies used Claude Haiku 5.5. Every number in this README comes from
 [`results/eval.json`](results/eval.json) or [`results/followup.json`](results/followup.json),
-and a test checks it.
+and a test checks it. A *silent* failure is a wrong answer that passed every check; a *loud*
+one is no answer at all. "pp" is percentage points; Holm adjusts a p-value for testing more
+than one hypothesis; the sign-flip and McNemar tests compare two conditions on the same
+problems.
 
 ### NL4Opt: saturated, and every failure silent
 
-The NL4Opt test split, 274 problems, three conditions:
+The NL4Opt test split's 274 scorable problems (the rest fail the answer key's checks or were
+used while building the agent: [counts](data/nl4opt/ground_truth/REPORT.md)), three
+conditions:
 
 | condition | accuracy (95% Wilson) | silent / loud failures |
 |---|---|---|
@@ -73,7 +78,8 @@ before the split.
   isn't significant (Holm p 0.24), and 1.38 pp of the difference comes from 8 baseline
   replies cut off at max_tokens.
 - **H1, checklist revision minus single-shot: inconclusive.** +0.6 pp (95% CI -1.7 to
-  3.0 pp): no difference larger than 4 pp, and nothing stronger.
+  3.0 pp): no difference larger than 4 pp (the smallest whole number of points the interval
+  fits inside, the pre-registered way of saying it), and nothing stronger.
 - **Failures are mostly silent.** Silent / loud, over every sample answer on all 128
   problems: baseline 83 / 11, single-shot 62 / 4, self-correction 65 / 0, checklist revision
   59 / 4.
@@ -173,7 +179,8 @@ demo image. (On Linux, one follow-up model has a second optimal solution that CB
 instead, which changes one pair's revision path but not its answer.) Replay can't redo two
 things: the LLM judges' labels come from chat sessions, committed as the sheets they filled
 in, and a new run would give new answers, since Claude samples at temperature 1.
-To redraw the pictures too (the screenshot and the IE 2310 figures), install the optional
+To redraw the pictures too (the screenshot, and the figures of [`docs/ie2310/`](docs/ie2310/README.md),
+the agent's side of the IE 2310 course project), install the optional
 tools with `pip install -r requirements-docs.lock -c requirements.lock` and
 `python -m playwright install --only-shell chromium`.
 
@@ -243,6 +250,9 @@ After [Setup](#setup):
 
 ```bash
 pytest                                  # no key needed: tests use a fake Claude client
+# Tests that need the data or Pillow skip without them; to run every test, fetch them first:
+python -m opt_agent.data && python scripts/fetch_llm4or.py
+pip install -r requirements-docs.lock -c requirements.lock
 ruff check . && ruff format --check .
 pip install -r requirements-checks.lock -c requirements.lock   # mypy and coverage
 python -m mypy                          # src/, with the settings in pyproject.toml

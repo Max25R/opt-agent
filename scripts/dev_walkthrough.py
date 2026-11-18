@@ -1,5 +1,8 @@
 """Write a review sheet of 30 dev problems: text, our model, both optima, notes, review.
 
+One-off: it wrote the sheet the owner reviewed in milestone 3 (2026-10-16), which
+is kept as reviewed, so don't run it again unless the owner asks (CLAUDE.md).
+
 Run:  python scripts/dev_walkthrough.py
 Writes data/nl4opt/ground_truth/DEV_WALKTHROUGH.md. The selection is deterministic: every
 rejected or hand-reviewed dev problem first, then problems that cover each kind of

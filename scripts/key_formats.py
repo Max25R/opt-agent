@@ -1,5 +1,8 @@
 """The format of the follow-up's keys, in aggregate only (owner's request, 2026-11-12).
 
+One-off: it answered the owner's question about the keys' formats before the
+follow-up's freeze (2026-11-12). It still runs; nothing depends on it.
+
 For each benchmark's follow-up test keys: how many the old parser (`float`) reads as a
 finite number, and for the rest only a shape mask (every digit -> 9, every letter -> a) with
 its count; then how the pre-registered rule (followup.parse_key) reads them, as counts per

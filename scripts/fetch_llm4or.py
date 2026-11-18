@@ -66,10 +66,19 @@ def git(*args: str) -> None:
     subprocess.run(["git", *args], check=True, capture_output=True, text=True)
 
 
+def looks_like_ours(target: Path) -> bool:
+    """Only this script's files in it (an old or damaged copy), so it may be replaced."""
+    return all(p.name in {*SOURCES, "NL4Opt"} for p in target.iterdir())
+
+
 def fetch(target: Path = TARGET) -> None:
     if not problems(target):
         print(f"already here and intact: {target}")
         return
+    if target.exists() and any(target.iterdir()) and not looks_like_ours(target):
+        # It replaces the folder wholesale, so it never deletes one it didn't make.
+        sys.exit(f"{target} holds files this script didn't put there: choose an empty "
+                 "or new --target")  # fmt: skip
     with tempfile.TemporaryDirectory() as tmp:
         clone = Path(tmp) / "llm4or"
         git("init", "-q", str(clone))

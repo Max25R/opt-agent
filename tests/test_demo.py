@@ -84,20 +84,54 @@ def test_each_reference_answer_is_its_hand_written_models_optimum(example):
     assert integrality_matters == example.integer  # only the baristas: LP 15.4, integer 16
 
 
+def eight_word_runs(text: str) -> set[tuple[str, ...]]:
+    """Every run of 8 words, punctuation dropped on both sides, so a comma can't hide one."""
+    words = re.findall(r"[a-z0-9$.%]+", text.lower())
+    return {tuple(words[i:i + 8]) for i in range(len(words) - 7)}  # fmt: skip
+
+
+def benchmark_texts() -> dict[str, list[str]]:
+    """Every benchmark problem text this checkout has: NL4Opt (committed), and where they've
+    been fetched (python -m opt_agent.data, scripts/fetch_llm4or.py; CI's reproduce job has
+    them all), ORLM's and ORLMBenchmark's NL4Opt and LLM4OR's three cleaned benchmarks."""
+    root = GROUND_TRUTH_DIR.parents[1]  # data/
+    texts = {"NL4Opt": [r.document for split in ("dev", "test")
+                        for r in load_records(GROUND_TRUTH_DIR / f"{split}.json")]}  # fmt: skip
+
+    def lines(path, field):
+        if path.exists():
+            return [json.loads(line)[field] for line in path.read_text().splitlines() if line]
+        return None
+
+    llm4or = root / "external" / "llm4or-clean"
+    found = {
+        "ORLM's NL4Opt": lines(root / "thirdparty/orlm/NL4OPT_with_optimal_solution.json",
+                               "en_question"),
+        "ORLMBenchmark's NL4Opt": lines(root / "thirdparty/orlmbench/NL4OPT.jsonl", "en_question"),
+        "IndustryOR": lines(llm4or / "IndustryOR.jsonl", "en_question"),
+        "ComplexLP": lines(llm4or / "Mamo_complex_lp_clean.jsonl", "Question"),
+        "LLM4OR's NL4Opt": [p.read_text() for p in sorted(llm4or.glob("NL4Opt/*/description.txt"))]
+        or None,
+    }  # fmt: skip
+    return texts | {name: t for name, t in found.items() if t}
+
+
 def test_the_examples_are_four_kinds_and_none_is_benchmark_text():
     assert [e.kind for e in examples.EXAMPLES] == [
         "production mix", "staffing", "transportation", "blending"]  # fmt: skip
     assert any(e.integer for e in examples.EXAMPLES)
-    nl4opt = " ".join(
-        r.document.lower() for split in ("dev", "test")
-        for r in load_records(GROUND_TRUTH_DIR / f"{split}.json")
-    )  # fmt: skip
+    sources = {name: set().union(*map(eight_word_runs, texts))
+               for name, texts in benchmark_texts().items()}  # fmt: skip
     for e in examples.EXAMPLES:
-        words = re.findall(r"[a-z0-9$.%]+", e.text.lower())
-        shared = [" ".join(words[i:i + 8]) for i in range(len(words) - 7)
-                  if " ".join(words[i:i + 8]) in nl4opt]  # fmt: skip
-        assert shared == [], f"{e.id} shares 8 words in a row with an NL4Opt problem"
+        mine = eight_word_runs(e.text)
+        for name, runs in sources.items():
+            assert not mine & runs, f"{e.id} shares 8 words in a row with a {name} problem"
         assert len(e.text) <= pipeline.MAX_PROBLEM_CHARS
+
+
+def test_the_eight_word_check_sees_through_punctuation():
+    text = "Each batch of paint needs 3 hours, 2 litres of base, and a crate."
+    assert eight_word_runs(text) & eight_word_runs(text.replace(",", ""))
 
 
 # ---- fake replies for one solve ---------------------------------------------------------

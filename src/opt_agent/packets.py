@@ -29,7 +29,6 @@ import argparse
 import csv
 import json
 import random
-import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -323,8 +322,7 @@ def graders(sheet: Path) -> list[str]:
 
 
 # ---- 3. "says LP" labels ---------------------------------------------------------------
-
-_ROW = re.compile(r"^\| `(?P<variable>[^`]+)` \| (?P<label>[^|]*?) \|$")
+# The packet went unused (review/says_lp.md is kept as sent, blank), so nothing reads it back.
 
 
 def says_lp_packet(records: list[Record]) -> str:
@@ -349,22 +347,6 @@ def says_lp_packet(records: list[Record]) -> str:
         lines += [f"| `{v.name}` | ? |" for v in r.model.variables]
         lines.append("")
     return "\n".join(lines)
-
-
-def read_says_lp(path: Path) -> dict[str, dict[str, str]]:
-    """problem id -> variable -> the owner's label, from the filled-in tables."""
-    labels: dict[str, dict[str, str]] = {}
-    problem_id = None
-    for line in path.read_text().splitlines():
-        if line.startswith("## "):
-            problem_id = line.split("`")[1]
-        elif (row := _ROW.match(line)) and problem_id is not None:
-            label = row["label"].strip().lower()
-            if label not in KINDS:
-                raise ValueError(f"{problem_id}, {row['variable']!r}: {label!r} is neither "
-                                 "integer nor continuous")  # fmt: skip
-            labels.setdefault(problem_id, {})[row["variable"]] = label
-    return labels
 
 
 # ---- 4. the judges' integrality labels -------------------------------------------------

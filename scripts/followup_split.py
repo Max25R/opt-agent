@@ -1,5 +1,8 @@
 """Split the follow-up benchmarks into dev and follow-up test, once, by a recorded seed.
 
+One-off: the split was made once (2026-11-09); running it again only confirms it,
+since it refuses to write a different one.
+
 Reads only each ComplexLP line's `id` and counts IndustryOR's lines: no problem text or
 answer is read, so the split can't depend on them. ComplexLP: 25 dev, 86 follow-up test.
 Every problem's place comes from the SHA-256 of "<seed>:<id>": the 25 lowest go to dev.

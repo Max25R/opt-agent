@@ -15,7 +15,8 @@ from pathlib import Path
 
 import certifi
 
-DATA_DIR = Path("data")
+# The repository's data/, wherever Python is started from (like runs.REPO_ROOT).
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 NL4OPT_COMMIT = "49f1e0d66b7fdcd33305a7f281c2a7c13f5620ea"
 ORLM_REVISION = "98da4f57462f03c0c8d44211647be87acd649d20"
 

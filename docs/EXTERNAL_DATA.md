@@ -46,10 +46,10 @@ is never run here) and the `.DS_Store` files.
 - ComplexLP: one JSON object per line with `id`, `Question`, `Answer` (a string), `Type`
   (`complex_lp`) and `Category`.
 
-**To fetch it again** (the clone goes outside the repository, since the sandbox refuses a
-nested `.git`; then copy the files as above and compare the hashes):
+**To fetch it again**, run the script, which does all of the above: a sparse clone of that
+commit in a temporary folder outside the repository, the copy of exactly these files, and the
+hash check against this page (it deletes its copy and fails if any hash differs):
 
 ```bash
-git clone --filter=blob:none --no-checkout --depth 1 https://github.com/LLM4OR/LLM4OR.git "$TMPDIR/llm4or"
-cd "$TMPDIR/llm4or" && git sparse-checkout set --no-cone static/clean_benchmarks && git checkout 75962df5ddf531906fda76f8708c658114e63c0e
+python scripts/fetch_llm4or.py
 ```

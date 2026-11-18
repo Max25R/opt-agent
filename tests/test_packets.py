@@ -17,7 +17,6 @@ from opt_agent.packets import (
     label_sheet,
     load_sureness,
     read_labels,
-    read_says_lp,
     review_order,
     review_packet,
     says_lp_packet,
@@ -139,20 +138,10 @@ def test_the_says_lp_problems_are_not_in_the_blind_statistic():
     assert (a.agree, a.problems) == (40, 40)  # skipped, not counted as a disagreement
 
 
-def test_the_says_lp_file_shows_no_label_and_reads_back(tmp_path):
+def test_the_says_lp_file_shows_no_label():
     text = says_lp_packet(TEST)
     cells = [line.split("|")[2].strip() for line in text.splitlines() if line.startswith("| `")]
     assert len(cells) == 8 and set(cells) == {"?"}  # every label blank, none of ours shown
-    filled = tmp_path / "says_lp.md"
-    filled.write_text(text.replace("| ? |", "| integer |"))
-    labels = read_says_lp(filled)
-    assert list(labels) == SAYS_LP
-    assert all(kind == "integer" for marks in labels.values() for kind in marks.values())
-
-
-def test_an_unlabeled_says_lp_variable_is_an_error():
-    with pytest.raises(ValueError, match="neither integer nor continuous"):
-        read_says_lp(SAYS_LP_PATH)  # the committed file is still blank
 
 
 def test_the_committed_says_lp_file_is_up_to_date():

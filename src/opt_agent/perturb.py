@@ -304,6 +304,7 @@ def perturb(split: str, original: Record, annotation: dict) -> PerturbedRecord |
 
 
 def load_perturbed(path: Path) -> list[PerturbedRecord]:
+    """A committed perturbed split, as records (the tests read the splits back with it)."""
     return [PerturbedRecord.model_validate(row) for row in json.loads(path.read_text())]
 
 

@@ -11,9 +11,9 @@ MIT license doesn't apply to them.
 **Where the text is.** The run records under `runs/` hold the full problem text, because
 every API request sent a problem's text and every record keeps its request:
 - `runs/followup-test/` (the follow-up test run: `cache/`, `attempts.jsonl`; `results.jsonl`
-  quotes short phrases of the text in its checklist flags);
-- `runs/dev-checklist/`, `runs/dev-checklist-revision/` and
-  `runs/dev-checklist-rev1/attempts.jsonl` (follow-up dev runs).
+  quotes the text in its checklist flags, in runs of up to a few dozen words);
+- `runs/dev-checklist/`, `runs/dev-checklist-revision/` and `runs/dev-checklist-rev1/`
+  (follow-up dev runs: `attempts.jsonl`, and quotes in `results.jsonl`'s checklist fields).
 
 **Answers.** `runs/followup-test/followup_report.json` lists the benchmark's answer (the key)
 for the problems under dispute, and the follow-up docs cite a few keys.

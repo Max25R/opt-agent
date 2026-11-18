@@ -12,7 +12,7 @@ Everything here is about the software half of the project, and every number come
 | [`numbers.md`](numbers.md), [`numbers.csv`](numbers.csv) | Every number to cite, each with the JSON field it comes from (derived ones say how). |
 
 **Not here, on purpose:** Vitor's parts (the hand-solving time study, the flow charts, and the
-summary). The agent's time per problem, which the time study compares with hand solving, is
+whole project's summary; `summary.md` above covers the agent side only). The agent's time per problem, which the time study compares with hand solving, is
 in `numbers.md` ("time per answer").
 
 **Regenerate** (no API calls; the figures need matplotlib, from the optional

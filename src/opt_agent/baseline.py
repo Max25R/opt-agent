@@ -12,7 +12,6 @@ scored at 1e-6, and in the first dev runs the baseline rounded every answer that
 whole number, to 4 to 7 digits, so 2 were scored wrong for rounding alone.
 """
 
-import hashlib
 import math
 from typing import Literal
 
@@ -47,9 +46,6 @@ whole-number values. Divisible quantities (kilograms, acres, hours, money) can b
 - Decisions are >= 0 unless the problem says otherwise.
 - Use every requirement the text states and add none it doesn't state.
 - Use the numbers exactly as given."""
-
-# In the logs and results, so answers from different prompt versions can't be mixed.
-SYSTEM_PROMPT_SHA256 = hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest()[:12]
 
 
 def build_request(problem: str, model_id: str) -> dict:

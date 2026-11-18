@@ -1,5 +1,8 @@
 """Mutation recall of the report-only checks, at $0 (docs/FOLLOWUP_DEV_LOG.md).
 
+One-off: a dev-phase measurement for the follow-up (2026-11-09). It still runs;
+nothing depends on it.
+
 Takes the follow-up dev run's models that were scored right, breaks each in small known ways,
 and asks whether the checklist (its cached reply for that problem) or the low-confidence
 check (its cached direct estimate) notices. No API calls: every checklist and estimate comes
