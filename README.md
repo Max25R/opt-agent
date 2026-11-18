@@ -177,13 +177,19 @@ tools with `pip install -r requirements-docs.lock -c requirements.lock` and
 
 ```mermaid
 flowchart LR
-    P[Problem text] --> F[Claude writes an LP or MIP<br/>as structured output]
-    F --> S[CBC solves it]
-    S --> V{HiGHS agrees, and the<br/>arithmetic checks pass?}
+    P[Problem text] --> C[Claude]
+    C --> M[Model: an LP or MIP<br/>in the project's JSON schema]
+    M --> S[CBC solves it]
+    S --> V{HiGHS agrees, and plain<br/>arithmetic checks the answer?}
+    V -- yes --> E[Explanation: Claude's words,<br/>every number the solver's]
     V -- no --> L[Loud failure:<br/>no answer is reported]
-    V -- yes --> E[Claude explains it;<br/>every number traced to the solver]
-    S -- unusable, infeasible or unbounded --> R[Feedback, such as the<br/>conflicting constraints] --> F
+    M -. unusable reply .-> R[Feedback to Claude, such<br/>as the conflicting constraints]
+    S -. infeasible or unbounded .-> R
+    R -.-> C
 ```
+
+A verified answer can still be wrong: the checks are about Claude's model, not whether the
+model says what the text says (a *silent* failure).
 
 - **Formulate:** Claude returns JSON in the project's LP/MIP schema (structured output),
   validated for meaning, not just shape.
