@@ -78,6 +78,9 @@ studies (their variable names and numbers come from the problems), and
 text that its model lacks. No problem text is quoted. Each file keeps the license of its problem, which its name gives
 (`test__` and `test-perturbed__`: NL4Opt, MIT; `followup-test__complexlp-`: ComplexLP, CC BY-SA
 4.0; `followup-test__industryor-`: IndustryOR, CC BY-NC 4.0, non-commercial only).
+`docs/analysis/dispute_spotcheck.md` cites the keys of the 10 problems it lists, by ID, with
+this project's one-line notes (ComplexLP's under CC BY-SA 4.0, IndustryOR's under CC BY-NC
+4.0, non-commercial only).
 
 ## The demo's examples (this project's own)
 
