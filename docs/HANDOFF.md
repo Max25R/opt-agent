@@ -18,9 +18,8 @@ decisions is `docs/HISTORY.md`.
 ## Current state
 - **Everything is committed and pushed** (`main`, 2026-11-18; tags `m6-freeze`,
   `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`), and CI's jobs (test on
-  3.12 and 3.13, types, reproduce, demo-image, pictures, static-demo; deploy-pages is
-  skipped until Pages is on, open item 13) pass on the last commit. No API call was made
-  after 2026-11-15.
+  3.12 and 3.13, types, reproduce, demo-image, pictures, static-demo, deploy-pages) pass on
+  the last commit. No API call was made after 2026-11-15.
 - **The polish list of 2026-11-18** (the owner's; each item its own commit, CI green each
   time, no API calls; decisions at the end of this file):
   - **The static demo** (item 1): `scripts/static_demo.py` builds the examples page as a
@@ -164,10 +163,13 @@ decisions is `docs/HISTORY.md`.
    in `docs/ie2310/` (never written by Claude).
 12. **ADRs:** `docs/adr/` holds the retrospective 0001-0007, 0008 (the static demo,
    2026-11-18) and an index (`README.md`); add a new one for any new design decision.
-13. **Left for the owner, on GitHub: turn on Pages.** Settings > Pages > Build and
-   deployment > Source: **GitHub Actions**. Until then CI's `deploy-pages` job is skipped
-   (the `static-demo` job's notice says why) and the README's demo link is a 404; after it,
-   the next push to `main` deploys (or Actions > CI > Run workflow, on `main`).
+13. ~~Turn on Pages~~: done 2026-11-19 by the owner (Settings > Pages > Source: GitHub
+   Actions), then a manual CI run on `365d23e` deployed it. Checked through the public API
+   and a browser: every job of that run passed, `deploy-pages` included, and
+   `https://max25r.github.io/opt-agent/` serves the static demo, stamped `365d23e`, all four
+   examples verified and matching. Every push to `main` now redeploys it. (The public
+   `GET /repos/.../pages` answers 404 without a token, so it can't show whether Pages is on;
+   CI's check sends the job's token.)
 14. **Proposed next (2026-11-18, item 5 of the polish list; none started, each the owner's
    call):**
    1. A person fills in the dispute spot-check (item 9): 1-2 hours, $0. An LLM judge flagged
