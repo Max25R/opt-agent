@@ -33,7 +33,9 @@ point is a trustworthy evaluation, not a demo.
 
 All eight milestones are done (2026-11-15), and the owner's later lists (2026-11-17 and 18:
 CI hardening, mypy and coverage, the post hoc analyses in `docs/analysis/`, the ADRs in
-`docs/adr/`, the two bugs mypy found) are done too. Nothing is in progress. The full record,
+`docs/adr/`, the two bugs mypy found; then the polish list: the static demo on GitHub Pages,
+the code tour in `docs/DESIGN.md`, a README pass) are done too. Nothing is in progress; the
+proposed next steps are `docs/HANDOFF.md`'s open item 14. The full record,
 with every decision and its date, is in `docs/HISTORY.md`; where things stand, every open
 item and the environment are in `docs/HANDOFF.md`. **Start from `docs/HANDOFF.md`'s "Start
 here".**

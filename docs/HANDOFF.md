@@ -33,6 +33,9 @@ decisions is `docs/HISTORY.md`.
     what it does and why (`agent.py`, `schema.py`, `solver.py` and `verify.py` got fuller
     ones; docstrings only). `tests/test_code_tour.py` keeps its links and docstrings current.
   - **The ADRs** (item 4) were already in `docs/adr/` (0001-0007); 0008 came with item 1.
+  - **The README's fresh read** (item 3): tighter where it repeated itself or ran long, with
+    no claim or number added or changed; the static page's note is shorter too.
+  - **Five proposed next steps** (item 5): open item 14, none started.
 - **Since 2026-11-16** (the owner's list of 2026-11-17, each item its own commit, CI green
   each time; no API calls):
   - CI's jobs have `timeout-minutes` as a hang guard (10; 30 for reproduce), and a new
@@ -165,6 +168,23 @@ decisions is `docs/HISTORY.md`.
    deployment > Source: **GitHub Actions**. Until then CI's `deploy-pages` job is skipped
    (the `static-demo` job's notice says why) and the README's demo link is a 404; after it,
    the next push to `main` deploys (or Actions > CI > Run workflow, on `main`).
+14. **Proposed next (2026-11-18, item 5 of the polish list; none started, each the owner's
+   call):**
+   1. A person fills in the dispute spot-check (item 9): 1-2 hours, $0. An LLM judge flagged
+      the key on 13 of the 35 follow-up problems with a wrong answer, not verified by a
+      person; 10 verdicts are the cheapest real evidence of how many are key errors.
+   2. A demo example whose first model fails, so the static page shows the fix step
+      (ADR-0007's open action item): about 2 hours, plus a paid caching run of a few cents
+      in the owner's terminal (`scripts/cache_examples.py --plan` first).
+   3. Sample agreement as a silent-failure signal, on the follow-up's 3 committed samples per
+      problem, with the rule committed before its one run as for the silent detector: about
+      half a day, $0, exploratory (ADR-0001's open question).
+   4. The explanation checker evaluated on dev's verified answers (ADR-0004's revisit), so
+      "every number traced to the solver" becomes a measured result: about a day, a few
+      cents of dev calls in the owner's terminal.
+   5. A second model under its own pre-registration and cap (ADR-0006's model ladder): 2-3
+      days plus a paid run sized by `evaluate --plan` at the current prices; the budget is
+      the owner's call.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where both studies ran and
@@ -372,3 +392,16 @@ Logged as the owner asked: the simplest reasonable option, where the request did
   `scoring.py` are named after them as the evaluation's part, since the replay story is the
   evaluation's, not one problem's. The modules' code is unchanged, so both studies still
   rebuild byte for byte (`scripts/reproduce.py`).
+- **Item 3, the README's fresh read.** Read as a recruiter (60 seconds: the title, the demo
+  link, the pitch, the table, the screenshot) and as an engineer (10 minutes: results,
+  limitations, how it works, reproduce). The top already worked; the edits are where text
+  repeated itself or ran long: the pitch's long sentence split in two; NL4Opt's paragraph no
+  longer restates the summary, and its dispute share leads with the count (6 of the 8 problems
+  all three conditions got wrong), as the owner's wording rule asks, which also fixed the same
+  share-first heading in `docs/EVALUATION.md`; H1's pre-registered reading said once;
+  Limitations no longer repeats H2's caveats, and the integrality-rule bug joined the
+  answer-key bullet; the demo, reproduce and development notes are shorter; the code tour is
+  linked from "How it works" and "More detail". No claim or number was added or changed
+  (`tests/test_readme_numbers.py`). The static page's note was shortened in the same pass (on a
+  phone it ran to nine lines above the examples). Headings are unchanged: the static page links
+  to `#try-the-demo`.

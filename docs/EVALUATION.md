@@ -44,8 +44,8 @@ Lenient scoring accepts the optimum under either integrality (LP or integer), wi
 else changed. It moves both solver conditions to 266 and leaves the baseline at 264. Its
 McNemar tests, exploratory and without Holm, give p = 1 in every comparison too.
 
-**Two LLM judges flagged most shared failures as answer-key errors, not verified by a
-person (exploratory, post hoc).** 8 problems were wrong in all three conditions. Two LLM
+**Two LLM judges flagged 6 of the 8 shared failures as answer-key errors, not verified by
+a person (exploratory, post hoc).** 8 problems were wrong in all three conditions. Two LLM
 judges labeled each failure on its own, and both flagged 6 of the 8 as answer-key errors:
 a key that is wrong, or that rejects a reading the text supports. No person has checked
 those flags. Counting those 6 as correct gives 98.5% in every condition, which would leave
