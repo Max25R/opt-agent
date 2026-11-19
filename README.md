@@ -221,6 +221,20 @@ The details, including the solver bugs these checks caught, are in
 [`docs/DESIGN.md`](docs/DESIGN.md), which opens with
 [a ten-minute tour of the code](docs/DESIGN.md#read-the-code-in-10-minutes).
 
+## Use it as an Agent Skill
+
+[`skills/opt-agent/`](skills/opt-agent/SKILL.md) packs the workflow for any Claude agent:
+formulate with an integrality choice per variable, solve with CBC, verify with HiGHS and
+plain arithmetic, explain with the solver's numbers only, and warn that a wrong answer can
+pass every check. Its two scripts need only PuLP and SciPy. Copy the folder into
+`~/.claude/skills/`, or install it from this repository, which is also a free plugin
+marketplace:
+
+```bash
+claude plugin marketplace add Max25R/opt-agent
+claude plugin install opt-agent@max25r-opt-agent
+```
+
 ## How this differs from OptiMUS, ORLM and Chain-of-Experts
 
 OptiMUS (ICML 2024) and Chain-of-Experts (ICLR 2024) are multi-agent LLM systems for

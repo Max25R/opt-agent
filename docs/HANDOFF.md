@@ -43,6 +43,10 @@ decisions is `docs/HISTORY.md`.
     again. Exploratory. Every signal passed its pre-declared real-signal rule on the
     follow-up, so the doc proposes a pre-registered resampling study (open item 15). No
     README claim changed, so no limitations line was added.
+  - **The Agent Skill** (item 4): `skills/opt-agent/` (`SKILL.md` and two scripts that need
+    only PuLP 4 and SciPy), tested on the paint example's cached replies
+    (`tests/test_skill.py`), mentioned in the README, and listed in the repository's own
+    plugin marketplace (`.claude-plugin/marketplace.json`).
 - **Since 2026-11-16** (the owner's list of 2026-11-17, each item its own commit, CI green
   each time; no API calls):
   - CI's jobs have `timeout-minutes` as a hang guard (10; 30 for reproduce), and a new
@@ -435,3 +439,16 @@ Logged as the owner asked: the simplest reasonable option, where the request did
   the run, knowing the intervals are too narrow, as a screen for a pre-registered study. After
   the run, only the results table's layout changed (the base rate's interval added, which the
   owner asked for); the counts are the one run's.
+- **Item 4, the Agent Skill.** "Free listing" was read as the free route the plugin docs
+  describe: the repository's own marketplace file (no form, no paid plan), not Anthropic's
+  directory (a paid claude.ai plan and a portal submission, the owner's to do if wanted). The
+  plugin's root is `skills/opt-agent/` itself (a plugin with `SKILL.md` at its root loads as
+  one skill), so an install copies that folder, not the 80 MB repository; no `version`, so
+  updates follow the commit. The helpers are a short, self-contained restatement of the
+  project's checks (bounds, integrality, constraints, objective, the LP duality certificate,
+  the explanation's number rule, the same regex and rounding as `explain.py`); they leave out
+  the improving-ray check and the feasibility solve that settles CBC's infeasible or
+  unbounded labels, so there a CBC-HiGHS disagreement is the only guard, and SKILL.md says to
+  report no answer then. PuLP 4 only: the scripts stop with a clear message on PuLP 2. The
+  `claude` CLI isn't on this machine, so `claude plugin validate .` wasn't run;
+  `test_the_repository_is_a_marketplace_for_the_skill` checks the fields the docs require.

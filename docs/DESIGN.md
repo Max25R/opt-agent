@@ -192,6 +192,8 @@ scripts/
   eval_json.py amendment3.py amendment4.py amendment5.py followup_results.py
   cache_examples.py demo_smoke.py screenshot.py   # the demo's replies, smoke test, picture
   static_demo.py              # the demo as a static site (GitHub Pages), built and checked in CI
+skills/opt-agent/             # the Agent Skill: SKILL.md, and two scripts needing only PuLP and SciPy
+.claude-plugin/               # marketplace.json: the repository as a plugin marketplace for the skill
 tests/                        # unit, property, metamorphic, ground-truth and demo tests
 Dockerfile                    # the demo image (CI builds and smoke-tests it)
 requirements.lock             # exact versions of every package; CI installs from it
