@@ -242,6 +242,7 @@ python scripts/static_demo.py       # the demo as a static site (build/site; Git
 python scripts/static_demo.py --check build/site   # it, in headless Chromium (CI only: not in the sandbox)
 OPT_AGENT_LIVE=1 python -m opt_agent.demo   # live mode: the key in .env; guarded (demo/app.py)
 python scripts/cache_examples.py --plan     # the examples' replies: worst case (the paid run is the owner's)
+python scripts/paid_dev_and_demo.py --plan  # 2026-11-19's paid run (the owner's, --cap 0.30): dev explanations + the fix-step example
 docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the image (CI builds it)
 ```
 

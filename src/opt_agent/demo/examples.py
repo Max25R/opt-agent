@@ -100,5 +100,67 @@ EXAMPLES = [
     ),
 ]
 
+# Candidates for a fifth example that shows self-correction (ADR-0007, action item 2): each
+# hides a units or percentage trap whose literal misreading makes the model infeasible, so
+# the solver's feedback (the conflicting constraints) has something to fix. Not shown yet:
+# scripts/paid_dev_and_demo.py tries them (the owner's paid run), and the first whose first
+# model fails and whose revision is verified and matches its hand-checked answer joins
+# EXAMPLES, labeled as chosen to show the loop. Each answer is checked like the others'
+# (tests/test_demo.py).
+FIX_STEP_CANDIDATES = [
+    Example(
+        id="bakery",
+        kind="production mix",
+        title="Bakery oven",
+        text=(
+            "A bakery bakes sourdough and rye bread in one oven. A sourdough loaf needs 20 "
+            "minutes of oven time and 500 grams of flour, and earns $3. A rye loaf needs 15 "
+            "minutes of oven time and 400 grams of flour, and earns $2.50. The oven is free "
+            "for 8 hours a day, and the bakery has 30 kilograms of flour a day. A café "
+            "contract needs at least 10 rye loaves a day, and the bakery can sell at most 24 "
+            "rye loaves a day. How many loaves of each kind should it bake each day to "
+            "maximize profit?"
+        ),
+        reference_objective=78,
+        reference_note="6 sourdough and 24 rye loaves: $78 a day. The oven's 8 hours (480 "
+        "minutes) are used up and rye is at its sales limit; 12.6 of the 30 kg of flour are "
+        "used.",
+        integer=False,
+    ),
+    Example(
+        id="fleet",
+        kind="fleet purchase",
+        title="Delivery vans",
+        text=(
+            "A delivery company is buying new vans. An electric van costs $40,000 and a "
+            "diesel van costs $30,000, and the company can spend at most $1,200,000. It needs "
+            "at least 35 new vans, and a city rule says at least 40% of the new vans must be "
+            "electric. How many vans of each kind should it buy to spend as little as "
+            "possible?"
+        ),
+        reference_objective=1_190_000,
+        reference_note="14 electric and 21 diesel vans: $1,190,000. Exactly 35 vans, exactly "
+        "40% of them electric, and $10,000 of the budget left.",
+        integer=False,
+    ),
+    Example(
+        id="furniture",
+        kind="production mix",
+        title="Furniture workshop",
+        text=(
+            "A furniture workshop makes tables and chairs. A table takes 90 minutes of "
+            "carpentry and 20 minutes of finishing, and earns $120. A chair takes 30 minutes "
+            "of carpentry and 15 minutes of finishing, and earns $45. This week three "
+            "carpenters can each work 40 hours, one finisher can work 40 hours, and a school "
+            "has ordered at least 20 chairs. How many tables and chairs should the workshop "
+            "make this week to maximize its earnings?"
+        ),
+        reference_objective=10_080,
+        reference_note="48 tables and 96 chairs: $10,080. All 120 carpentry hours and all 40 "
+        "finishing hours are used, and the school's order is more than met.",
+        integer=False,
+    ),
+]
+
 BY_ID = {e.id: e for e in EXAMPLES}
 BY_TEXT = {e.text: e for e in EXAMPLES}

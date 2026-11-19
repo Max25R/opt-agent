@@ -65,13 +65,31 @@ REFERENCE_MODELS = {
         ("protein kg", {"corn": 0.10, "soy": 0.45, "oats": 0.10}, ">=", 170),
         ("fiber kg", {"corn": 0.03, "soy": 0.06, "oats": 0.11}, "<=", 60),
     ]),
+    # The fix-step candidates: loaves, vans and furniture are whole things.
+    "bakery": model(["sourdough", "rye"], "max", {"sourdough": 3, "rye": 2.5}, [
+        ("oven minutes", {"sourdough": 20, "rye": 15}, "<=", 480),
+        ("flour kg", {"sourdough": 0.5, "rye": 0.4}, "<=", 30),
+        ("cafe contract", {"rye": 1}, ">=", 10),
+        ("rye sales", {"rye": 1}, "<=", 24),
+    ], integer=True),
+    "fleet": model(["electric", "diesel"], "min", {"electric": 40_000, "diesel": 30_000}, [
+        ("budget", {"electric": 40_000, "diesel": 30_000}, "<=", 1_200_000),
+        ("vans", {"electric": 1, "diesel": 1}, ">=", 35),
+        ("electric share", {"electric": 0.6, "diesel": -0.4}, ">=", 0),
+    ], integer=True),
+    "furniture": model(["tables", "chairs"], "max", {"tables": 120, "chairs": 45}, [
+        ("carpentry minutes", {"tables": 90, "chairs": 30}, "<=", 3 * 40 * 60),
+        ("finishing minutes", {"tables": 20, "chairs": 15}, "<=", 40 * 60),
+        ("school order", {"chairs": 1}, ">=", 20),
+    ], integer=True),
 }  # fmt: skip
 
 
 # ---- the examples -----------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("example", examples.EXAMPLES, ids=lambda e: e.id)
+@pytest.mark.parametrize("example", examples.EXAMPLES + examples.FIX_STEP_CANDIDATES,
+                         ids=lambda e: e.id)  # fmt: skip
 def test_each_reference_answer_is_its_hand_written_models_optimum(example):
     lp = LPModel.model_validate(REFERENCE_MODELS[example.id])
     cbc, highs = solve(lp), solve_with_highs(lp)
@@ -122,7 +140,7 @@ def test_the_examples_are_four_kinds_and_none_is_benchmark_text():
     assert any(e.integer for e in examples.EXAMPLES)
     sources = {name: set().union(*map(eight_word_runs, texts))
                for name, texts in benchmark_texts().items()}  # fmt: skip
-    for e in examples.EXAMPLES:
+    for e in examples.EXAMPLES + examples.FIX_STEP_CANDIDATES:
         mine = eight_word_runs(e.text)
         for name, runs in sources.items():
             assert not mine & runs, f"{e.id} shares 8 words in a row with a {name} problem"

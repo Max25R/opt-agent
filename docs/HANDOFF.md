@@ -47,6 +47,14 @@ decisions is `docs/HISTORY.md`.
     only PuLP 4 and SciPy), tested on the paint example's cached replies
     (`tests/test_skill.py`), mentioned in the README, and listed in the repository's own
     plugin marketplace (`.claude-plugin/marketplace.json`).
+  - **The paid command** (item 2, waiting for the owner): `scripts/paid_dev_and_demo.py`.
+    Part 1 explains every verified single-shot answer on NL4Opt's dev split (all 92
+    formulations replay from `runs/dev-1`; 88 explanation calls) for the explanation
+    checker's study, whose protocol was committed first (`docs/analysis/explanation_checker.md`).
+    Part 2 tries three candidate examples (`demo.examples.FIX_STEP_CANDIDATES`, each with a
+    units or percentage trap and a hand-checked answer) for one whose first model fails and
+    whose revision is verified and right. `--plan`: worst case $0.75 + $0.37, expected about
+    $0.09; hard cap $0.30. Prices re-checked on the pricing page (2026-11-19): unchanged.
 - **Since 2026-11-16** (the owner's list of 2026-11-17, each item its own commit, CI green
   each time; no API calls):
   - CI's jobs have `timeout-minutes` as a hang guard (10; 30 for reproduce), and a new
@@ -452,3 +460,17 @@ Logged as the owner asked: the simplest reasonable option, where the request did
   report no answer then. PuLP 4 only: the scripts stop with a clear message on PuLP 2. The
   `claude` CLI isn't on this machine, so `claude plugin validate .` wasn't run;
   `test_the_repository_is_a_marketplace_for_the_skill` checks the fields the docs require.
+- **Item 2, the paid command.** One script, one `BudgetedClient`, one ledger
+  (`logs/spend/paid-2026-11-19.jsonl`), for both parts. Part 1 uses single-shot (as M6) on
+  dev only, so every formulation replays from M6's dev cache and only explanations are paid;
+  it writes the rows to `runs/explain-dev/`, and Claude labels them afterwards from a sheet
+  without the checker's flags (the protocol says how). Part 2 needs no change to the demo:
+  each try has its own cache folder (an unsalted key, a fresh reply), so the chosen try's
+  files replay in `src/opt_agent/demo/replies/` as they are; its first five samples per
+  candidate are tried in order and the first that shows the loop is kept, every try recorded
+  in `logs/demo-fix-step/tries.json` for the label. The traps (minutes against hours, grams
+  against kilograms, 40% read as 40 vans) were chosen so that a literal misreading is
+  infeasible, which is what sends Claude the conflicting constraints; whether Haiku falls
+  into one is the run's question, and if no try does, nothing is chosen. The cap ($0.30) is
+  about three times the expected cost: it binds only if replies run far longer than the
+  demo examples' did.
