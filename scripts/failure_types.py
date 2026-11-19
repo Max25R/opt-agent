@@ -303,6 +303,8 @@ def summarize(rows: list[dict], verdicts: dict) -> dict:
             "problems": len({(r["run"], r["problem"]) for r in mine}),
             "dispute_problems": len({(r["run"], r["problem"]) for r in mine
                                      if r["primary"] == "answer-key dispute"}),  # fmt: skip
+            "primary_problems": {t: len({(r["run"], r["problem"]) for r in mine
+                                         if r["primary"] == t}) for t in TYPES},  # fmt: skip
             "primary": tally(mine), "primary_models": tally(list(models.values())),
             "any_error": any_error,
             "confirmed": {t: sum(r["primary"] == t and r["confirmed"] == "yes" for r in mine)
@@ -448,16 +450,23 @@ def results_markdown(summary: dict) -> str:
              "[`failure_types.json`](failure_types.json), corrected models in "
              "[`fixes/`](fixes/).", "",
              "![Wrong answers by primary type, per study](failure_types.png)", "",
-             "| Primary type | M6 answers | M6 share | Follow-up answers | Follow-up share | "
-             "Follow-up models | Found at all (follow-up) |",
-             "|---|---:|---:|---:|---:|---:|---:|"]  # fmt: skip
+             f"| Primary type | M6 problems (of {m6['problems']}) | M6 answers | M6 share of "
+             f"answers | Follow-up problems (of {fu['problems']}) | Follow-up answers | "
+             "Follow-up share of answers | Follow-up models | Found at all (follow-up) |",
+             "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]  # fmt: skip
     for t in TYPES:
-        lines.append(f"| {t} | {m6['primary'][t]} | {pct(m6['primary'][t], m6['answers'])} | "
+        lines.append(f"| {t} | {m6['primary_problems'][t]} | {m6['primary'][t]} | "
+                     f"{pct(m6['primary'][t], m6['answers'])} | {fu['primary_problems'][t]} | "
                      f"{fu['primary'][t]} | {pct(fu['primary'][t], fu['answers'])} | "
                      f"{fu['primary_models'][t]} | {fu['any_error'][t]} |")  # fmt: skip
-    lines += [f"| **all** | {m6['answers']} | | {fu['answers']} | | {fu['models']} | |", "",
-              "\"Found at all\" counts answers whose model has the error as its primary or a "
-              "secondary type.", ""]  # fmt: skip
+    lines += [f"| **all** | {m6['problems']} | {m6['answers']} | | {fu['problems']} | "
+              f"{fu['answers']} | | {fu['models']} | |", "",
+              "Problems come first because each one repeats across conditions and samples: a "
+              "few problems make many answers. A problem counts under every primary type its "
+              "answers have, so a column of problems can sum to more than its total (M6 counts "
+              "a run's problem, the perturbed run's as its own). \"Found at all\" counts "
+              "answers whose model has the error as its primary or a secondary type.",
+              ""]  # fmt: skip
     d = "answer-key dispute"
     lines += [f"**The disputes are flags, on a few problems.** An LLM judge (Claude) flagged "
               f"the key on {fu['dispute_problems']} of the {fu['problems']} follow-up problems "

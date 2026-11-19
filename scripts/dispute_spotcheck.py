@@ -1,11 +1,12 @@
 """docs/analysis/dispute_spotcheck.md: 10 of the follow-up's disputed problems, for a person.
 
-An LLM judge (Claude) flagged some of the follow-up's wrong answers as answer-key disputes
-(docs/analysis/failure_types.md): it found no error in the model. No person has verified any
-of those flags. This draws 10 of the disputed problems at random, with a fixed seed, from the
-list in id order, and writes, for each, the key as LLM4OR's file writes it, the answers the
-judge flagged (from the committed run), and the judge's reason in one line, with an empty
-column for a person's verdict. Exploratory and post hoc: nothing here changes a result.
+An LLM judge (Claude) flagged the key on 13 of the 35 follow-up problems with a wrong answer
+as an answer-key dispute (docs/analysis/failure_types.md): it found no error in the model.
+No person has verified any of those flags. This draws 10 of the disputed problems at random,
+with a fixed seed, from the list in id order, and writes, for each, the key as LLM4OR's file
+writes it, the answers the judge flagged (from the committed run), and the judge's reason in
+one line, with an empty column for a person's verdict. Exploratory and post hoc: nothing
+here changes a result.
 
 The reasons are condensed from failure_types.csv's notes, one for each disputed problem (not
 only the drawn ones), in this project's words; no problem text is quoted.
@@ -125,7 +126,20 @@ def our_answers(problem: str, rows: list[dict], run: dict) -> str:
                      for value, rs in by_value.items())  # fmt: skip
 
 
-def render() -> str:
+def verdicts(doc: str) -> dict[str, str]:
+    """The verdicts a person wrote into the doc's last column, by problem, so that writing the
+    doc again keeps them."""
+    found = {}
+    for line in doc.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if line.startswith("| ") and len(cells) == 6 and cells[1].startswith("`"):
+            found[cells[1].strip("`")] = cells[5]
+    return found
+
+
+def render(kept: dict[str, str] | None = None) -> str:
+    """The doc, with `kept` verdicts (by problem) in the last column."""
+    kept = kept or {}
     rows, pool = disputed_rows(), disputed()
     with CSV.open() as f:  # every follow-up problem with a wrong answer: what was classified
         wrong = {r["problem"] for r in csv.DictReader(f) if r["study"] == "followup"}
@@ -166,12 +180,13 @@ def render() -> str:
         "|---:|---|---:|---|---|---|",
     ]
     for n, problem in enumerate(draw(pool), start=1):
+        verdict = f" {kept[problem]} " if kept.get(problem) else " "
         lines.append(f"| {n} | `{problem}` | {key[problem]} | {our_answers(problem, rows, run)} "
-                     f"| {REASONS[problem]} | |")  # fmt: skip
+                     f"| {REASONS[problem]} |{verdict}|")  # fmt: skip
     lines.append("")
     return "\n".join(lines)
 
 
 if __name__ == "__main__":
-    DOC.write_text(render())
+    DOC.write_text(render(verdicts(DOC.read_text()) if DOC.exists() else None))
     print(f"{DOC.relative_to(ROOT)}: {SIZE} problems")

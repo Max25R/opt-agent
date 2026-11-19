@@ -74,19 +74,19 @@ Classified by Claude (an LLM), not a person. 229 wrong answers (105 distinct mod
 
 ![Wrong answers by primary type, per study](failure_types.png)
 
-| Primary type | M6 answers | M6 share | Follow-up answers | Follow-up share | Follow-up models | Found at all (follow-up) |
-|---|---:|---:|---:|---:|---:|---:|
-| wrong objective | 0 | 0% | 21 | 11% | 14 | 22 |
-| missing constraint | 2 | 6% | 19 | 10% | 9 | 20 |
-| wrong number/coefficient | 0 | 0% | 8 | 4% | 5 | 12 |
-| wrong inequality direction | 1 | 3% | 0 | 0% | 0 | 0 |
-| integrality | 8 | 23% | 32 | 16% | 12 | 32 |
-| units/misread quantity | 4 | 11% | 6 | 3% | 4 | 6 |
-| answer-key dispute | 16 | 46% | 90 | 46% | 37 | 90 |
-| other | 4 | 11% | 18 | 9% | 6 | 29 |
-| **all** | 35 | | 194 | | 87 | |
+| Primary type | M6 problems (of 18) | M6 answers | M6 share of answers | Follow-up problems (of 35) | Follow-up answers | Follow-up share of answers | Follow-up models | Found at all (follow-up) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| wrong objective | 0 | 0 | 0% | 8 | 21 | 11% | 14 | 22 |
+| missing constraint | 1 | 2 | 6% | 4 | 19 | 10% | 9 | 20 |
+| wrong number/coefficient | 0 | 0 | 0% | 4 | 8 | 4% | 5 | 12 |
+| wrong inequality direction | 1 | 1 | 3% | 0 | 0 | 0% | 0 | 0 |
+| integrality | 4 | 8 | 23% | 8 | 32 | 16% | 12 | 32 |
+| units/misread quantity | 2 | 4 | 11% | 4 | 6 | 3% | 4 | 6 |
+| answer-key dispute | 8 | 16 | 46% | 13 | 90 | 46% | 37 | 90 |
+| other | 2 | 4 | 11% | 4 | 18 | 9% | 6 | 29 |
+| **all** | 18 | 35 | | 35 | 194 | | 87 | |
 
-"Found at all" counts answers whose model has the error as its primary or a secondary type.
+Problems come first because each one repeats across conditions and samples: a few problems make many answers. A problem counts under every primary type its answers have, so a column of problems can sum to more than its total (M6 counts a run's problem, the perturbed run's as its own). "Found at all" counts answers whose model has the error as its primary or a secondary type.
 
 **The disputes are flags, on a few problems.** An LLM judge (Claude) flagged the key on 13 of the 35 follow-up problems with a wrong answer, and on 8 of M6's 18 (a run's problem; the perturbed run's are its own), not verified by a person: where to look, not proof that a key is wrong. Each problem repeats across conditions and samples, so the same flags make 46% of the follow-up's wrong answers and 46% of M6's. [`dispute_spotcheck.md`](dispute_spotcheck.md) lists 10 of the follow-up's for a person to check.
 

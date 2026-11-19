@@ -30,4 +30,12 @@ def test_the_doc_lists_the_seeds_draw_and_every_disputed_problem_has_a_reason():
     reason="needs LLM4OR's data for the keys (python scripts/fetch_llm4or.py)",
 )
 def test_the_committed_doc_is_the_scripts_output():
-    assert spotcheck.render() == spotcheck.DOC.read_text()
+    """Everything but the verdicts a person writes in, which the script keeps."""
+    doc = spotcheck.DOC.read_text()
+    assert spotcheck.render(spotcheck.verdicts(doc)) == doc
+
+
+def test_writing_the_doc_again_keeps_a_persons_verdicts():
+    row = "| 3 | `industryor:17` | 43700 | 43200 (9 answers, 4 models) | a reason | key wrong |"
+    assert spotcheck.verdicts(row) == {"industryor:17": "key wrong"}
+    assert spotcheck.verdicts(row.replace("key wrong |", "|")) == {"industryor:17": ""}
