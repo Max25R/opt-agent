@@ -235,6 +235,8 @@ python scripts/screenshot.py        # docs/demo.png headlessly, in its committed
 python scripts/screenshot.py --check docs/demo.png   # a picture's margins against that frame
 python scripts/ie2310.py            # docs/ie2310/: the numbers table and the figures
 python -m opt_agent.demo            # the demo, examples mode (no key): http://127.0.0.1:8000
+python scripts/static_demo.py       # the demo as a static site (build/site; GitHub Pages, via CI)
+python scripts/static_demo.py --check build/site   # it, in headless Chromium (CI only: not in the sandbox)
 OPT_AGENT_LIVE=1 python -m opt_agent.demo   # live mode: the key in .env; guarded (demo/app.py)
 python scripts/cache_examples.py --plan     # the examples' replies: worst case (the paid run is the owner's)
 docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the image (CI builds it)

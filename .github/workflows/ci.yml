@@ -3,8 +3,9 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:  # Actions > CI > Run workflow: on main, that deploys the static demo too
 
-# Least privilege: CI only needs to read the code.
+# Least privilege: CI only needs to read the code (deploy-pages adds what it needs).
 permissions:
   contents: read
 
@@ -227,3 +228,79 @@ jobs:
         with:
           name: demo-screenshot
           path: demo.png
+
+  static-demo:
+    # The demo as a static site for GitHub Pages (scripts/static_demo.py): the examples page
+    # with no server and no key. The build runs the demo app in-process, replaying the
+    # committed replies (both solvers and the checks run here), and saves its responses next
+    # to the page; then headless Chromium checks the site under its base path: every example
+    # verified and equal to its hand-checked answer, and no request but its own files.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: read  # only to ask whether Pages is on (below)
+    outputs:
+      pages: ${{ steps.pages.outputs.source }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            requirements.lock
+            requirements-docs.lock
+
+      - name: Install
+        run: |
+          pip install -r requirements.lock
+          pip install --no-deps -e .
+          pip install -r requirements-docs.lock -c requirements.lock
+          python -m playwright install --with-deps --only-shell chromium
+
+      - name: Build the site
+        run: python scripts/static_demo.py --out site
+
+      - name: Check it in a browser
+        run: python scripts/static_demo.py --check site
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      # deploy-pages fails unless the repository's Pages source is "GitHub Actions"
+      # (Settings > Pages), so ask first: until then the deploy is skipped, not failed.
+      - name: Is Pages on?
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          reply=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pages")
+          source=$(jq -r '.build_type // "off"' <<< "$reply")
+          echo "source=$source" >> "$GITHUB_OUTPUT"
+          if [ "$source" != workflow ]; then
+            echo "::notice title=pages::not deployed: the Pages source isn't GitHub Actions" \
+              "(Settings > Pages). The API said: $(jq -c . <<< "$reply" | head -c 300)"
+          fi
+
+  deploy-pages:
+    # The static demo goes live from main only, once the tests pass and Pages is on.
+    needs: [test, static-demo]
+    if: github.ref == 'refs/heads/main' && needs.static-demo.outputs.pages == 'workflow'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write  # deploy-pages proves where the artifact came from
+    concurrency:
+      group: pages
+      cancel-in-progress: false  # never cut a deployment off halfway
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

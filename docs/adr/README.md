@@ -1,9 +1,10 @@
 # Architecture decision records
 
-Retrospective ADRs for opt-agent's key design decisions, each dated when the decision was made and
-recorded on 2026-11-16. [`docs/DESIGN.md`](../DESIGN.md) says how the system works; these say why,
-what else was on the table, and what each choice cost. The results they point to are in
-`results/eval.json` and `results/followup.json`, written up in the [README](../../README.md#results).
+ADRs for opt-agent's key design decisions, each dated when the decision was made: 0001-0007 were
+recorded retrospectively on 2026-11-16, and later ones are recorded when they're made.
+[`docs/DESIGN.md`](../DESIGN.md) says how the system works; these say why, what else was on the
+table, and what each choice cost. The results they point to are in `results/eval.json` and
+`results/followup.json`, written up in the [README](../../README.md#results).
 
 | ADR | decision | decided (built) |
 |---|---|---|
@@ -14,6 +15,7 @@ what else was on the table, and what each choice cost. The results they point to
 | [0005](0005-preregistration-freeze-and-replay.md) | Pre-registration, freeze tags and cache replay, not iterative evaluation | 2026-10-16 (2026-10-19 to 2026-11-15) |
 | [0006](0006-haiku-under-a-budget.md) | Claude Haiku 5.5 under a $20 budget, not a larger model | 2026-10-16 (confirmed 2026-10-28) |
 | [0007](0007-local-demo-with-cached-examples.md) | A local Docker demo with cached examples, not a hosted one | 2026-10-16 (2026-11-15) |
+| [0008](0008-static-demo-computed-at-build-time.md) | A static copy of the examples page, computed when CI builds it, not in the browser | 2026-11-18 (2026-11-18) |
 
 Each has the same parts: status, date, deciders, context, decision, the options (each rated on
 complexity, API cost, verifiability and reproducibility), the trade-off, the consequences and the

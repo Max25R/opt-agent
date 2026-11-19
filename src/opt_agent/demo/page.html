@@ -1,5 +1,7 @@
 <!doctype html>
-<html lang="en">
+<!-- data-site: "server" when the app serves this page; scripts/static_demo.py makes it
+     "static" for the no-server copy on GitHub Pages (see the script below). -->
+<html lang="en" data-site="server">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -81,6 +83,12 @@
     Claude explains it using only the solver's numbers. Nothing unverified is presented as an
     answer.</p>
   <span class="badge" id="mode">connecting…</span>
+  <p class="note" id="static-note" hidden>This is the demo as a static page: no server, no
+    API key, and nothing you type is sent anywhere. When the page was built<span
+    id="built-from"></span>, the demo app replayed each example's committed Claude replies,
+    solved Claude's models with CBC and HiGHS, ran the arithmetic checks, and saved what it
+    returned; this page shows those saved responses. To solve a problem of your own, run the
+    demo with your own Anthropic key (<a id="how-to-run">how</a>).</p>
 
   <div class="card">
     <h2>Problem</h2>
@@ -129,6 +137,37 @@
 const $ = (id) => document.getElementById(id);
 let maxChars = 4000;
 
+// The page runs two ways. Served by the app (python -m opt_agent.demo), it calls the app's
+// JSON API. As the static site on GitHub Pages there's no server: scripts/static_demo.py
+// asked the same app the same questions when it built the site and saved each response as
+// a file next to the page, which reads them by relative paths, so any base path works.
+const STATIC = document.documentElement.dataset.site === "static";
+const REPO = "https://github.com/Max25R/opt-agent";
+let examples = [];
+
+async function getJSON(name) {
+  const response = await fetch(STATIC ? `${name}.json` : `/${name}`);
+  if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
+  return response.json();
+}
+
+// POST /solve's answer as [ok, body]. The static site holds the examples' responses only,
+// so any other text gets a refusal, as examples mode's 404 does; nothing is sent.
+async function askSolve(problem) {
+  if (STATIC) {
+    const example = examples.find((ex) => ex.text === problem);
+    if (!example) return [false, { detail: "This static page has saved answers for the " +
+      "example problems only: pick one above. To solve a problem of your own, run the demo " +
+      "with your own Anthropic key (the link above says how)." }];
+    return [true, await getJSON(`solve/${example.id}`)];
+  }
+  const response = await fetch("/solve", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ problem }),
+  });
+  return [response.ok, await response.json()];
+}
+
 function el(tag, text, cls) {
   const node = document.createElement(tag);
   if (text !== undefined) node.textContent = text;
@@ -161,15 +200,29 @@ function updateCount() {
   $("count").textContent = `${n.toLocaleString()} / ${maxChars.toLocaleString()} characters`;
 }
 
+function showStaticNote() {
+  const commit = document.documentElement.dataset.commit;  // stamped by the build
+  if (commit) {
+    const link = el("a", commit.slice(0, 7));
+    link.href = `${REPO}/commit/${commit}`;
+    $("built-from").append(" (from commit ", link, ")");
+  }
+  $("how-to-run").href = `${REPO}#try-the-demo`;
+  $("static-note").hidden = false;
+}
+
 async function start() {
+  if (STATIC) showStaticNote();
   try {
-    const health = await (await fetch("/health")).json();
+    const health = await getJSON("health");
     maxChars = health.max_problem_chars;
-    $("mode").textContent = health.mode === "live"
+    $("mode").textContent = STATIC
+      ? `static page · no server, no API key · ${health.examples_cached} examples, replayed when it was built`
+      : health.mode === "live"
       ? `live mode · ${health.model} · replies capped at ${num(health.max_tokens)} tokens`
       : `examples mode · no API key · replays ${health.examples_cached} cached examples`;
-  } catch (e) { $("mode").textContent = "can't reach the server"; }
-  const examples = await (await fetch("/examples")).json();
+  } catch (e) { $("mode").textContent = STATIC ? "can't load the saved responses" : "can't reach the server"; }
+  examples = await getJSON("examples");
   for (const ex of examples) {
     const button = el("button", ex.title);
     button.append(el("small", ex.kind));
@@ -185,12 +238,8 @@ async function solve() {
   $("solve").disabled = true; $("solve").textContent = "Solving…";
   $("error").hidden = true;
   try {
-    const response = await fetch("/solve", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ problem }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail));
+    const [ok, data] = await askSolve(problem);
+    if (!ok) throw new Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail));
     show(data);
   } catch (e) {
     $("result").hidden = true;

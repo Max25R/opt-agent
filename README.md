@@ -4,6 +4,9 @@
 [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FMax25R%2Fopt-agent%2Fmain%2Fdocs%2Fbadges%2Fcoverage.json)](https://github.com/Max25R/opt-agent/actions/workflows/ci.yml)
 [![types: mypy](https://img.shields.io/badge/types-mypy-blue)](pyproject.toml)
 
+**[Try the demo in your browser](https://max25r.github.io/opt-agent/)**: no install and no API
+key. It's a static copy of the examples page, solved by CI from Claude's committed replies.
+
 **Plain-English operations problems in, solver-verified plans out, and an honest count of
 how often they're still wrong.** Claude writes a word problem ("how many litres of each paint
 should we make?") as a linear or integer program, a real solver (CBC) solves it, a second
@@ -126,8 +129,9 @@ Full write-up: [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md).
 - **A bug in the NL4Opt key's integrality rule** read some countable products as continuous,
   which cost 4 answers per condition; it's recorded as a deviation, and the result of record
   stands as pre-registered.
-- **The demo is local only.** Its live mode is guarded (one solve at a time, a length limit,
-  a token cap per reply, a dollar cap), not hardened for a public endpoint.
+- **The live demo is local only.** The page online replays the examples and nothing else;
+  live mode is guarded (one solve at a time, a length limit, a token cap per reply, a dollar
+  cap), not hardened for a public endpoint.
 
 ## Setup
 
@@ -140,7 +144,11 @@ pip install -r requirements.lock && pip install --no-deps -e .   # the locked ve
 
 ## Try the demo
 
-With Docker, in examples mode (no key; nothing is sent anywhere):
+The quickest way is [the static page](https://max25r.github.io/opt-agent/), with nothing to
+install: when CI builds it (`scripts/static_demo.py`), the demo app replays each example's
+committed replies and solves Claude's models with both solvers, and the page shows what it
+returned. To run the app itself, with Docker, in examples mode (no key; nothing is sent
+anywhere):
 
 ```bash
 docker build -t opt-agent .

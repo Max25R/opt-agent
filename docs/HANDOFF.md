@@ -17,9 +17,17 @@ decisions is `docs/HISTORY.md`.
 
 ## Current state
 - **Everything is committed and pushed** (`main`, 2026-11-18; tags `m6-freeze`,
-  `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`), and CI's 6 jobs (test on
-  3.12 and 3.13, types, reproduce, demo-image, pictures) pass on the last commit. No API
-  call was made after 2026-11-15.
+  `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`), and CI's jobs (test on
+  3.12 and 3.13, types, reproduce, demo-image, pictures, static-demo; deploy-pages is
+  skipped until Pages is on, open item 13) pass on the last commit. No API call was made
+  after 2026-11-15.
+- **The polish list of 2026-11-18** (the owner's; each item its own commit, CI green each
+  time, no API calls; decisions at the end of this file):
+  - **The static demo** (item 1): `scripts/static_demo.py` builds the examples page as a
+    static site from the demo app's own responses, CI's `static-demo` job checks it in
+    headless Chromium, and `deploy-pages` publishes it from `main` to
+    `https://max25r.github.io/opt-agent/` (linked at the top of the README) once Pages is
+    on. ADR-0008 records why.
 - **Since 2026-11-16** (the owner's list of 2026-11-17, each item its own commit, CI green
   each time; no API calls):
   - CI's jobs have `timeout-minutes` as a hang guard (10; 30 for reproduce), and a new
@@ -146,8 +154,12 @@ decisions is `docs/HISTORY.md`.
    (`return label.replaced` whenever it's set) would change no result.
 11. **Left to the IE 2310 teammate:** the time study, the flow charts and the project summary
    in `docs/ie2310/` (never written by Claude).
-12. **Retrospective ADRs:** done. `docs/adr/` holds 0001-0007 and an index (`README.md`); add
-   a new one for any new design decision.
+12. **ADRs:** `docs/adr/` holds the retrospective 0001-0007, 0008 (the static demo,
+   2026-11-18) and an index (`README.md`); add a new one for any new design decision.
+13. **Left for the owner, on GitHub: turn on Pages.** Settings > Pages > Build and
+   deployment > Source: **GitHub Actions**. Until then CI's `deploy-pages` job is skipped
+   (the `static-demo` job's notice says why) and the README's demo link is a 404; after it,
+   the next push to `main` deploys (or Actions > CI > Run workflow, on `main`).
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where both studies ran and
@@ -325,3 +337,28 @@ Logged here as the owner asked: the simplest reasonable option, where the reques
   documents as validated. Nothing of the teammate's parts (time study, flow charts,
   summary) was written.
 
+## Decisions made without the owner (session of 2026-11-18, the polish list)
+Logged as the owner asked: the simplest reasonable option, where the request didn't say.
+- **Item 1, the static demo.**
+  - **Computed at build time, not in the browser** (ADR-0008): a browser can't run CBC, so
+    Pyodide would have dropped the CBC-versus-HiGHS cross-check. The build runs the demo app
+    in-process (TestClient, examples mode, the committed replies) and saves the bytes of
+    `/health`, `/examples` and each example's `/solve`; a test compares them with the app's
+    answers. The page says plainly that the solving happened when the site was built.
+  - **One page, two modes:** `page.html` says `data-site="server"`; the build switches it to
+    `static` and stamps the commit (left out if tracked files have uncommitted changes).
+    Static mode fetches relative paths (the site lives under `/opt-agent/`) and never posts;
+    other text gets an examples-only refusal, as examples mode's 404 does. The app serves the
+    page unchanged, so the local demo and `docs/demo.png` are unaffected.
+  - **In `ci.yml`, not a separate workflow,** so the deploy waits for the tests:
+    `static-demo` builds and checks the site on every push and pull request and uploads the
+    Pages artifact; `deploy-pages` (needs `test` and `static-demo`) runs on `main` only, and
+    only when the Pages API says the source is GitHub Actions, so CI stays green until the
+    owner turns Pages on. `workflow_dispatch` was added so a deploy can be started by hand.
+    `actions/upload-pages-artifact@v5` and `actions/deploy-pages@v5`, the current releases.
+  - **The browser check** (`scripts/static_demo.py --check`, CI only: the sandbox can't start
+    Chromium) loads the site under a base path with every request answered from the
+    directory, as `scripts/screenshot.py` does: each example verified and matching its
+    hand-checked answer, other text refused, no page error, and no request but GETs of the
+    site's files. Locally the page was checked in the desktop app's browser pane, in both
+    modes (a static server on the built site, and the app).
