@@ -1,11 +1,25 @@
-# Handoff (2026-11-18)
+# Handoff (2026-11-18, end of session)
 
-Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
+Read CLAUDE.md first (rules, budget, gotchas), then this file: where things stand, every
+open item, and the environment. A new session needs nothing else; the full record of
+decisions is `docs/HISTORY.md`.
+
+## Start here (a new session)
+1. `source .venv/bin/activate` (`python` isn't on the path without it), `unset
+   ANTHROPIC_API_KEY`, then `git status` and `git log --oneline -5`: the tree should be clean
+   at the last commit on `main`, pushed, with CI green (its status: see Environment).
+2. Read "Open items" below. Nothing is in progress; every open item is optional or the
+   owner's.
+3. Before committing: `ruff check . && ruff format --check .`, `python -m mypy`, and
+   `HYPOTHESIS_PROFILE=ci python -m pytest` (about 3 minutes; with all the data here, nothing
+   skips). After a change under `src/opt_agent/`, `python scripts/reproduce.py` (about 4
+   minutes, no key) must still say every answer replays and all 6 files match.
 
 ## Current state
 - **Everything is committed and pushed** (`main`, 2026-11-18; tags `m6-freeze`,
-  `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`). The project's history is
-  in `docs/HISTORY.md`.
+  `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`), and CI's 6 jobs (test on
+  3.12 and 3.13, types, reproduce, demo-image, pictures) pass on the last commit. No API
+  call was made after 2026-11-15.
 - **Since 2026-11-16** (the owner's list of 2026-11-17, each item its own commit, CI green
   each time; no API calls):
   - CI's jobs have `timeout-minutes` as a hang guard (10; 30 for reproduce), and a new
@@ -24,10 +38,12 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
   - The final review's nice-to-have items are done (item 7).
   - Later on 2026-11-18 (the owner's second list): the two bugs mypy found are fixed (item 8);
     the failure-type figure's legend is below the plots; wherever the answer-key-dispute share
-    appears, it leads with problems (13 of the 35 follow-up problems with a wrong answer) and
-    says an LLM judge flagged them, not verified by a person; and
-    `docs/analysis/dispute_spotcheck.md` lists 10 disputed follow-up problems (seeded) for a
-    person to check.
+    appears, it leads with problems (13 of the 35 follow-up problems with a wrong answer, 8 of
+    M6's 18; the failure-type table counts problems before answers) and says an LLM judge
+    flagged them, not verified by a person; and `docs/analysis/dispute_spotcheck.md` lists 10
+    disputed follow-up problems (seeded) for a person to check (item 9). The owner's wording
+    rule: a dispute share always leads with the problem count and its denominator, and frozen
+    files keep their wording.
 - **M7's demo and M8 are done** (2026-11-15): the demo (`src/opt_agent/demo/`, Docker, CI),
   `scripts/reproduce.py` (every number replayed and rebuilt from the tags, in CI), the
   rewritten README, and the IE 2310 kit (`docs/ie2310/`). The decisions are at the end of
@@ -116,15 +132,50 @@ Read CLAUDE.md first (rules, budget, gotchas). This file is where things stand.
    the blind sample, the statistic's only input); an instrumented replay of the three
    committed runs in their tags' trees found no unset dual in 2,726 LP solves (16,309
    constraints) and no difference; `scripts/reproduce.py` matches; and the ground truth and
-   perturbed splits rebuild byte for byte with the fixed solver. (`claude_label` still
-   returns `either` for the owner's 4 `either` labels, whose `replaced` holds Claude's label;
-   none is in the blind sample.)
+   perturbed splits rebuild byte for byte with the fixed solver.
+9. **The dispute spot-check, for a person** (the owner or a teammate; not Claude):
+   `docs/analysis/dispute_spotcheck.md` has an empty verdict column for 10 problems (key
+   wrong, model wrong, both defensible, can't tell). Filling it in is the cheapest step
+   toward item 6. It's exploratory: a verdict never changes a result of record. Only the
+   verdict column is edited by hand: `python scripts/dispute_spotcheck.py` keeps the
+   verdicts when it writes the doc again, and `tests/test_dispute_spotcheck.py` checks the
+   rest against the script's output (when LLM4OR's data is present).
+10. **A latent quirk, unfixed (owner's call):** `packets.claude_label` returns `either` for the
+   owner's 4 `either` labels, though their `replaced` holds Claude's label. None is in the
+   blind sample, the agreement statistic's only input, so no number depends on it; a fix
+   (`return label.replaced` whenever it's set) would change no result.
+11. **Left to the IE 2310 teammate:** the time study, the flow charts and the project summary
+   in `docs/ie2310/` (never written by Claude).
+12. **Retrospective ADRs:** done. `docs/adr/` holds 0001-0007 and an index (`README.md`); add
+   a new one for any new design decision.
+
+## Environment (read before running anything)
+- **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where both studies ran and
+  where CI's `reproduce` job runs (`macos-15`); CBC comes from `cbcbox` 2.929 because later
+  builds crash there (CLAUDE.md).
+- **No `gh`.** Read CI from the public GitHub API with `curl` and `jq`:
+  `api.github.com/repos/Max25R/opt-agent/actions/runs?head_sha=SHA` for the run, then
+  `.../actions/runs/RUN_ID/jobs` for each job's name, status and conclusion. In the sandbox a
+  command needs the host listed (`api.github.com`; `github.com` for `git push`).
+- **CI waits are capped at 30 minutes** (owner): poll every minute or two; if it isn't done
+  by then, stop and report each job's name and status instead of waiting. A normal run takes
+  about 10 minutes (the macOS `reproduce` job is the long one). The jobs' `timeout-minutes`
+  (10; 30 for reproduce) are a hang guard, not a speed alarm: don't tighten them.
+- **Claude Code's sandbox** can't: start a browser (Chromium can't register its Mach port,
+  so `scripts/screenshot.py` runs only outside it, or in CI's `pictures` job); open or reach
+  local ports (EPERM; the demo is checked in the desktop app's browser pane, or by CI's
+  `demo-image` job); or make paid calls (Python's TLS fails with `OSStatus -26276`, and the
+  budget rules forbid it anyway: paid runs are the owner's, in their terminal, after
+  `--plan`). Changing sandbox settings is the owner's decision.
+- **pip in the sandbox** fails TLS too: `pip install --use-deprecated=legacy-certs ...` uses
+  certifi's bundle and works.
+- **zsh:** write `${tag}:path`, not `$tag:path` (`:s` is a zsh modifier, so `git show
+  $t:src/...` silently shows nothing). Use `$TMPDIR` for scratch files, and set
+  `MPLCONFIGDIR="$TMPDIR/mpl"` before matplotlib (the home directory isn't writable).
+- **Long commands** (the suite, `reproduce.py`, `failure_types.py build`, the ground-truth
+  rebuild) take 2-5 minutes: run them in the background, one heavy job at a time.
 
 ## Gotchas
-- **pip inside Claude Code's sandbox** fails TLS like Python does (`OSStatus -26276`):
-  `pip install --use-deprecated=legacy-certs ...` uses certifi's bundle and works. `gh`
-  isn't installed on the owner's Mac; CI's status is in the public GitHub API
-  (`api.github.com/repos/Max25R/opt-agent/actions/runs?head_sha=...`).
 - **The analyses' working files** (`review/failure_types/`, git-ignored: they hold problem
   text) come from `python scripts/failure_cases.py` (a replay in each tag's tree, no key);
   `python scripts/failure_types.py build` needs them and the labels there. The detector

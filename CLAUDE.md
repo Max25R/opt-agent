@@ -31,9 +31,12 @@ point is a trustworthy evaluation, not a demo.
 
 ## Plan and status
 
-All eight milestones are done (2026-11-15). The full record, with every decision and its
-date, is in `docs/HISTORY.md` (moved there from this file on 2026-11-16); where things stand
-and what's open is in `docs/HANDOFF.md`. **Start from `docs/HANDOFF.md`.**
+All eight milestones are done (2026-11-15), and the owner's later lists (2026-11-17 and 18:
+CI hardening, mypy and coverage, the post hoc analyses in `docs/analysis/`, the ADRs in
+`docs/adr/`, the two bugs mypy found) are done too. Nothing is in progress. The full record,
+with every decision and its date, is in `docs/HISTORY.md`; where things stand, every open
+item and the environment are in `docs/HANDOFF.md`. **Start from `docs/HANDOFF.md`'s "Start
+here".**
 
 1. [x] Setup: src layout, pyproject, `.env` handling, pytest + ruff CI.
 2. [x] LP schema and solver, verified with known answers, plain-arithmetic checks,
@@ -84,6 +87,28 @@ and what's open is in `docs/HANDOFF.md`. **Start from `docs/HANDOFF.md`.**
 - Scripts that ran at an earlier commit and don't run at HEAD are in `scripts/historical/`
   (its README says where each ran).
 - Known and unfixed: `docs/HANDOFF.md`, open items.
+- **Answer-key disputes are an LLM judge's flags** (owner, 2026-11-18): wherever a dispute
+  share is stated, lead with the problem count and its denominator ("an LLM judge flagged
+  the key on 13 of the 35 follow-up problems with a wrong answer, not verified by a
+  person"), and the share of wrong answers second, if at all. Never "N% of failures were key
+  errors". Frozen files keep their wording. `docs/analysis/dispute_spotcheck.md`'s verdict
+  column is for a person, never Claude.
+- **Every new analysis or classification done by Claude says so** ("classified by Claude, an
+  LLM, not a person"), and anything exploratory is labeled exploratory/post hoc.
+
+## Environment (details in `docs/HANDOFF.md`, "Environment")
+
+- The owner's Mac is Apple Silicon (`arm64`); the studies ran there and CI's `reproduce` job
+  runs on `macos-15`.
+- No `gh`: read CI from the public GitHub API with `curl` + `jq`
+  (`api.github.com/repos/Max25R/opt-agent/actions/runs?head_sha=SHA`, then `.../jobs`).
+  Sandboxed commands must list `api.github.com` (and `github.com` to push).
+- **CI waits: 30 minutes at most.** If it isn't done, stop and report each job's name and
+  status. Job `timeout-minutes` (10; 30 for reproduce) are hang guards: never tighten them.
+- The sandbox can't start a browser, open or reach local ports, or make paid calls (Python's
+  TLS fails there; paid runs are the owner's, in their terminal). pip needs
+  `--use-deprecated=legacy-certs`. Activate `.venv` first; use `$TMPDIR` and
+  `MPLCONFIGDIR="$TMPDIR/mpl"`.
 
 ## Claude API notes
 
