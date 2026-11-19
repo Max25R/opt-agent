@@ -28,6 +28,11 @@ decisions is `docs/HISTORY.md`.
     headless Chromium, and `deploy-pages` publishes it from `main` to
     `https://max25r.github.io/opt-agent/` (linked at the top of the README) once Pages is
     on. ADR-0008 records why.
+  - **The code tour** (item 2): `docs/DESIGN.md` opens with "Read the code in 10 minutes",
+    six modules in the order one problem meets them, each opening with a docstring that says
+    what it does and why (`agent.py`, `schema.py`, `solver.py` and `verify.py` got fuller
+    ones; docstrings only). `tests/test_code_tour.py` keeps its links and docstrings current.
+  - **The ADRs** (item 4) were already in `docs/adr/` (0001-0007); 0008 came with item 1.
 - **Since 2026-11-16** (the owner's list of 2026-11-17, each item its own commit, CI green
   each time; no API calls):
   - CI's jobs have `timeout-minutes` as a hang guard (10; 30 for reproduce), and a new
@@ -362,3 +367,8 @@ Logged as the owner asked: the simplest reasonable option, where the request did
     hand-checked answer, other text refused, no page error, and no request but GETs of the
     site's files. Locally the page was checked in the desktop app's browser pane, in both
     modes (a static server on the built site, and the app).
+- **Item 2, the code tour.** The six follow one problem: `agent.py` (the map), `formulate.py`,
+  `schema.py`, `solver.py`, `verify.py`, `self_correct.py`; `api.py`, `evaluate.py` and
+  `scoring.py` are named after them as the evaluation's part, since the replay story is the
+  evaluation's, not one problem's. The modules' code is unchanged, so both studies still
+  rebuild byte for byte (`scripts/reproduce.py`).

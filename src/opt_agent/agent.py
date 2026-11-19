@@ -1,6 +1,11 @@
 """The whole pipeline: word problem -> Claude's model (revised if it fails) -> CBC's solution
 -> independent checks -> explanation.
 
+run() is the entry point and Result what comes out. An answer is *confirmed* when CBC and
+HiGHS agree and the arithmetic checks pass (verify.py), and *verified* when it's also an
+optimum; only a verified answer is explained (explain.py). Neither says that the model
+matches the text: that's what the evaluation measures (evaluate.py, scoring.py).
+
 With `estimate`, Claude is also asked for the answer directly, with no solver (the no-solver
 baseline's request, baseline.py), and a confirmed answer that disagrees with that estimate
 beyond the scoring tolerance is marked low confidence (audit, finding 2): every failure in

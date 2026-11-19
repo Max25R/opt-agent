@@ -1,9 +1,31 @@
 # How opt-agent works
 
-The design, moved here from the README on 2026-11-15: how the solver layer is verified,
-how the agent works, how the NL4Opt answer key was built, and where everything lives. Why
-it's built this way, the options weighed and what each choice cost are in the decision
-records, [`docs/adr/`](adr/README.md).
+A ten-minute tour of the code, then the design (moved here from the README on 2026-11-15):
+how the solver layer is verified, how the agent works, how the NL4Opt answer key was built,
+and where everything lives. Why it's built this way, the options weighed and what each
+choice cost are in the decision records, [`docs/adr/`](adr/README.md).
+
+## Read the code in 10 minutes
+
+Six files in `src/opt_agent/`, in this order, follow one problem through the pipeline. Each
+opens with a docstring that says what it does and why.
+
+1. [`agent.py`](../src/opt_agent/agent.py): start at `run()`, the whole pipeline in one short
+   function, and `Result`, which defines a *confirmed* and a *verified* answer.
+2. [`formulate.py`](../src/opt_agent/formulate.py): the prompt, and the structured-output
+   request that turns the problem text into a model.
+3. [`schema.py`](../src/opt_agent/schema.py): the contract that reply must meet: the API
+   guarantees its shape, and the validators check its meaning.
+4. [`solver.py`](../src/opt_agent/solver.py): CBC through PuLP, and what its answer must
+   survive to count: a feasible point, no improving ray, statuses settled by a second solve.
+5. [`verify.py`](../src/opt_agent/verify.py): the checks that need no solver: every
+   constraint and the objective by arithmetic, and an LP's optimality certificate.
+6. [`self_correct.py`](../src/opt_agent/self_correct.py): what happens when an attempt fails:
+   the feedback Claude gets, the revisions that get flagged, and when the loop stops.
+
+Then the evaluation: [`api.py`](../src/opt_agent/api.py) caches every call by its request, so
+a run replays with no key; [`evaluate.py`](../src/opt_agent/evaluate.py) records what each
+condition answered; and [`scoring.py`](../src/opt_agent/scoring.py) scores it afterwards.
 
 ## How the solver layer is verified
 

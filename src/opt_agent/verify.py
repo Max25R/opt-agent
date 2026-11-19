@@ -1,4 +1,12 @@
-"""Check a solution with plain arithmetic. No solver is involved, so solver bugs can't hide."""
+"""Check a solution with plain arithmetic. No solver is involved, so solver bugs can't hide.
+
+For an optimal solution: every variable's bounds and integrality, every constraint, and the
+objective's value, recomputed from the values alone; and for an LP, optimality itself, from
+the solver's duals read as a certificate (optimality_problems). Tolerances scale with the
+size of the terms being added (tolerance_for), since CBC reports values to about 8
+significant digits. A MIP's optimality, and "infeasible", aren't provable here: they rest on
+CBC and HiGHS agreeing (agent.py), and "unbounded" on a certified ray (rays.py).
+"""
 
 from opt_agent.schema import LPModel, Term, evaluate, magnitude
 from opt_agent.solution import Solution, Status

@@ -2,8 +2,13 @@
 
 This is the contract between the LLM and the solver: Claude fills it in (milestone 4), and
 everything downstream only ever sees a validated LPModel. Linear expressions are lists of
-{var, coef} terms rather than {name: coef} dicts because strict tool use requires every
-JSON object to have fixed keys.
+{var, coef} terms rather than {name: coef} dicts because structured output, like strict
+tool use, requires every JSON object to have fixed keys.
+
+The API guarantees the shape; the validators check the meaning, and collect every problem
+at once so Claude can fix them all in one revision: names declared twice, a lower bound
+above its upper bound, an expression with no nonzero term, an undeclared or repeated
+variable in an expression, a variable used nowhere, and no infinities or NaNs.
 """
 
 import math

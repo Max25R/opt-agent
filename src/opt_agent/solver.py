@@ -1,4 +1,21 @@
-"""Build a PuLP model from an LPModel and solve it with CBC."""
+"""CBC, through PuLP: build the solver's problem from an LPModel, solve it, and keep only
+what survives a check.
+
+CBC's word isn't taken (docs/DESIGN.md, "How the solver layer is verified"):
+- **A claimed optimum** must be a feasible point (verify.feasibility_problems) and must
+  survive the improving-ray check (rays.py): if the objective can improve forever from it,
+  the model is unbounded, whatever CBC said.
+- **"Infeasible" and "unbounded"** are settled by a feasibility solve (a zero objective: is
+  there any feasible point?), and "unbounded" also needs a certified ray.
+- **Anything else** (a time-out, a crash, a missing dual) is TIMEOUT or ERROR: a loud
+  failure, never an answer and never an exception that ends a run.
+
+For an LP the duals of a max problem are negated (PuLP returns those of min -objective), so
+each is d(objective)/d(rhs) of *our* objective, and verify.py can check them as an
+optimality certificate. CBC runs with integer preprocessing off (it once returned a wrong
+optimum) and a time limit. HiGHS solves the same model independently, with no PuLP
+(highs.py).
+"""
 
 from typing import cast
 
