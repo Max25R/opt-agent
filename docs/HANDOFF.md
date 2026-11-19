@@ -35,6 +35,14 @@ decisions is `docs/HISTORY.md`.
   - **The README's fresh read** (item 3): tighter where it repeated itself or ran long, with
     no claim or number added or changed; the static page's note is shorter too.
   - **Five proposed next steps** (item 5): open item 14, none started.
+- **The owner's list of 2026-11-19** (each item its own commit, CI green each time):
+  - **Pages** (item 0): on, and the static demo is live (open item 13).
+  - **The disagreement detector** (item 1): `docs/analysis/disagreement_detector.md`. Its
+    rules were committed and pushed (`50b30f2`) before its one run; the run (no API calls)
+    is in `disagreement_detector.json`, and `scripts/disagreement_detector.py` refuses to run
+    again. Exploratory. Every signal passed its pre-declared real-signal rule on the
+    follow-up, so the doc proposes a pre-registered resampling study (open item 15). No
+    README claim changed, so no limitations line was added.
 - **Since 2026-11-16** (the owner's list of 2026-11-17, each item its own commit, CI green
   each time; no API calls):
   - CI's jobs have `timeout-minutes` as a hang guard (10; 30 for reproduce), and a new
@@ -187,6 +195,12 @@ decisions is `docs/HISTORY.md`.
    5. A second model under its own pre-registration and cap (ADR-0006's model ladder): 2-3
       days plus a paid run sized by `evaluate --plan` at the current prices; the budget is
       the owner's call.
+15. **Proposed, not run: a pre-registered resampling study** (from the disagreement detector,
+   2026-11-19): fresh samples on the follow-up's 121 unexposed problems, one unit per problem,
+   Fisher's exact test; about $1.44 (or $2.10 with the checklist signal) at the follow-up's
+   mean cost per answer, hard cap $3.00. The design is in
+   `docs/analysis/disagreement_detector.md`; it needs its own pre-registration and freeze
+   before any paid call, and the owner's go-ahead.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where both studies ran and
@@ -407,3 +421,17 @@ Logged as the owner asked: the simplest reasonable option, where the request did
   (`tests/test_readme_numbers.py`). The static page's note was shortened in the same pass (on a
   phone it ran to nine lines above the examples). Headings are unchanged: the static page links
   to `#try-the-demo`.
+
+## Decisions made without the owner (session of 2026-11-19)
+- **Item 1, the disagreement detector.** The unit is one single-shot answer that reported
+  one, as for the number-coverage detector, so the two compare on the same 380 follow-up
+  answers. "Same answer" is each grader's own code at its tag (`followup_report.same_answer`,
+  1e-4; M6's status plus `ground_truth.same_value`, 1e-6), run inside the tag's tree; three
+  samples agree only if every pair does, since a tolerance isn't transitive. NL4Opt has one
+  sample and no checklist condition, so only (c) applies there and (d) is (c). For NL4Opt's
+  "without the disputed problems", the analogue of the follow-up's 13 is the 5 main-run
+  problems the same failure-type classification flagged. The real-signal rule (precision's
+  lower 95% Wilson end above the base rate, with and without the disputes) was fixed before
+  the run, knowing the intervals are too narrow, as a screen for a pre-registered study. After
+  the run, only the results table's layout changed (the base rate's interval added, which the
+  owner asked for); the counts are the one run's.

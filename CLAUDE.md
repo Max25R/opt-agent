@@ -208,6 +208,7 @@ python -m opt_agent.evaluate --split complexlp-dev --all --conditions checklist-
 python -m opt_agent.followup_report runs/NAME   # score a follow-up run: followup_report.json
 python scripts/key_formats.py       # the follow-up keys' formats, aggregate only (no ids or values)
 python scripts/followup_power.py    # docs/followup/power.md (~2 min, seeded)
+python scripts/disagreement_detector.py --report   # its doc's results, from the one run's JSON (it never runs again)
 python -m opt_agent.freeze          # what's left before the freeze; whether inputs match it
 python -m opt_agent.freeze approve  # THE OWNER'S STEP ONLY: writes docs/FREEZE.json
 python -m opt_agent.followup_freeze          # the follow-up's: what's left, whether inputs match

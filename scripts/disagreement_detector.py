@@ -231,12 +231,12 @@ def with_ci(r: dict) -> str:
 
 
 def table(rows: list[tuple[str, dict]]) -> list[str]:
-    lines = ["| signal | answers | silent (base rate) | flagged (flag rate, 95% CI) | "
+    lines = ["| signal | answers | silent: base rate (95% CI) | flagged: flag rate (95% CI) | "
              "precision (95% CI) | recall (95% CI) | flagged problems |",
              "|---|---:|---:|---:|---:|---:|---:|"]  # fmt: skip
     for name, c in rows:
-        lines.append(f"| {name} | {c['answers']} | {c['silent']} ({pct(c['base_rate']['value'])}) "
-                     f"| {c['flagged']} ({with_ci(c['flag_rate'])}) | {with_ci(c['precision'])} "
+        lines.append(f"| {name} | {c['answers']} | {c['silent']}: {with_ci(c['base_rate'])} "
+                     f"| {c['flagged']}: {with_ci(c['flag_rate'])} | {with_ci(c['precision'])} "
                      f"| {with_ci(c['recall'])} | {c['flagged_problems']} |")  # fmt: skip
     return lines
 
