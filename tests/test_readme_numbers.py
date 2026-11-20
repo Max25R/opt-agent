@@ -7,7 +7,9 @@ README's Evaluation section until the README was rewritten on 2026-11-15), every
 the "The rows" sections of Amendments 4 and 5 (docs/amendments/amendment-4.md,
 amendment-5.md), whose rows scripts/amendment4.py and amendment5.py generate into eval.json,
 and docs/followup/RESULTS.md (scripts/followup_results.py), and the IE 2310 summary
-(docs/ie2310/summary.md) against both.
+(docs/ie2310/summary.md) against both. One README bullet is exploratory, not a result: the
+disagreement detector's line (DETECTOR_LINE, owner's request, 2026-11-19), checked against
+its own one-run record, docs/analysis/disagreement_detector.json, and left out of the rest.
 
 How a number in the README is read:
 - `-123` in backticks is a problem id, and `complexlp:14` a follow-up label: some string in
@@ -45,6 +47,8 @@ AMENDMENT_5 = ROOT / "docs" / "amendments" / "amendment-5.md"
 EVAL = ROOT / "results" / "eval.json"
 FOLLOWUP = ROOT / "results" / "followup.json"
 FOLLOWUP_RESULTS = ROOT / "docs" / "followup" / "RESULTS.md"
+DETECTOR = ROOT / "docs" / "analysis" / "disagreement_detector.json"
+DETECTOR_LINE = "- **Exploratory: disagreement between attempts as a warning.**"
 IE2310_SUMMARY = ROOT / "docs" / "ie2310" / "summary.md"
 # Each checked document, the section of it that reports results (a heading with its level;
 # None: all of it), the results files its numbers come from, how many problem ids it must
@@ -85,10 +89,20 @@ RATE_RANGE = re.compile(r"(\d+(?:\.\d+)?)–(\d+(?:\.\d+)?)%")
 NUMBER = re.compile(r"(?:(?<=[\s(])[+-])?\d+(?:\.\d+)?(?:e-?\d+)?%?")
 
 
+def detector_bullet(text: str) -> str:
+    """The README's one exploratory bullet, from its marker to the next bullet or blank line."""
+    start = text.index(DETECTOR_LINE)
+    ends = [i for i in (text.find("\n- ", start + 1), text.find("\n\n", start)) if i != -1]
+    return text[start : min(ends)]
+
+
 def section(text: str, heading: str | None) -> str:
     """From the line starting with `heading` ("## The rows", "### NL4Opt") to the next heading
-    of its level or higher; the whole text for None. Fenced code blocks are left out."""
+    of its level or higher; the whole text for None. Fenced code blocks are left out, and so
+    is the exploratory detector bullet (checked on its own)."""
     text = FENCED.sub(" ", text)
+    if DETECTOR_LINE in text:
+        text = text.replace(detector_bullet(text), " ")
     if heading is None:
         return text
     level = heading.split(" ")[0]
@@ -163,6 +177,15 @@ def test_the_section_has_results_to_check(section_and_data):
     section, _, min_ids, min_numbers = section_and_data
     assert len(NUMBER.findall(section)) >= min_numbers
     assert len(PROBLEM_ID.findall(section)) >= min_ids
+
+
+def test_the_exploratory_detector_line_comes_from_its_one_run():
+    bullet = detector_bullet(README.read_text())
+    assert "Exploratory" in bullet and "docs/analysis/disagreement_detector.md" in bullet
+    record = json.loads(DETECTOR.read_text())
+    assert unmatched(bullet, [record]) == []
+    assert len(NUMBER.findall(bullet)) >= 4  # it has numbers to check
+    assert DETECTOR_LINE not in section(README.read_text(), None)  # and only here
 
 
 def test_fenced_code_and_citations_arent_results():

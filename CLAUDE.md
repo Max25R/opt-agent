@@ -21,6 +21,8 @@ point is a trustworthy evaluation, not a demo.
 - **No made-up numbers.** Every number in the README comes from `results/eval.json`
   (milestone 6 adds a test that enforces this), or, in its "Harder problems" results
   subsection, from `results/followup.json` (`scripts/followup_results.py`; the same test).
+  The one exception, the owner's (2026-11-19): the Limitations bullet labeled "Exploratory"
+  on the disagreement detector, checked against `docs/analysis/disagreement_detector.json`.
 - **Results live in the results files**, and in the documents the README-number test
   checks against them. Elsewhere (this file, `docs/HANDOFF.md`) point to them; don't
   restate results by hand.

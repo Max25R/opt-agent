@@ -96,6 +96,13 @@ Full write-up: [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md).
   the formulation says what the text says, which is why nearly every failure above is silent.
   The report-only flags (a direct estimate, a formulation checklist) are attempts at that
   signal; revising on the checklist's flags didn't measurably help (H1).
+- **Exploratory: disagreement between attempts as a warning.** A detector whose rules were
+  fixed before its one run flagged single-shot answers that the problem's other samples, the
+  checklist revision or the no-solver baseline contradicted. On the follow-up, 38.6% of the
+  answers it flagged were silent failures, against a 16.3% base rate, and it caught 62.9% of
+  them (number coverage, an earlier detector: 19.5%). A problem's three samples are
+  clustered, so its confidence intervals are too narrow, and none of this is a result of
+  record ([details](docs/analysis/disagreement_detector.md)).
 - **The cross-check never fired in either study.** No loud failure came from the solvers
   disagreeing or a check failing: NL4Opt had no loud failures at all, and every loud failure
   in the follow-up was an unusable or cut-off reply. The checks did catch real solver bugs,

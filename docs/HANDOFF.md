@@ -47,7 +47,11 @@ decisions is `docs/HISTORY.md`.
     only PuLP 4 and SciPy), tested on the paint example's cached replies
     (`tests/test_skill.py`), mentioned in the README, and listed in the repository's own
     plugin marketplace (`.claude-plugin/marketplace.json`).
-  - **The paid command** (item 2, waiting for the owner): `scripts/paid_dev_and_demo.py`.
+  - **The README's exploratory detector line** (owner, 2026-11-19): one Limitations bullet
+    labeled "Exploratory", its numbers checked against `docs/analysis/disagreement_detector.json`
+    by `tests/test_readme_numbers.py` and left out of the results-file check (CLAUDE.md's hard
+    rule names the exception).
+  - **The paid command** (item 2, run by the owner on 2026-11-19): `scripts/paid_dev_and_demo.py`.
     Part 1 explains every verified single-shot answer on NL4Opt's dev split (all 92
     formulations replay from `runs/dev-1`; 88 explanation calls) for the explanation
     checker's study, whose protocol was committed first (`docs/analysis/explanation_checker.md`).
