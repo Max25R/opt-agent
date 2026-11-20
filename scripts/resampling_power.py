@@ -3,10 +3,14 @@ Fisher exact test, alpha 0.05; docs/RESAMPLING_PREREGISTRATION.md, section 5), b
 
 The planned flag is "the samples disagree, or the baseline disagrees": signal (a) or (c) of
 the exploratory disagreement detector. Its rates come from that detector's one run on the
-follow-up's samples 0 to 2 (docs/analysis/disagreement_detector.json: the base rate, and how
-often the flag fires on silent failures and on right answers), with and without the 13
-disputed problems, and from two weaker scenarios fixed here, since an exploratory effect
-usually shrinks when it's tested again. Seeded; no API calls.
+follow-up's samples 0 to 2 (docs/analysis/disagreement_detector.json), restricted as the
+study's units are: the 121 unexposed problems, and verified answers only (in the follow-up's
+records a single-shot answer is confirmed; verified means it's also an optimum). From those:
+the base rate, how often the flag fires on silent failures and on right answers, with and
+without the 13 disputed problems; and two weaker scenarios fixed here, since an exploratory
+effect usually shrinks when it's tested again. The expected number of units is 121 times the
+share of the follow-up's single-shot answers on those problems that were verified. Seeded; no
+API calls.
 
 Run:  python scripts/resampling_power.py   # about a minute
 """
@@ -19,12 +23,15 @@ from scipy.stats import fisher_exact
 
 ROOT = Path(__file__).resolve().parents[1]
 DETECTOR = ROOT / "docs" / "analysis" / "disagreement_detector.json"
+RESULTS = ROOT / "runs" / "followup-test" / "results.jsonl"
+PROBLEMS = 121  # the follow-up's unexposed problems
 OUT = ROOT / "docs" / "resampling" / "power.md"
 SEED = 20261119
 SIMULATIONS = 4000
-UNITS = 120  # 121 problems, allowing for one with no answer at sample 3
-UNDISPUTED_UNITS = UNITS - 13  # the secondary analysis, without the disputed problems
 ALPHA = 0.05
+# The follow-up's 5c exposed problems (followup_report.exposed_labels), left out as there.
+EXPOSED = {"complexlp:1", "complexlp:193", "complexlp:194", "industryor:1", "industryor:9",
+           "industryor:13", "industryor:38"}  # fmt: skip
 DISPUTED = {"complexlp:63", "complexlp:78", "complexlp:81", "complexlp:83", "complexlp:94",
             "industryor:17", "industryor:22", "industryor:24", "industryor:26", "industryor:27",
             "industryor:28", "industryor:30", "industryor:41"}  # fmt: skip
@@ -50,19 +57,34 @@ def power(units: int, base: float, on_silent: float, on_right: float, rng) -> fl
     return hits / SIMULATIONS
 
 
+def verified_share() -> tuple[set[tuple[str, int]], float]:
+    """The follow-up's verified single-shot answers on the unexposed problems, and their share
+    of all its single-shot answers there (a loud failure has no status)."""
+    items = [json.loads(line) for line in RESULTS.read_text().splitlines()]
+    single = [i for i in items if i["kind"] == "item" and i["condition"] == "single-shot"
+              and i["problem_id"] not in EXPOSED]  # fmt: skip
+    verified = {(i["problem_id"], i["sample"]) for i in single if i["status"] == "optimal"}
+    return verified, len(verified) / len(single)
+
+
 def main() -> None:
-    rows = json.loads(DETECTOR.read_text())["rows"]["followup"]
+    verified, share = verified_share()
+    rows = [r for r in json.loads(DETECTOR.read_text())["rows"]["followup"]
+            if not r["exposed"] and (r["problem"], r["sample"]) in verified]  # fmt: skip
+    units, undisputed_units = round(PROBLEMS * share), round((PROBLEMS - len(DISPUTED)) * share)
     seen, undisputed = rates(rows), rates([r for r in rows if r["problem"] not in DISPUTED])
     scenarios = [
-        ("as seen on samples 0 to 2", UNITS, *seen),
-        ("as seen, without the 13 disputed problems", UNDISPUTED_UNITS, *undisputed),
-        ("weaker: flags 45% of silent failures, 25% of right answers", UNITS, seen[0], 0.45, 0.25),
-        ("weak: flags 35% of silent failures, 25% of right answers", UNITS, seen[0], 0.35, 0.25),
+        ("as seen on samples 0 to 2", units, *seen),
+        ("as seen, without the 13 disputed problems", undisputed_units, *undisputed),
+        ("weaker: flags 45% of silent failures, 25% of right answers", units, seen[0], 0.45, 0.25),
+        ("weak: flags 35% of silent failures, 25% of right answers", units, seen[0], 0.35, 0.25),
     ]
     rng = np.random.default_rng(SEED)
     lines = ["# The resampling study's power (design information)", "",
              f"Written by `scripts/resampling_power.py` (seed {SEED}, {SIMULATIONS} simulations "
-             f"each): the chance that the primary test (one-sided Fisher exact, "
+             f"each; units: verified sample-3 answers, expected {units} of {PROBLEMS}, since "
+             f"{100 * share:.1f}% of the follow-up's single-shot answers on these problems were "
+             f"verified): the chance that the primary test (one-sided Fisher exact, "
              f"alpha {ALPHA}) finds a flagged answer more often wrong than an unflagged one, "
              "for each scenario. Not a threshold: the study is reported whatever it finds.", "",
              "| scenario | units | base rate | flags on silent failures | flags on right "

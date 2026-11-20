@@ -143,13 +143,21 @@ def load(split: str) -> list[Problem]:
 def load_sealed(split: str) -> list[Problem]:
     """A follow-up test split's problems, in id order, only on the frozen inputs:
     followup_freeze.check() first (FreezeError if nothing is approved or anything differs,
-    the data files' hashes included), then every id must be exactly split.json's. A
-    IndustryOR problem's id is its line number (1-based). Prints and logs nothing."""
+    the data files' hashes included), then read_sealed. Prints and logs nothing."""
     from opt_agent import followup_freeze  # here: it imports this module
 
     if split not in SEALED:
         raise ValueError(f"no sealed split {split!r}; sealed splits: {sorted(SEALED)}")
     followup_freeze.check()
+    return read_sealed(split)
+
+
+def read_sealed(split: str) -> list[Problem]:
+    """A follow-up test split's problems, in id order, with NO freeze check: only for a caller
+    that runs its own (resampling.problems, behind resampling_freeze.check). Every id must be
+    exactly split.json's. A IndustryOR problem's id is its line number (1-based)."""
+    if split not in SEALED:
+        raise ValueError(f"no sealed split {split!r}; sealed splits: {sorted(SEALED)}")
     benchmark = split.split("-")[0]
     expected = {str(i) for i in read_split()[benchmark]["test"]}
     if benchmark == "complexlp":
@@ -178,6 +186,13 @@ def load_test() -> list[Problem]:
     return [p.model_copy(update={"id": label(split, p.id)})
             for split in ("complexlp-test", "industryor-test")
             for p in load_sealed(split)]  # fmt: skip
+
+
+def read_test() -> list[Problem]:
+    """load_test's problems with NO freeze check (read_sealed): only behind another gate."""
+    return [p.model_copy(update={"id": label(split, p.id)})
+            for split in ("complexlp-test", "industryor-test")
+            for p in read_sealed(split)]  # fmt: skip
 
 
 ORDER_SEED = 20261109  # follow-up pre-registration, section 6
