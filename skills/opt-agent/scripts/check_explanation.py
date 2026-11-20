@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Flag every number in an explanation that nothing backs. A number is backed if it's a correct
 rounding of a solver fact in the report (the objective, a value, a slack, a shadow price), of
 a number in the model (a coefficient, a right-hand side, a bound), or of a number in the

@@ -451,9 +451,13 @@ Logged as the owner asked: the simplest reasonable option, where the request did
   the run, knowing the intervals are too narrow, as a screen for a pre-registered study. After
   the run, only the results table's layout changed (the base rate's interval added, which the
   owner asked for); the counts are the one run's.
-- **Item 4, the Agent Skill.** "Free listing" was read as the free route the plugin docs
-  describe: the repository's own marketplace file (no form, no paid plan), not Anthropic's
-  directory (a paid claude.ai plan and a portal submission, the owner's to do if wanted). The
+- **Item 4, the Agent Skill.** "Free listing" was first read as the free route the plugin
+  docs describe, the repository's own marketplace file; the owner then said it meant a free
+  listing on agensi.io, which they upload by hand (2026-11-19). For Agensi, the scripts got a
+  shebang and the executable bit (its format asks for both; the skill's `name` already
+  matches its folder). The repository's marketplace stays only while CI's `plugin` job
+  (`claude plugin validate`, the CLI pinned at 2.1.311) passes; otherwise it and the README's
+  install commands go. The
   plugin's root is `skills/opt-agent/` itself (a plugin with `SKILL.md` at its root loads as
   one skill), so an install copies that folder, not the 80 MB repository; no `version`, so
   updates follow the commit. The helpers are a short, self-contained restatement of the

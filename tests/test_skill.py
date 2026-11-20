@@ -7,6 +7,7 @@ committed replies."""
 import ast
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -55,6 +56,13 @@ def test_the_skill_has_its_frontmatter_and_points_to_the_results():
     assert 0 < len(fields["description"]) <= 1024 and not re.search("[<>]", fields["description"])
     assert "https://github.com/Max25R/opt-agent#results" in text
     assert "silent" in text and len(text.splitlines()) < 100  # short, and it warns
+
+
+def test_the_helpers_run_as_executables():
+    """Agensi (where the owner lists the skill) wants scripts executable on Linux and Mac."""
+    for script in SCRIPTS.glob("*.py"):
+        assert script.read_text().startswith("#!/usr/bin/env python3\n"), script.name
+        assert os.access(script, os.X_OK), script.name
 
 
 def test_the_helpers_need_only_pulp_scipy_and_the_standard_library():

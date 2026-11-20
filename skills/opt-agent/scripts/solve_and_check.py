@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Solve a linear or integer program with CBC, solve it again with HiGHS, and check CBC's
 answer by plain arithmetic. Prints a JSON report and exits 0 only for a verified optimum.
 
