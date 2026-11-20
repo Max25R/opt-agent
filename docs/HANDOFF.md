@@ -17,8 +17,11 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    checked against that file. `python -m opt_agent.resampling_freeze` must still say the tag
    verifies (the inputs at HEAD stop matching once `src/opt_agent/` changes, as for the other
    two studies).
-   - **Next (the owner's requests of 2026-11-20):** ADR 0009, the solver's facts about each
-     constraint for the explainer (open item 16), then the demo's disagreement badge.
+   - **ADR-0009 is done** (2026-11-20, open item 16): for an integer program, the explainer
+     gets the solver's own test of what limits the answer. Measuring it needs the dev
+     explanations regenerated, the owner's paid run: `python scripts/paid_explain_limits.py
+     --plan` first (no calls), then the command its docstring gives (cap $0.25).
+   - **Next (the owner's request of 2026-11-20):** the demo's disagreement badge.
 3. Read "Open items" below. Everything else is optional or the owner's.
 4. Before committing: `ruff check . && ruff format --check .`, `python -m mypy`, and
    `HYPOTHESIS_PROFILE=ci python -m pytest` (about 3 minutes; with all the data here, nothing
@@ -44,6 +47,16 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   and rebuilds both files in the tag's own tree. The numbers are in those files; the run's
   notes (one pass, the cost, the three commits made during it) are in
   `docs/resampling/DEVIATIONS.md`.
+- **ADR-0009, what limits an integer program** (2026-11-20, the owner's request;
+  `docs/adr/0009-what-limits-an-integer-program.md`). For a verified integer optimum about to
+  be explained, `limits.constraint_limits` solves again without each constraint and with its
+  limit one unit further out (CBC and HiGHS must agree, and the arithmetic checks pass;
+  otherwise null), and the explainer's facts carry the result with one more paragraph of the
+  system prompt. An LP's request, and any request without limits, is byte for byte the old
+  one, so every cached explanation still replays; the demo pins `pipeline.EXPLAIN_LIMITS` off
+  until its two integer examples' replies are refreshed (the owner's paid step). The dev
+  explanations' regeneration is `scripts/paid_explain_limits.py` (the owner's paid run; its
+  `--plan` gives the calls and the worst case). Nothing is measured yet.
 - **The explanation checker's finding** (2026-11-19, exploratory, Claude's labels, not a
   person's: `docs/analysis/explanation_checker.md` and its JSON). On NL4Opt's dev split no
   explanation used a wrong number, so the number check had nothing to catch (its few flags
@@ -253,7 +266,8 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
 11. **Left to the IE 2310 teammate:** the time study, the flow charts and the project summary
    in `docs/ie2310/` (never written by Claude).
 12. **ADRs:** `docs/adr/` holds the retrospective 0001-0007, 0008 (the static demo,
-   2026-11-18) and an index (`README.md`); add a new one for any new design decision.
+   2026-11-18), 0009 (what limits an integer program, 2026-11-20) and an index (`README.md`);
+   add a new one for any new design decision.
 13. ~~Turn on Pages~~: done 2026-11-19 by the owner (Settings > Pages > Source: GitHub
    Actions), then a manual CI run on `365d23e` deployed it. Checked through the public API
    and a browser: every job of that run passed, `deploy-pages` included, and
@@ -284,11 +298,12 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    claims about slack in integer programs. Options: a check that tests each "not limiting"
    claim by re-solving without the constraint: **done, exploratory** (2026-11-19,
    `docs/analysis/ip_slack_check.md`; its numbers are in its JSON): it finds a claim only when
-   its rule can parse it from the free text, which is its weak part. Not started: computing
-   each constraint's effect with the solver and giving the explainer those facts, or
-   placeholders instead of free-form explanations (both change `src/opt_agent/`, now possible:
-   the resampling analysis is committed; the first is ADR 0009, the owner's request of
-   2026-11-20); or telling the explanation prompt that slack
+   its rule can parse it from the free text, which is its weak part. Computing each
+   constraint's effect with the solver and giving the explainer those facts: **done** as
+   ADR-0009 (2026-11-20); its open steps are the owner's paid regeneration
+   (`scripts/paid_explain_limits.py`), then comparing the new explanations with the first
+   run's, refreshing the demo's two integer examples, and the Agent Skill. Not started:
+   placeholders instead of free-form explanations; or telling the explanation prompt that slack
    doesn't mean "not limiting" in an integer program (a prompt change: dev only, and a new
    evaluation).
 17. **The Agensi listing:** the owner uploads `skills/opt-agent/` to agensi.io by hand (its

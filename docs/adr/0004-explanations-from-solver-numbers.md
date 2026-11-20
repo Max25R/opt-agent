@@ -60,4 +60,7 @@ hindsight: [first audit](../audit/2026-11-review.md), finding 10) would end thos
 2. [x] Evaluate it on dev under its own cap (2026-11-19, exploratory, Claude's labels:
    [`explanation_checker.md`](../analysis/explanation_checker.md)). It found no wrong number
    to catch, and false claims no number check sees, mostly about integer programs.
-3. [ ] Decide on placeholders, or a check of claims about slack in integer programs.
+3. [x] Decide on placeholders, or a check of claims about slack in integer programs: neither
+   first; the explainer gets the solver's own test of what limits an integer program
+   ([ADR-0009](0009-what-limits-an-integer-program.md), 2026-11-20), and a claim check can
+   build on it.

@@ -252,9 +252,10 @@ class Recording(Cache):
 def prune() -> None:
     cache, problems = Recording(RUN / "cache"), texts()
     for r in map(json.loads, ROWS.read_text().splitlines()):
+        # the run predates ADR-0009: its explanation requests carry no limits
         result = agent.run(problems[r["problem"]], ReplayOnlyClient(), r.get("model_id") or
                            "claude-haiku-5-5", with_explanation=True, max_attempts=1,
-                           session=Run(cache=cache))  # fmt: skip
+                           session=Run(cache=cache), explain_limits=False)  # fmt: skip
         if (result.explanation.text if result.explanation else None) != r["explanation"]:
             raise SystemExit(f"{r['problem']} doesn't replay its explanation")
     unused = [p for p in (RUN / "cache").glob("*.json") if p not in cache.used]

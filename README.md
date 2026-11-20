@@ -156,7 +156,10 @@ Full write-up, with its one deviation (it changes no number):
   nothing to catch (its 5 flags were correctly computed numbers), but 22 of them (25.0%)
   made a false claim with every number correct, which no number check can see: mostly that a
   constraint with slack doesn't limit an integer program's answer, when dropping it changes
-  the optimum ([details](docs/analysis/explanation_checker.md)).
+  the optimum ([details](docs/analysis/explanation_checker.md)). Since then the explainer gets
+  the solver's own test of what limits an integer program
+  ([an ADR](docs/adr/0009-what-limits-an-integer-program.md)); whether that stops these claims
+  isn't measured yet.
 - **One model.** Every number is Claude Haiku 5.5's, and H2 rests on the primary test
   alone (its caveats are under Results).
 - **The answer keys aren't perfect, and their errors cut both ways.** On NL4Opt, two LLM

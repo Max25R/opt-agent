@@ -46,8 +46,10 @@ def test_every_explanation_replays_from_the_committed_cache():
     texts, cache = checker_eval.texts(), Cache(checker_eval.RUN / "cache")
     for row in map(json.loads, checker_eval.ROWS.read_text().splitlines()):
         session = Run(cache=cache)
+        # the run predates ADR-0009, so its requests carry no limits, and a replay sends those
         result = agent.run(texts[row["problem"]], ReplayOnlyClient(), "claude-haiku-5-5",
-                           with_explanation=True, max_attempts=1, session=session)  # fmt: skip
+                           with_explanation=True, max_attempts=1, session=session,
+                           explain_limits=False)  # fmt: skip
         assert result.verified == row["verified"], row["problem"]
         assert (result.explanation.text if result.explanation else None) == row["explanation"]
 

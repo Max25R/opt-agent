@@ -102,7 +102,10 @@ Problems these checks found, each with a regression test:
    optimum. This is about the solution of Claude's model, not whether the model matches
    the text; that's what the evaluation is for.
 4. **Explain** verified answers only, from solver facts: the values, the objective, which
-   constraints bind, the slack, and shadow prices. Every number in the explanation must be
+   constraints bind, the slack, and shadow prices; for an integer program, which has no
+   shadow prices and whose slack doesn't say what limits it, also whether the optimum would
+   be better without each constraint or with its limit one unit further out, found by
+   solving again with both solvers (`limits.py`, ADR-0009). Every number in the explanation must be
    a correct rounding of a fact or an input, or it's flagged. That checks where a number
    comes from, not whether the sentence is true: "10 trips move 1,000 fish" passes when 10
    and 1,000 are both facts. A refused, cut-off or empty explanation is flagged too.

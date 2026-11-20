@@ -156,6 +156,7 @@ def run(
     estimate: bool = False,
     checklist: bool = False,
     checklist_revision: bool = False,
+    explain_limits: bool = True,
 ) -> Result:
     """`estimate`: also ask for a direct answer (one more call) and set low_confidence.
     `checklist`: also ask for a formulation checklist (one more call) and set
@@ -165,7 +166,10 @@ def run(
     ignored), then, if that's a confirmed optimum, the checklist; if it flags anything, one
     revision with the flags as feedback. The revision's answer is kept only if it is a
     confirmed optimum too; otherwise the original stands. Here the checklist decides the
-    answer, so it runs before the report-only extras, and `checklist` adds nothing."""
+    answer, so it runs before the report-only extras, and `checklist` adds nothing.
+
+    `explain_limits`: for an integer program, the explainer also gets what re-solving finds
+    about each constraint (ADR-0009). False only to replay explanations cached before it."""
     start = time.perf_counter()
     session = session or Run()
     attempts = 1 if checklist_revision else max_attempts
@@ -183,7 +187,7 @@ def run(
         _check_formulation(problem, client, model_id, session, tags, result)
     if with_explanation and result.verified:  # never explain an answer that failed a check
         assert model is not None and solution is not None  # verified: a model, solved
-        facts = solver_facts(model, solution)
+        facts = solver_facts(model, solution, with_limits=explain_limits)
         result.explanation = explain(problem, model, facts, client, model_id, session.cache)
         _log_explanation(session, tags, result.explanation)
     result.wall_s = time.perf_counter() - start

@@ -46,8 +46,10 @@ the code tour in `docs/DESIGN.md`, a README pass; and on 2026-11-19 the disagree
 the explanation checker's dev evaluation, the Agent Skill, the resampling study and the IP
 slack-claim check) are done too. **Where things stand: the resampling study is done (run by
 the owner on 2026-11-19, analyzed on 2026-11-20): R1 is supported (`results/resampling.json`,
-`docs/resampling/RESULTS.md`).** Next, the owner's requests of 2026-11-20: ADR 0009 (the
-solver's facts about each constraint, for the explainer), then the demo's disagreement badge.
+`docs/resampling/RESULTS.md`).** ADR-0009 (2026-11-20): for an integer program the explainer
+also gets the solver's own test of what limits the answer (`src/opt_agent/limits.py`); the dev
+explanations' regeneration with it is the owner's paid run (`scripts/paid_explain_limits.py`).
+Next, the owner's request of 2026-11-20: the demo's disagreement badge.
 The full record, with every
 decision and its date, is in `docs/HISTORY.md` and `docs/HANDOFF.md`'s decision logs; where
 things stand, every open item and the environment are in `docs/HANDOFF.md`. **Start from
@@ -284,6 +286,7 @@ python scripts/static_demo.py --check build/site   # it, in headless Chromium (C
 OPT_AGENT_LIVE=1 python -m opt_agent.demo   # live mode: the key in .env; guarded (demo/app.py)
 python scripts/cache_examples.py --plan     # the examples' replies: worst case (the paid run is the owner's)
 python scripts/paid_dev_and_demo.py --plan  # 2026-11-19's paid run (the owner's, --cap 0.30): dev explanations + the fix-step example
+python scripts/paid_explain_limits.py --plan  # ADR-0009: the dev explanations again, with limits (the paid run is the owner's, --cap 0.25)
 docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the image (CI builds it)
 ```
 
@@ -388,6 +391,11 @@ docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the im
 - **SciPy's `milp` status 4 means "other"**: HiGHS's "infeasible or unbounded" (common for
   MIPs), but also its solve errors. Status 1 is the time limit. So 2, 3 and 4 are settled
   by a feasibility solve and a certified ray, or else become `error`.
+- **An explanation request without limits must stay byte for byte the one from before
+  ADR-0009** (`explain.build_request` leaves `limits` out when it's None, and adds
+  `LIMITS_PROMPT` only with them): every cached explanation, the demo's included, replays only
+  so (`tests/test_limits.py`). The demo keeps `pipeline.EXPLAIN_LIMITS` off until its two
+  integer examples' replies are refreshed.
 - **anthropic 1.15 uses `httpx2`**, not `httpx`; tests build API errors from
   `SimpleNamespace` responses (`tests/fakes.status_error`).
 - Don't keep the repo or its `.venv` under iCloud: iCloud hides `.pth` files and

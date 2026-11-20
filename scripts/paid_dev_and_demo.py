@@ -68,8 +68,9 @@ def explain_dev(client) -> list[dict]:
     rows = []
     for record in dev_problems():
         session = Run.start(log_path=DEV_RUN / "attempts.jsonl", cache=cache)
+        # this run (2026-11-19) predates ADR-0009, so a resume sends its requests: no limits
         result = agent.run(record.document, client, MODEL, with_explanation=True,
-                           max_attempts=1, session=session)  # fmt: skip
+                           max_attempts=1, session=session, explain_limits=False)  # fmt: skip
         e = result.explanation
         facts = None
         if result.verified:

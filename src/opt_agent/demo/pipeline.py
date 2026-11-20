@@ -35,6 +35,10 @@ MODEL = DEFAULT_MODEL
 MAX_TOKENS = 8_000
 MAX_PROBLEM_CHARS = 4_000
 CALLS_PER_SOLVE = MAX_ATTEMPTS + 3  # the formulations, the estimate, the checklist, the explanation
+# The committed example replies were cached before ADR-0009, so their explanation requests carry
+# no limits, and a replay must send the same requests: until those replies are refreshed (a paid
+# run, the owner's), the demo explains without them, in both modes, so the two modes match.
+EXPLAIN_LIMITS = False
 
 
 def solve(problem: str, client: anthropic.Anthropic, cache: Cache, log: Path | None = None):
@@ -44,7 +48,7 @@ def solve(problem: str, client: anthropic.Anthropic, cache: Cache, log: Path | N
     with api.max_tokens_cap(MAX_TOKENS):
         return agent.run(problem, client, MODEL, with_explanation=True,
                          max_attempts=MAX_ATTEMPTS, session=session, estimate=True,
-                         checklist=True)  # fmt: skip
+                         checklist=True, explain_limits=EXPLAIN_LIMITS)  # fmt: skip
 
 
 def first_call_cached(problem: str, cache: Cache) -> bool:

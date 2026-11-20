@@ -9,6 +9,13 @@ arrived (`problem`).
 
 This checks where each number comes from, not whether the sentence using it is true:
 "10 trips move 1,000 fish" passes whenever 10 and 1,000 are both facts or inputs.
+
+For an integer program the facts can also say what limits the answer (ADR-0009): for each
+constraint, whether the optimum would be better without it, or with its limit one unit
+further out, found by solving again (limits.py). Slack alone can't say that in an integer
+program, and a quarter of the dev explanations got it wrong. Those facts come with a paragraph
+of the system prompt; without them (an LP, or a replay of replies cached before ADR-0009) the
+request is exactly what it was before.
 """
 
 import json
@@ -20,6 +27,7 @@ from pydantic import BaseModel
 from opt_agent import api
 from opt_agent.api import CallInfo, TokenUsage
 from opt_agent.formulate import DEFAULT_MODEL
+from opt_agent.limits import Limit, constraint_limits
 from opt_agent.schema import LPModel
 from opt_agent.solver import Solution, Status
 from opt_agent.verify import tolerance_for
@@ -34,6 +42,18 @@ given (how much the objective changes per extra unit of a constraint's limit). D
 compute new numbers. Every number you write must appear in the facts, the model, or the \
 problem, at most rounded."""
 
+# Added to the system prompt only when the facts have limits (ADR-0009).
+LIMITS_PROMPT = """
+
+This model has whole-number variables, so slack doesn't show whether a constraint limits the \
+result. The facts' "limits" say, for each constraint, whether the objective would be better \
+without it (dropped_improves) or with its limit one unit further out (loosened_improves), \
+found by solving the model again. Say that a constraint doesn't limit the result only if \
+dropped_improves is false: if it's true, the constraint limits the result even with slack \
+left. If one more unit of a limit wouldn't help (loosened_improves false) but dropping it \
+would, say so. Where a value is null the solver couldn't tell, so don't say whether that \
+constraint limits the result."""
+
 
 class Facts(BaseModel):
     """Everything the explanation may say, straight from the solver."""
@@ -43,6 +63,8 @@ class Facts(BaseModel):
     binding: list[str]  # constraints the optimum pushes against
     slack: dict[str, float]  # unused room in each constraint
     shadow_prices: dict[str, float] | None  # change in objective per unit of rhs; LPs only
+    # Integer programs only, when asked (ADR-0009): what re-solving found for each constraint.
+    limits: dict[str, Limit] | None = None
 
 
 class Explanation(BaseModel):
@@ -55,7 +77,9 @@ class Explanation(BaseModel):
     call: CallInfo
 
 
-def solver_facts(model: LPModel, solution: Solution) -> Facts:
+def solver_facts(model: LPModel, solution: Solution, with_limits: bool = False) -> Facts:
+    """`with_limits`: for an integer program, also re-solve to find what limits the answer
+    (limits.constraint_limits); an LP never gets them."""
     if solution.status is not Status.OPTIMAL:
         raise ValueError(f"only an optimal solution can be explained, not {solution.status}")
     binding = [
@@ -70,6 +94,7 @@ def solver_facts(model: LPModel, solution: Solution) -> Facts:
         binding=binding,
         slack={k: _clean(v) for k, v in solution.slacks.items()},
         shadow_prices=solution.duals and {k: _clean(v) for k, v in solution.duals.items()},
+        limits=constraint_limits(model, solution) if with_limits else None,
     )
 
 
@@ -79,14 +104,14 @@ def _clean(x: float) -> float:
 
 
 def build_request(problem: str, model: LPModel, facts: Facts, model_id: str) -> dict:
-    """The whole request, exactly as sent, hashed, cached, and logged."""
-    payload = json.dumps(
-        {"model": model.model_dump(mode="json"), "facts": facts.model_dump(mode="json")}, indent=1
-    )
+    """The whole request, exactly as sent, hashed, cached, and logged. Without limits it's
+    byte for byte the request from before ADR-0009, so every reply cached then still replays."""
+    shown = facts.model_dump(mode="json", exclude={"limits"} if facts.limits is None else None)
+    payload = json.dumps({"model": model.model_dump(mode="json"), "facts": shown}, indent=1)
     return {
         "model": model_id,
         "max_tokens": api.max_tokens(),
-        "system": SYSTEM_PROMPT,
+        "system": SYSTEM_PROMPT if facts.limits is None else SYSTEM_PROMPT + LIMITS_PROMPT,
         "messages": [
             {"role": "user", "content": f"Problem:\n{problem}\n\nModel and facts:\n{payload}"}
         ],

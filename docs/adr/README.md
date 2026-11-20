@@ -16,6 +16,7 @@ table, and what each choice cost. The results they point to are in `results/eval
 | [0006](0006-haiku-under-a-budget.md) | Claude Haiku 5.5 under a $20 budget, not a larger model | 2026-10-16 (confirmed 2026-10-28) |
 | [0007](0007-local-demo-with-cached-examples.md) | A local Docker demo with cached examples, not a hosted one | 2026-10-16 (2026-11-15) |
 | [0008](0008-static-demo-computed-at-build-time.md) | A static copy of the examples page, computed when CI builds it, not in the browser | 2026-11-18 (2026-11-18) |
+| [0009](0009-what-limits-an-integer-program.md) | The solver's own test of what limits an integer program, given to the explainer, not slack alone | 2026-11-20 (2026-11-20) |
 
 Each has the same parts: status, date, deciders, context, decision, the options (each rated on
 complexity, API cost, verifiability and reproducibility), the trade-off, the consequences and the
@@ -35,7 +36,9 @@ The ADRs' "revisit" items:
 - Exact certificates (Farkas for infeasibility), an arithmetic check of HiGHS's solution, and a
   model-level check against a reference ([0003](0003-two-solvers-and-arithmetic.md)).
 - The explanation checker's blind spot that its dev evaluation found (claims about slack in
-  integer programs), or placeholders instead ([0004](0004-explanations-from-solver-numbers.md)).
+  integer programs), or placeholders instead ([0004](0004-explanations-from-solver-numbers.md)):
+  the explainer now gets the solver's facts about it, and whether that's enough is measured
+  after a paid regeneration ([0009](0009-what-limits-an-integer-program.md)).
 - Judges called through the API with logged requests, so the hand checks replay too
   ([0005](0005-preregistration-freeze-and-replay.md)).
 - A model ladder, one weaker and one stronger model, each under its own pre-registration and cap
