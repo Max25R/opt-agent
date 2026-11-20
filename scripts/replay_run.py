@@ -3,10 +3,14 @@ runs in, with a client that refuses every request. scripts/reproduce.py copies i
 study's tag tree (opt_agent.frozen) and runs it there, so the code is the frozen code; it
 then compares the new results.jsonl with the committed one.
 
-It uses only what both tags have: evaluate.scorable_records, evaluate.evaluate, and the
-manifest's split, problems, conditions, model and samples. The committed manifest goes into
-the new run directory first, so evaluate() refuses anything but the same experiment. A
-request that isn't in the cache raises NotInCache: nothing here can reach the API.
+For M6's and the follow-up's runs it uses only what both their tags have:
+evaluate.scorable_records, evaluate.evaluate, and the manifest's split, problems, conditions,
+model and samples. The resampling study's run (split "resampling", resampling-freeze) has its
+own runner, so it replays through that: resampling.run, which reads the problems only on the
+frozen inputs and runs every cell through evaluate.run_item. Either way the committed manifest
+goes into the new run directory first, so the runner refuses anything but the same
+experiment. A request that isn't in the cache raises NotInCache: nothing here can reach the
+API.
 
 Run (inside a tag's tree):  python scripts/replay_run.py runs/test replay/test
 """
@@ -41,22 +45,31 @@ class RefusingClient:
 
 def replay(run: Path, out: Path) -> None:
     manifest = json.loads((run / "manifest.json").read_text())
-    split, ids = manifest["split"], manifest["problem_ids"]
-    records = [r for r in evaluate.scorable_records(split) if r.id in set(ids)]
-    if sorted(r.id for r in records) != sorted(ids):
-        raise SystemExit(f"{split}: the scorable problems aren't the manifest's")
     out.mkdir(parents=True)
     shutil.copy(run / "manifest.json", out / "manifest.json")
     shutil.copytree(run / "cache", out / "cache")
-    samples = manifest["settings"].get("samples")  # only a run of several samples records it
-    more = {"sample": tuple(int(s) for s in samples.split(","))} if samples else {}
     try:
-        evaluate.evaluate(records, tuple(manifest["conditions"]), RefusingClient(), out, split,
-                          manifest["model_id"], **more)  # fmt: skip
+        if manifest["split"] == "resampling":
+            from opt_agent import resampling  # only resampling-freeze's tree has it
+
+            resampling.run(RefusingClient(), out)  # type: ignore[arg-type]
+        else:
+            run_evaluate(manifest, out)
     except NotInCache as miss:
         results = out / "results.jsonl"
         done = len(results.read_text().splitlines()) if results.exists() else 0
         raise SystemExit(f"{run}: the replay stopped after {done} pairs: {miss}") from None
+
+
+def run_evaluate(manifest: dict, out: Path) -> None:
+    split, ids = manifest["split"], manifest["problem_ids"]
+    records = [r for r in evaluate.scorable_records(split) if r.id in set(ids)]
+    if sorted(r.id for r in records) != sorted(ids):
+        raise SystemExit(f"{split}: the scorable problems aren't the manifest's")
+    samples = manifest["settings"].get("samples")  # only a run of several samples records it
+    more = {"sample": tuple(int(s) for s in samples.split(","))} if samples else {}
+    evaluate.evaluate(records, tuple(manifest["conditions"]), RefusingClient(), out, split,
+                      manifest["model_id"], **more)  # fmt: skip
 
 
 if __name__ == "__main__":

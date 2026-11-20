@@ -1,0 +1,234 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine you're a dietitian, tasked with crafting a healthy and balanced meal plan for a client on a budget. The tricky part is that you must choose from a list of nine food items, each with their own cost and nutritional values for protein, carbohydrates, and calories.\n\nHere's the rundown of what each food item provides and its cost:\n\n- Chicken Breast: Delivers 17 grams of protein, 28 grams of carbohydrates, and 136 calories for $3.\n- Tofu: Yields 15 grams of protein, 11 grams of carbohydrates, and 198 calories for $2.\n- Brown Rice: Offers just 1 gram of protein, 11 grams of carbohydrates, and 93 calories for $2.\n- Salmon: Gives you 11 grams of protein, 3 grams of carbohydrates, and a hefty 269 calories for $6.\n- Greek Yogurt: Provides 15 grams of protein, 27 grams of carbohydrates, and 121 calories for $6.\n- Steak: Comes with 12 grams of protein, 3 grams of carbohydrates, and 80 calories for a steeper price of $10.\n- Avocado: Provides 4 grams of protein, 8 grams of carbohydrates, and a whopping 300 calories for $7.\n- Eggs: Offer 16 grams of protein, 25 grams of carbohydrates, and 99 calories for $5.\n- Quinoa: Comes with 11 grams of protein, 20 grams of carbohydrates, and 87 calories for just $2.\n\nYour goal is to make sure your client gets at least 72 grams of protein, 158 grams of carbohydrates, and 1896 calories from the combination of foods you choose. But you also need to keep costs to a minimum. What is the least amount of money you would need to spend to meet all of these nutritional targets from these nine food options?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChDbTGb9srdvTDG6nRbn3",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"chicken breast servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"tofu servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"brown rice servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"salmon servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"greek yogurt servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"steak servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"avocado servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"egg servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"quinoa servings\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":3},{\"var\":\"tofu servings\",\"coef\":2},{\"var\":\"brown rice servings\",\"coef\":2},{\"var\":\"salmon servings\",\"coef\":6},{\"var\":\"greek yogurt servings\",\"coef\":6},{\"var\":\"steak servings\",\"coef\":10},{\"var\":\"avocado servings\",\"coef\":7},{\"var\":\"egg servings\",\"coef\":5},{\"var\":\"quinoa servings\",\"coef\":2}]},\"constraints\":[{\"name\":\"protein\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":17},{\"var\":\"tofu servings\",\"coef\":15},{\"var\":\"brown rice servings\",\"coef\":1},{\"var\":\"salmon servings\",\"coef\":11},{\"var\":\"greek yogurt servings\",\"coef\":15},{\"var\":\"steak servings\",\"coef\":12},{\"var\":\"avocado servings\",\"coef\":4},{\"var\":\"egg servings\",\"coef\":16},{\"var\":\"quinoa servings\",\"coef\":11}],\"sense\":\">=\",\"rhs\":72},{\"name\":\"carbohydrates\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":28},{\"var\":\"tofu servings\",\"coef\":11},{\"var\":\"brown rice servings\",\"coef\":11},{\"var\":\"salmon servings\",\"coef\":3},{\"var\":\"greek yogurt servings\",\"coef\":27},{\"var\":\"steak servings\",\"coef\":3},{\"var\":\"avocado servings\",\"coef\":8},{\"var\":\"egg servings\",\"coef\":25},{\"var\":\"quinoa servings\",\"coef\":20}],\"sense\":\">=\",\"rhs\":158},{\"name\":\"calories\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":136},{\"var\":\"tofu servings\",\"coef\":198},{\"var\":\"brown rice servings\",\"coef\":93},{\"var\":\"salmon servings\",\"coef\":269},{\"var\":\"greek yogurt servings\",\"coef\":121},{\"var\":\"steak servings\",\"coef\":80},{\"var\":\"avocado servings\",\"coef\":300},{\"var\":\"egg servings\",\"coef\":99},{\"var\":\"quinoa servings\",\"coef\":87}],\"sense\":\">=\",\"rhs\":1896}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2172,
+   "output_tokens": 1472,
+   "output_tokens_details": {
+    "thinking_tokens": 501
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "976e7af3a14d2d619e3dce1e9b6f58d76974c75e69f4ee18e92aef12c46529e8",
+  "tries": 1,
+  "latency_s": 5.608594874967821,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 5
+}

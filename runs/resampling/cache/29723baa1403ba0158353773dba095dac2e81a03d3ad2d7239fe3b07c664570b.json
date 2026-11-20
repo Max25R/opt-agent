@@ -1,0 +1,234 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine you're a dietitian crafting a meal plan for someone with specific nutritional goals. The challenge is not just to meet these nutritional needs but to do so in the most cost-effective way possible. The individual requires a precise amount of protein, carbohydrates, and calories each day, but the budget is tight, making it crucial to minimize the cost of the meal plan.\n\nYou have a list of eight food items to choose from, each with distinct nutritional content and associated cost:\n\n- Food_1: A modest source of protein and carbs with 1 gram of protein, 4 grams of carbohydrates, and 93 calories at a cost of $6.\n- Food_2: Rich in protein with 18 grams of protein, 2 grams of carbohydrates, and 219 calories, priced at $4.\n- Food_3: A balanced choice providing 19 grams of protein, 26 grams of carbs, and 155 calories for $4.\n- Food_4: High in protein with 19 grams of protein, 10 grams of carbs, and 105 calories, costing $3.\n- Food_5: Carb-heavy with 3 grams of protein, 24 grams of carbohydrates, and 255 calories at just $2.\n- Food_6: A good mix with 8 grams of protein, 26 grams of carbs, and 182 calories for $7.\n- Food_7: Impressive protein and carb content with 15 grams of protein, 27 grams of carbohydrates, and 173 calories, all for $3.\n- Food_8: Carb-rich with 3 grams of protein, 30 grams of carbohydrates, and 191 calories, also at $3.\n\nThe daily dietary requirements for the individual are:\n\n- Protein: At least 98 grams\n- Carbohydrates: At least 113 grams\n- Calories: At least 1768\n\nWith these food options and nutritional needs in mind, what is the minimum cost required to meet the daily protein, carbohydrate, and calorie requirements?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChDXrtiyLTPyqdYtBEZ4k",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"Food_1 servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"Food_2 servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"Food_3 servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"Food_4 servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"Food_5 servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"Food_6 servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"Food_7 servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"Food_8 servings\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"Food_1 servings\",\"coef\":6},{\"var\":\"Food_2 servings\",\"coef\":4},{\"var\":\"Food_3 servings\",\"coef\":4},{\"var\":\"Food_4 servings\",\"coef\":3},{\"var\":\"Food_5 servings\",\"coef\":2},{\"var\":\"Food_6 servings\",\"coef\":7},{\"var\":\"Food_7 servings\",\"coef\":3},{\"var\":\"Food_8 servings\",\"coef\":3}]},\"constraints\":[{\"name\":\"protein\",\"terms\":[{\"var\":\"Food_1 servings\",\"coef\":1},{\"var\":\"Food_2 servings\",\"coef\":18},{\"var\":\"Food_3 servings\",\"coef\":19},{\"var\":\"Food_4 servings\",\"coef\":19},{\"var\":\"Food_5 servings\",\"coef\":3},{\"var\":\"Food_6 servings\",\"coef\":8},{\"var\":\"Food_7 servings\",\"coef\":15},{\"var\":\"Food_8 servings\",\"coef\":3}],\"sense\":\">=\",\"rhs\":98},{\"name\":\"carbohydrates\",\"terms\":[{\"var\":\"Food_1 servings\",\"coef\":4},{\"var\":\"Food_2 servings\",\"coef\":2},{\"var\":\"Food_3 servings\",\"coef\":26},{\"var\":\"Food_4 servings\",\"coef\":10},{\"var\":\"Food_5 servings\",\"coef\":24},{\"var\":\"Food_6 servings\",\"coef\":26},{\"var\":\"Food_7 servings\",\"coef\":27},{\"var\":\"Food_8 servings\",\"coef\":30}],\"sense\":\">=\",\"rhs\":113},{\"name\":\"calories\",\"terms\":[{\"var\":\"Food_1 servings\",\"coef\":93},{\"var\":\"Food_2 servings\",\"coef\":219},{\"var\":\"Food_3 servings\",\"coef\":155},{\"var\":\"Food_4 servings\",\"coef\":105},{\"var\":\"Food_5 servings\",\"coef\":255},{\"var\":\"Food_6 servings\",\"coef\":182},{\"var\":\"Food_7 servings\",\"coef\":173},{\"var\":\"Food_8 servings\",\"coef\":191}],\"sense\":\">=\",\"rhs\":1768}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2191,
+   "output_tokens": 1566,
+   "output_tokens_details": {
+    "thinking_tokens": 632
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "ade5749b1d00d0724039a14518fb9bd288743e7656738a4dbd261639d30ec4b2",
+  "tries": 1,
+  "latency_s": 6.0189892910420895,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 4
+}

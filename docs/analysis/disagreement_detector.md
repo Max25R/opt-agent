@@ -169,3 +169,12 @@ pre-registered or run, and the paid run is the owner's.
   cap: $3.00** (`budget.BudgetedClient`; the run stops cleanly before any call whose worst case
   could cross it, and resumes). Had every answer cost the follow-up's most expensive one, it
   would be $7.58, and the cap would stop it first.
+
+## Since then: the confirmatory study (2026-11-20)
+
+The pre-registered resampling study proposed above ran on fresh samples (single-shot samples
+3 to 7 and a new no-solver answer, one unit per problem; the checklist signal left out), and
+**its primary hypothesis, R1, was supported**: flagged answers were silent failures more often
+than unflagged ones. Its numbers are in
+[`docs/resampling/RESULTS.md`](../resampling/RESULTS.md), from `results/resampling.json`;
+nothing above changes, and this run stays exploratory.

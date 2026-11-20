@@ -1,0 +1,234 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Let's consider a complex transportation network comprised of 6 major cargo hubs, stretching from a main dispatch center to a primary delivery destination. These hubs are interconnected by roads, each with its own weight limit for cargo transportation.\n\nHere's how the weight limits of each road are distributed, reflecting the maximum amount of cargo (in tons) that can be transported from one hub to another:\n\n- From Hub 0 (Dispatch Center): Can send cargo to Hub 1 (7 tons), Hub 2 (8 tons), Hub 3 (1 ton), Hub 4 (2 tons), and Hub 5 (4 tons).\n- From Hub 1: Can send cargo to Hub 0 (15 tons), Hub 2 (16 tons), Hub 4 (9 tons), and Hub 5 (13 tons).\n- From Hub 2: Can send cargo to Hub 0 (9 tons), Hub 1 (1 ton), Hub 3 (9 tons), Hub 4 (13 tons), and Hub 5 (13 tons).\n- From Hub 3: Can send cargo to Hub 0 (10 tons), Hub 1 (11 tons), Hub 2 (19 tons), Hub 4 (1 ton), and Hub 5 (12 tons).\n- From Hub 4: Can send cargo to Hub 0 (15 tons), Hub 1 (16 tons), Hub 2 (7 tons), Hub 3 (11 tons), and Hub 5 (19 tons).\n- From Hub 5 (Destination): Can send cargo back to Hub 0 (10 tons), Hub 1 (12 tons), Hub 2 (12 tons), Hub 3 (12 tons), and Hub 4 (20 tons).\n\nIn this model, a capacity of \"0\" indicates there is no direct road connection between those two hubs.\n\nThe challenge is to determine the maximum amount of cargo that can be transported from Hub 0 (the dispatch center) to Hub 5 (the destination) per day, in a manner that the cargo on each road does not surpass its listed weight limit. What is the maximum amount of cargo that can be delivered from the dispatch center to the destination in tons per day? Please note that the answer should provide only the optimal value under the maximum flow scenario, and all the data in the problem details should be included in the created question."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChDanKJ3QxQ3vGaemNvyq",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"H0_to_H1\",\"lower\":0,\"upper\":7,\"integer\":false},{\"name\":\"H0_to_H2\",\"lower\":0,\"upper\":8,\"integer\":false},{\"name\":\"H0_to_H3\",\"lower\":0,\"upper\":1,\"integer\":false},{\"name\":\"H0_to_H4\",\"lower\":0,\"upper\":2,\"integer\":false},{\"name\":\"H0_to_H5\",\"lower\":0,\"upper\":4,\"integer\":false},{\"name\":\"H1_to_H0\",\"lower\":0,\"upper\":15,\"integer\":false},{\"name\":\"H1_to_H2\",\"lower\":0,\"upper\":16,\"integer\":false},{\"name\":\"H1_to_H4\",\"lower\":0,\"upper\":9,\"integer\":false},{\"name\":\"H1_to_H5\",\"lower\":0,\"upper\":13,\"integer\":false},{\"name\":\"H2_to_H0\",\"lower\":0,\"upper\":9,\"integer\":false},{\"name\":\"H2_to_H1\",\"lower\":0,\"upper\":1,\"integer\":false},{\"name\":\"H2_to_H3\",\"lower\":0,\"upper\":9,\"integer\":false},{\"name\":\"H2_to_H4\",\"lower\":0,\"upper\":13,\"integer\":false},{\"name\":\"H2_to_H5\",\"lower\":0,\"upper\":13,\"integer\":false},{\"name\":\"H3_to_H0\",\"lower\":0,\"upper\":10,\"integer\":false},{\"name\":\"H3_to_H1\",\"lower\":0,\"upper\":11,\"integer\":false},{\"name\":\"H3_to_H2\",\"lower\":0,\"upper\":19,\"integer\":false},{\"name\":\"H3_to_H4\",\"lower\":0,\"upper\":1,\"integer\":false},{\"name\":\"H3_to_H5\",\"lower\":0,\"upper\":12,\"integer\":false},{\"name\":\"H4_to_H0\",\"lower\":0,\"upper\":15,\"integer\":false},{\"name\":\"H4_to_H1\",\"lower\":0,\"upper\":16,\"integer\":false},{\"name\":\"H4_to_H2\",\"lower\":0,\"upper\":7,\"integer\":false},{\"name\":\"H4_to_H3\",\"lower\":0,\"upper\":11,\"integer\":false},{\"name\":\"H4_to_H5\",\"lower\":0,\"upper\":19,\"integer\":false},{\"name\":\"H5_to_H0\",\"lower\":0,\"upper\":10,\"integer\":false},{\"name\":\"H5_to_H1\",\"lower\":0,\"upper\":12,\"integer\":false},{\"name\":\"H5_to_H2\",\"lower\":0,\"upper\":12,\"integer\":false},{\"name\":\"H5_to_H3\",\"lower\":0,\"upper\":12,\"integer\":false},{\"name\":\"H5_to_H4\",\"lower\":0,\"upper\":20,\"integer\":false}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"H0_to_H5\",\"coef\":1},{\"var\":\"H1_to_H5\",\"coef\":1},{\"var\":\"H2_to_H5\",\"coef\":1},{\"var\":\"H3_to_H5\",\"coef\":1},{\"var\":\"H4_to_H5\",\"coef\":1}]},\"constraints\":[{\"name\":\"Conservation at Hub 1\",\"terms\":[{\"var\":\"H0_to_H1\",\"coef\":1},{\"var\":\"H2_to_H1\",\"coef\":1},{\"var\":\"H3_to_H1\",\"coef\":1},{\"var\":\"H4_to_H1\",\"coef\":1},{\"var\":\"H5_to_H1\",\"coef\":1},{\"var\":\"H1_to_H0\",\"coef\":-1},{\"var\":\"H1_to_H2\",\"coef\":-1},{\"var\":\"H1_to_H4\",\"coef\":-1},{\"var\":\"H1_to_H5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"Conservation at Hub 2\",\"terms\":[{\"var\":\"H0_to_H2\",\"coef\":1},{\"var\":\"H1_to_H2\",\"coef\":1},{\"var\":\"H3_to_H2\",\"coef\":1},{\"var\":\"H4_to_H2\",\"coef\":1},{\"var\":\"H5_to_H2\",\"coef\":1},{\"var\":\"H2_to_H0\",\"coef\":-1},{\"var\":\"H2_to_H1\",\"coef\":-1},{\"var\":\"H2_to_H3\",\"coef\":-1},{\"var\":\"H2_to_H4\",\"coef\":-1},{\"var\":\"H2_to_H5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"Conservation at Hub 3\",\"terms\":[{\"var\":\"H0_to_H3\",\"coef\":1},{\"var\":\"H2_to_H3\",\"coef\":1},{\"var\":\"H4_to_H3\",\"coef\":1},{\"var\":\"H5_to_H3\",\"coef\":1},{\"var\":\"H3_to_H0\",\"coef\":-1},{\"var\":\"H3_to_H1\",\"coef\":-1},{\"var\":\"H3_to_H2\",\"coef\":-1},{\"var\":\"H3_to_H4\",\"coef\":-1},{\"var\":\"H3_to_H5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"Conservation at Hub 4\",\"terms\":[{\"var\":\"H0_to_H4\",\"coef\":1},{\"var\":\"H1_to_H4\",\"coef\":1},{\"var\":\"H2_to_H4\",\"coef\":1},{\"var\":\"H3_to_H4\",\"coef\":1},{\"var\":\"H5_to_H4\",\"coef\":1},{\"var\":\"H4_to_H0\",\"coef\":-1},{\"var\":\"H4_to_H1\",\"coef\":-1},{\"var\":\"H4_to_H2\",\"coef\":-1},{\"var\":\"H4_to_H3\",\"coef\":-1},{\"var\":\"H4_to_H5\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2335,
+   "output_tokens": 4687,
+   "output_tokens_details": {
+    "thinking_tokens": 2853
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "7734b23a0418b35903b136c35f785da619ec07b1b164ac292fcb2364abbe9b91",
+  "tries": 1,
+  "latency_s": 18.72837004205212,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 4
+}

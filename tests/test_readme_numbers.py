@@ -1,12 +1,15 @@
 """Pre-registration section 7: every number in the README comes from a generated results
-file, at the precision the README shows it: results/eval.json (milestone 6) or
-results/followup.json (the follow-up, its pre-registration's section 7). The whole README is
-checked against both, without its fenced code blocks (commands and the diagram), and each
-results section against its own file. So is the full M6 write-up, docs/EVALUATION.md (the
-README's Evaluation section until the README was rewritten on 2026-11-15), every number in
+file, at the precision the README shows it: results/eval.json (milestone 6),
+results/followup.json (the follow-up, its pre-registration's section 7) or
+results/resampling.json (the resampling study, its pre-registration's section 7). The whole
+README is checked against all three, without its fenced code blocks (commands and the
+diagram), and each results section against its own file. So is the full M6 write-up,
+docs/EVALUATION.md (the README's Evaluation section until the README was rewritten on
+2026-11-15), every number in
 the "The rows" sections of Amendments 4 and 5 (docs/amendments/amendment-4.md,
 amendment-5.md), whose rows scripts/amendment4.py and amendment5.py generate into eval.json,
-and docs/followup/RESULTS.md (scripts/followup_results.py), and the IE 2310 summary
+docs/followup/RESULTS.md (scripts/followup_results.py) and docs/resampling/RESULTS.md
+(scripts/resampling_results.py), and the IE 2310 summary
 (docs/ie2310/summary.md) against both. Two README bullets are exploratory, not results
 (EXPLORATORY, owner's request, 2026-11-19): the disagreement detector's line and the
 explanation checker's, each checked against its own record in docs/analysis/ and left out
@@ -21,13 +24,15 @@ How a number in the README is read:
 - A sign is part of a number after a space or "(": `-1.7` must equal a negative value.
 - `12.3%` is a rate: some value times 100, rounded to the shown decimals, must equal it. In a
   range such as `93.4–98.0%`, both ends are rates.
-- `$0.150`, `3.8` and `1e-6` must equal some value rounded to the shown decimals (exactly,
-  for scientific notation).
+- `$0.150` and `3.8` must equal some value rounded to the shown decimals, and `2.3e-6` some
+  value at the shown significant digits.
 - A whole number such as `264` must equal some whole value exactly.
 
 Not results, so skipped: model names ("Claude Haiku 5.5"), amendment numbers, percentile
-names ("p95"), link targets, dates, hypothesis names ("H1"), the benchmark's name ("NL4Opt"),
-section and condition numbers ("section 4", "5b", "conditions 2 to 4"), "SHA-256", a cited
+names ("p95"), link targets, dates, hypothesis names ("H1", "R2"), the benchmark's name
+("NL4Opt"), section, condition and sample numbers ("section 4", "5b", "conditions 2 to 4",
+"samples 3 to 7"), a significance level ("alpha 0.05") and an interval's ("95% Wilson"),
+"SHA-256", a cited
 paper's venue and year ("ICML 2024"), license versions ("CC BY-SA 4.0"), course numbers
 ("IE 2310"), Python versions ("Python 3.12"), and fenced code blocks. Numbers written as
 words aren't checked, so results are written in digits.
@@ -50,6 +55,8 @@ AMENDMENT_5 = ROOT / "docs" / "amendments" / "amendment-5.md"
 EVAL = ROOT / "results" / "eval.json"
 FOLLOWUP = ROOT / "results" / "followup.json"
 FOLLOWUP_RESULTS = ROOT / "docs" / "followup" / "RESULTS.md"
+RESAMPLING = ROOT / "results" / "resampling.json"
+RESAMPLING_RESULTS = ROOT / "docs" / "resampling" / "RESULTS.md"
 # Each exploratory README bullet, by the words it starts with, and the record it comes from.
 EXPLORATORY = {
     "- **Exploratory: disagreement between attempts as a warning.**":
@@ -68,13 +75,15 @@ IE2310_SUMMARY = ROOT / "docs" / "ie2310" / "summary.md"
 # cite at least, and how many numbers it must have at least (so a check can't pass by
 # finding nothing).
 CHECKED = [
-    (README, None, (EVAL, FOLLOWUP), 0, 60),
+    (README, None, (EVAL, FOLLOWUP, RESAMPLING), 0, 60),
     (README, "### NL4Opt", (EVAL,), 0, 25),
     (README, "### Harder problems", (FOLLOWUP,), 0, 30),
+    (README, "### Resampling", (RESAMPLING,), 0, 12),
     (EVALUATION, None, (EVAL,), 2, 40),
     (AMENDMENT_4, "## The rows", (EVAL,), 2, 40),
     (AMENDMENT_5, "## The rows", (EVAL,), 2, 40),
     (FOLLOWUP_RESULTS, None, (FOLLOWUP,), 0, 40),
+    (RESAMPLING_RESULTS, None, (RESAMPLING,), 0, 40),
     (IE2310_SUMMARY, None, (EVAL, FOLLOWUP), 0, 25),
 ]
 
@@ -85,10 +94,13 @@ NOT_RESULTS = [
     r"\bp\d\d\b",  # a percentile's name, as in "latency p50 / p95"
     r"\b\d{4}-\d{2}-\d{2}\b",  # a date
     r"SHA-256",  # a hash's name
-    r"\bH[12]\b",  # a hypothesis's name
+    r"\b[HR][12]\b",  # a hypothesis's name (the follow-up's H1, the resampling study's R1)
     r"\b[Ss]ections? \d+\b",  # a section of a pre-registration
     r"\b5[abc]\b",  # a subsection of the follow-up's section 5
     r"\b[Cc]onditions? \d(?: to \d)?\b",  # a condition's number
+    r"\b[Ss]amples? \d(?: to \d)?\b",  # a sample's number, as in "samples 3 to 7"
+    r"\balpha 0\.05\b",  # a significance level
+    r"\b95%(?= (?:Wilson|CI|bootstrap|interval|confidence))",  # an interval's level
     r"\b(?:ICML|ICLR|NeurIPS) \d{4}\b",  # a cited paper's venue and year
     r"\bCC BY(?:-[A-Z]{2})* \d\.\d\b",  # a license's version
     r"\bIE \d{4}\b",  # a course number
@@ -156,8 +168,9 @@ def matches(token: str, numbers: list[float], rate: bool = False) -> bool:
     """Is `token`, as the README shows it, some value in eval.json?"""
     if token.endswith("%"):
         token, rate = token[:-1], True
-    if "e" in token:
-        return any(v == float(token) for v in numbers)
+    if "e" in token:  # at the significant digits shown: 2.3e-6 is 2 of them
+        digits = len(token.split("e")[0].replace(".", ""))
+        return any(float(f"{v:.{digits - 1}e}") == float(token) for v in numbers)
     decimals = len(token.split(".")[1]) if "." in token else 0
     shown = float(token)
     scale = 100 if rate else 1
@@ -251,6 +264,14 @@ def test_numbers_that_are_in_eval_json_pass():
             "n": 274, "ids": ["431521997"], "tolerance": 1e-6}  # fmt: skip
     text = "96.4% (93.4–98.0%), $0.124, 264 of 274, `431521997`, tolerance 1e-6, Claude Opus 5.5"
     assert unmatched(text, data) == []
+
+
+def test_resampling_forms_pass():
+    data = {"p": 2.3019010408718335e-06, "q": 3.982601372645805e-06, "tolerance": 1e-6}
+    text = ("R1 is supported: p = 2.3e-6 (4.0e-6 without the disputed problems), samples 3 to "
+            "7, sample 3, alpha 0.05, 95% Wilson, R2, tolerance 1e-6")  # fmt: skip
+    assert unmatched(text, data) == []
+    assert unmatched("p = 2.4e-6, or 2.31e-6", data) == ["2.4e-6", "2.31e-6"]
 
 
 def test_follow_up_forms_pass():

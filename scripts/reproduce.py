@@ -1,8 +1,8 @@
 """Rebuild every reported number from the committed runs, with each study's frozen code and
 no API key, and compare with the committed files.
 
-Each study runs in its tag's own tree (opt_agent.frozen), so nothing HEAD changes can move a
-number, and nothing here writes into this checkout. Two checks per study:
+Each of the three studies runs in its tag's own tree (opt_agent.frozen), so nothing HEAD
+changes can move a number, and nothing here writes into this checkout. Two checks per study:
 
 1. **Replay** (skip with --no-replay): every pair of every committed run again, from the run's
    cached replies, through the frozen pipeline, with a client that refuses every request
@@ -15,19 +15,23 @@ number, and nothing here writes into this checkout. Two checks per study:
      row (scripts/amendment3.py), and results/eval.json (scripts/eval_json.py, which adds
      Amendments 4 and 5);
    - the follow-up (followup-freeze): opt_agent.followup_report, then results/followup.json
-     and docs/followup/RESULTS.md (scripts/followup_results.py).
+     and docs/followup/RESULTS.md (scripts/followup_results.py);
+   - the resampling study (resampling-freeze): results/resampling.json, the frozen
+     analysis's report (opt_agent.resampling_report.build), and docs/resampling/RESULTS.md,
+     both by scripts/resampling_results.py, which writes the report because the frozen
+     main() can't (deviation 1, docs/resampling/DEVIATIONS.md).
    The write-up scripts were written after the freezes, against the same package, so they're
    copied in from this checkout.
 
 Latency and cost in the reports come from the recorded runs (a replay is faster, and pays
-nothing), so they're rebuilt, not replayed. Exact on macOS arm64, where both studies ran
+nothing), so they're rebuilt, not replayed. Exact on macOS arm64, where all three studies ran
 (CI runs it there). On Linux x86_64 (checked in CI, 2026-11-15) M6 is exact too, but in the
 follow-up CBC returns another, equally optimal solution for one model, so one pair's
 checklist finds no flags and skips a revision, with the same answer, and four sign-flip
-p-values differ in their 16th digit. Needs the tags (git fetch --tags) and LLM4OR's
-data, which holds the follow-up's keys and Amendment 5's external key
-(python scripts/fetch_llm4or.py). Exits 1 on any difference, printing it, or if something
-can't be rebuilt; 0 when everything matches.
+p-values differ in their 16th digit (the resampling study wasn't checked there). Needs the
+tags (git fetch --tags) and LLM4OR's data, which holds the follow-up's keys (the resampling
+study's too) and Amendment 5's external key (python scripts/fetch_llm4or.py). Exits 1 on any
+difference, printing it, or if something can't be rebuilt; 0 when everything matches.
 
 Run:  python scripts/reproduce.py              # rebuild and replay (a few minutes)
       python scripts/reproduce.py --no-replay  # rebuild only (about 15 s)
@@ -41,7 +45,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from opt_agent import followup_freeze
+from opt_agent import followup_freeze, resampling_freeze
 from opt_agent.freeze import FREEZE_TAG as M6_TAG
 from opt_agent.frozen import FrozenError, Tree
 
@@ -54,6 +58,8 @@ M6_SCRIPTS = ("amendment3", "amendment4", "amendment5", "eval_json")
 FOLLOWUP_RUN = "runs/followup-test"
 FOLLOWUP_OUTPUTS = (f"{FOLLOWUP_RUN}/followup_report.json", "results/followup.json",
                     "docs/followup/RESULTS.md")  # fmt: skip
+RESAMPLING_RUN = "runs/resampling"
+RESAMPLING_OUTPUTS = ("results/resampling.json", "docs/resampling/RESULTS.md")
 # What a replay can't repeat: time, and what was paid or replayed (evaluate.Item).
 NOT_REPLAYED = {"run_id", "latency_s", "retry_s", "wall_s", "cached_calls", "paid_usd",
                 "report_only_paid_usd"}  # fmt: skip
@@ -94,6 +100,22 @@ def rebuild_followup(workdir: Path) -> dict[str, bytes]:
     """The follow-up's files alone, rebuilt (tests/test_followup_results.py)."""
     require_data()
     return followup(workdir, replay=False)[0]
+
+
+def resampling(workdir: Path, replay: bool) -> tuple[dict[str, bytes], list[str]]:
+    """The resampling study's two files, rebuilt in resampling-freeze's tree, and the replay's."""
+    tree = Tree.extract(resampling_freeze.FREEZE_TAG, workdir / "resampling")
+    tree.copy(*(f"{RESAMPLING_RUN}/{name}" for name in RUN_FILES), LLM4OR,
+              "scripts/resampling_results.py")  # fmt: skip
+    differences = replayed(tree, RESAMPLING_RUN) if replay else []
+    tree.python("scripts/resampling_results.py")
+    return {rel: tree.read(rel) for rel in RESAMPLING_OUTPUTS}, differences
+
+
+def rebuild_resampling(workdir: Path) -> dict[str, bytes]:
+    """The resampling study's files alone, rebuilt (tests/test_resampling_results.py)."""
+    require_data()
+    return resampling(workdir, replay=False)[0]
 
 
 # ---- the replay ---------------------------------------------------------------------------
@@ -168,7 +190,8 @@ def main(argv: list[str] | None = None) -> None:
     with tempfile.TemporaryDirectory(prefix="reproduce-") as workdir:
         try:
             require_data()
-            for name, study in (("M6", m6), ("follow-up", followup)):
+            studies = (("M6", m6), ("follow-up", followup), ("resampling", resampling))
+            for name, study in studies:
                 start = time.monotonic()
                 files, replay_differences = study(Path(workdir), replay)
                 rebuilt |= files

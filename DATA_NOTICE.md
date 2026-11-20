@@ -12,6 +12,7 @@ MIT license doesn't apply to them.
 every API request sent a problem's text and every record keeps its request:
 - `runs/followup-test/` (the follow-up test run: `cache/`, `attempts.jsonl`; `results.jsonl`
   quotes the text in its checklist flags, in runs of up to a few dozen words);
+- `runs/resampling/` (the resampling study's run: `cache/`, `attempts.jsonl`);
 - `runs/dev-checklist/`, `runs/dev-checklist-revision/` and `runs/dev-checklist-rev1/`
   (follow-up dev runs: `attempts.jsonl`, and quotes in `results.jsonl`'s checklist fields).
 

@@ -33,9 +33,10 @@ without retry waits), over 274 answers per condition on NL4Opt and 384 on the ha
 (128 problems, 3 samples each).*
 <!-- end of cost and latency -->
 
-Most of the project is the evaluation: two studies, each pre-registered and frozen before its
-test run, asking whether a solver in the loop helps at all and how often a wrong answer gets
-through every check.
+Most of the project is the evaluation: three studies, each pre-registered and frozen before
+its test run, asking whether a solver in the loop helps at all, how often a wrong answer gets
+through every check, and whether disagreement between samples can flag one (it can:
+[below](#resampling-the-disagreement-flag-confirmed)).
 
 | accuracy (Claude Haiku 5.5) | no-solver baseline | single-shot | self-correction | checklist revision |
 |---|---|---|---|---|
@@ -53,10 +54,11 @@ cache.*
 
 ## Results
 
-Both studies used Claude Haiku 5.5. Every number in this README comes from
-[`results/eval.json`](results/eval.json) or [`results/followup.json`](results/followup.json)
-(the cost and latency table at the top: [`results/headline.json`](results/headline.json),
-computed from the runs' logs), and a test checks it. A *silent* failure is a wrong answer that passed every check; a *loud*
+Every study used Claude Haiku 5.5. Every number in this README comes from
+[`results/eval.json`](results/eval.json), [`results/followup.json`](results/followup.json) or
+[`results/resampling.json`](results/resampling.json) (the cost and latency table at the top:
+[`results/headline.json`](results/headline.json), computed from the runs' logs), and a test
+checks it. A *silent* failure is a wrong answer that passed every check; a *loud*
 one is no answer at all. "pp" is percentage points; Holm adjusts a p-value for testing more
 than one hypothesis; the sign-flip and McNemar tests compare two conditions on the same
 problems.
@@ -109,6 +111,22 @@ before the split.
 
 Full write-up: [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md).
 
+### Resampling: the disagreement flag, confirmed
+
+A third pre-registered study ([pre-registration](docs/RESAMPLING_PREREGISTRATION.md)) tested
+the exploratory disagreement detector (under Limitations) on fresh samples of the 121
+unexposed harder problems: an answer was flagged when five new single-shot samples didn't all
+agree or a new no-solver answer differed. **It's confirmed** (R1 supported, one-sided Fisher
+p 2.3e-6): of the 119 verified answers, the 38 flagged were silent failures 52.6% of the time
+(95% Wilson 37.3–67.5%) against a 24.4% base rate, and the flag caught 20 of the 29 silent
+failures (69.0%), at six calls per problem instead of one. It's a warning, not a fix:
+withholding flagged answers would make those 20 failures loud but lose 18 right answers, and
+the majority of the five samples was right more often than one sample (101 of 121 problems
+against 90; secondary, exact McNemar p 0.001).
+
+Full write-up, with its one deviation (it changes no number):
+[`docs/resampling/RESULTS.md`](docs/resampling/RESULTS.md).
+
 ## Limitations
 
 - **Verification can't see a wrong model.** It checks the solution of Claude's formulation
@@ -122,7 +140,9 @@ Full write-up: [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md).
   answers it flagged were silent failures, against a 16.3% base rate, and it caught 62.9% of
   them (number coverage, an earlier detector: 19.5%). A problem's three samples are
   clustered, so its confidence intervals are too narrow, and none of this is a result of
-  record ([details](docs/analysis/disagreement_detector.md)).
+  record ([details](docs/analysis/disagreement_detector.md)). The pre-registered resampling
+  study then confirmed the pattern on fresh samples
+  ([Results](#resampling-the-disagreement-flag-confirmed)).
 - **The cross-check never fired in either study.** No loud failure came from the solvers
   disagreeing or a check failing: NL4Opt had no loud failures at all, and every loud failure
   in the follow-up was an unusable or cut-off reply. The checks did catch real solver bugs,
@@ -207,9 +227,10 @@ python scripts/reproduce.py      # no API key; a few minutes
 ```
 
 `reproduce.py` runs each study's frozen code from its git tag (`m6-freeze`,
-`followup-freeze`), not the current code. It replays every committed answer from the run's
-cached replies, with a client that refuses any request, and checks it against the committed
-results; then it rebuilds both reports and both results files and checks them byte for byte.
+`followup-freeze`, `resampling-freeze`), not the current code. It replays every committed
+answer from the run's cached replies, with a client that refuses any request, and checks it
+against the committed results; then it rebuilds the reports and the three results files and
+checks them byte for byte.
 CI runs it on every push, on macOS arm64 like the original runs (on Linux, CBC picks another
 optimal solution for one follow-up model, which changes one pair's revision path but not its
 answer). Two things can't be replayed: the LLM judges' labels came from chat sessions and are
@@ -279,11 +300,13 @@ anyone can rebuild without a key.
 
 ## More detail
 
-- [`docs/EVALUATION.md`](docs/EVALUATION.md) and
-  [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md): both studies in full.
+- [`docs/EVALUATION.md`](docs/EVALUATION.md), [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md)
+  and [`docs/resampling/RESULTS.md`](docs/resampling/RESULTS.md): the three studies in full.
 - Pre-registrations: [NL4Opt](docs/PREREGISTRATION.md) (amendments in
-  [`docs/amendments/`](docs/amendments/)) and the [follow-up](docs/FOLLOWUP_PREREGISTRATION.md)
-  (deviations in [`docs/followup/DEVIATIONS.md`](docs/followup/DEVIATIONS.md)).
+  [`docs/amendments/`](docs/amendments/)), the [follow-up](docs/FOLLOWUP_PREREGISTRATION.md)
+  (deviations in [`docs/followup/DEVIATIONS.md`](docs/followup/DEVIATIONS.md)) and the
+  [resampling study](docs/RESAMPLING_PREREGISTRATION.md) (deviations in
+  [`docs/resampling/DEVIATIONS.md`](docs/resampling/DEVIATIONS.md)).
 - [`docs/DESIGN.md`](docs/DESIGN.md): a ten-minute tour of the code, the solver checks, the
   agent, the NL4Opt answer key, and the project structure.
 - [`docs/adr/`](docs/adr/README.md): why it's built this way: the options weighed and their costs.

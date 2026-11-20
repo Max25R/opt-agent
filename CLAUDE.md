@@ -20,7 +20,9 @@ point is a trustworthy evaluation, not a demo.
 
 - **No made-up numbers.** Every number in the README comes from `results/eval.json`
   (milestone 6 adds a test that enforces this), or, in its "Harder problems" results
-  subsection, from `results/followup.json` (`scripts/followup_results.py`; the same test).
+  subsection, from `results/followup.json` (`scripts/followup_results.py`; the same test),
+  or, in its "Resampling" results subsection, from `results/resampling.json`
+  (`scripts/resampling_results.py`; the same test).
   The exceptions, the owner's (2026-11-19): the Limitations bullets labeled "Exploratory"
   (the disagreement detector, the explanation checker), each checked against its own record
   in `docs/analysis/` (`tests/test_readme_numbers.py`, `EXPLORATORY`); and the cost and
@@ -42,9 +44,11 @@ CI hardening, mypy and coverage, the post hoc analyses in `docs/analysis/`, the 
 `docs/adr/`, the two bugs mypy found; then the polish list: the static demo on GitHub Pages,
 the code tour in `docs/DESIGN.md`, a README pass; and on 2026-11-19 the disagreement detector,
 the explanation checker's dev evaluation, the Agent Skill, the resampling study and the IP
-slack-claim check) are done too. **Where things stand: the resampling study is frozen at
-`resampling-freeze`; the owner started its paid run on 2026-11-19 in this checkout
-(`runs/resampling`), and its analysis comes once the run is done.** The full record, with every
+slack-claim check) are done too. **Where things stand: the resampling study is done (run by
+the owner on 2026-11-19, analyzed on 2026-11-20): R1 is supported (`results/resampling.json`,
+`docs/resampling/RESULTS.md`).** Next, the owner's requests of 2026-11-20: ADR 0009 (the
+solver's facts about each constraint, for the explainer), then the demo's disagreement badge.
+The full record, with every
 decision and its date, is in `docs/HISTORY.md` and `docs/HANDOFF.md`'s decision logs; where
 things stand, every open item and the environment are in `docs/HANDOFF.md`. **Start from
 `docs/HANDOFF.md`'s "Start here".**
@@ -68,29 +72,30 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
    CI), the README, `docs/EVALUATION.md` and `docs/DESIGN.md`, the screenshot, and the IE 2310
    kit (`docs/ie2310/`). Two reviews: `docs/audit/2026-11-review.md` and
    `docs/audit/2026-11-final-review.md` (its status line says what's left).
-9. [ ] **The resampling study** (2026-11-19): `docs/RESAMPLING_PREREGISTRATION.md` (approved
+9. [x] **The resampling study** (2026-11-19): `docs/RESAMPLING_PREREGISTRATION.md` (approved
    by the owner with three edits), runner `src/opt_agent/resampling.py`, analysis
    `src/opt_agent/resampling_report.py`, gate `src/opt_agent/resampling_freeze.py`, frozen in
-   `docs/resampling/FREEZE.json` at tag `resampling-freeze`. **Frozen; the owner's paid run started
-   on 2026-11-19 (`runs/resampling`); not analyzed yet.**
+   `docs/resampling/FREEZE.json` at tag `resampling-freeze`. Run by the owner on 2026-11-19
+   (`runs/resampling`), analyzed 2026-11-20: `results/resampling.json` (written by
+   `scripts/resampling_results.py`; deviation 1 in `docs/resampling/DEVIATIONS.md`), written
+   up in `docs/resampling/RESULTS.md`.
    Its hypothesis comes from the exploratory disagreement detector
    (`docs/analysis/disagreement_detector.md`).
 
 **Standing rules from the history** (the reasons are in `docs/HISTORY.md`):
-- **The resampling study is frozen; don't touch its inputs.** Never edit
-  `docs/RESAMPLING_PREREGISTRATION.md` or `docs/resampling/FREEZE.json`, and change nothing
-  under `src/opt_agent/` or `requirements.lock` before its run: `resampling_freeze.check()`
-  fingerprints them, so the runner would refuse (run from the tag's tree, or amend first).
-  Its paid run is the owner's, in their terminal, after `python -m opt_agent.resampling --plan`
-  (hard cap $3.00). The owner asked Claude to write this study's freeze (2026-11-19); the two
-  older studies' approvals stay the owner's steps only.
+- **The resampling study is done and frozen at `resampling-freeze`.** Never edit
+  `docs/RESAMPLING_PREREGISTRATION.md`, `docs/resampling/FREEZE.json` or the run
+  (`runs/resampling`). Its frozen `resampling_report.main()` can't write its JSON (a numpy
+  bool), so `scripts/resampling_results.py` writes it, from the frozen `build()` (deviation
+  1). The owner asked Claude to write this study's freeze (2026-11-19); the two older
+  studies' approvals stay the owner's steps only.
 - `python -m opt_agent.freeze approve` and `python -m opt_agent.followup_freeze approve` are
   **the owner's steps only**, never Claude's. Never edit `docs/FREEZE.json` or
   `docs/followup/FREEZE.json`, and never rewrite git history (it would break the freeze tags).
-- Both studies are done and frozen at their tags. Any change under `src/opt_agent/` or to the
-  lock makes each study's `check()` refuse at HEAD, as it should (it gates a new test run);
-  `python -m opt_agent.freeze` and `followup_freeze` say so and report whether the tag
-  verifies. The tag checks read git's objects (CI runs them), and `scripts/reproduce.py`
+- All three studies are done and frozen at their tags. Any change under `src/opt_agent/` or
+  to the lock makes each study's `check()` refuse at HEAD, as it should (it gates a new test
+  run); `python -m opt_agent.freeze`, `followup_freeze` and `resampling_freeze` say so and
+  report whether the tag verifies. The tag checks read git's objects (CI runs them), and `scripts/reproduce.py`
   rebuilds from each tag's own tree. Push tags with commits.
 - **Don't tune prompts to fix a single dev problem**, and tune on dev splits only. The
   follow-up's dev revision 2 is declared unused: only bug fixes, logged in
@@ -195,8 +200,9 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
   live mode has its own cap ($0.50 by default, `logs/spend/demo.jsonl`), and so does the
   agent CLI (`--cap`, $0.50 by default, `logs/spend/agent.jsonl`; since 2026-11-15, from the
   final review). The paid run of 2026-11-19 (`scripts/paid_dev_and_demo.py`): cap $0.30,
-  paid $0.0399. The resampling study's run: hard cap $3.00, about $1.44 expected. Spent so
-  far: $3.93 of the $20 credit (2026-11-19; the ledger is in `docs/HANDOFF.md`).
+  paid $0.0399. The resampling study's run: hard cap $3.00, paid $1.4884 (owner's terminal,
+  2026-11-19; `runs/resampling/spend.jsonl`). Spent so far: $5.42 of the $20 credit
+  (2026-11-20; the ledger is in `docs/HANDOFF.md`).
 - `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
   paid run. An unlisted model raises instead of being guessed.
 - Budget stops, spend-limit errors (`api.SpendLimitReached`: a 429 with
@@ -245,7 +251,7 @@ python -m opt_agent.followup_freeze          # the follow-up's: what's left, whe
 python -m opt_agent.followup_freeze approve  # THE OWNER'S STEP ONLY: docs/followup/FREEZE.json
 python -m opt_agent.resampling_freeze         # the resampling study: does the tag verify, do the inputs match
 python -m opt_agent.resampling --plan          # its calls left and worst case, no calls (the paid run is the owner's)
-python -m opt_agent.resampling_report          # after the run: results/resampling.json
+python scripts/resampling_results.py           # results/resampling.json (the frozen build()'s report) + docs/resampling/RESULTS.md (needs the data)
 python scripts/resampling_power.py             # docs/resampling/power.md (seeded)
 python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.json
 python -m opt_agent.report runs/P --original runs/NAME   # a perturbed run, paired

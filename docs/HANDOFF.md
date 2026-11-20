@@ -1,4 +1,4 @@
-# Handoff (2026-11-19, end of session)
+# Handoff (2026-11-20)
 
 Read CLAUDE.md first (rules, budget, gotchas), then this file: where things stand, every
 open item, and the environment. A new session needs nothing else; the full record of
@@ -8,49 +8,42 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
 1. `source .venv/bin/activate` (`python` isn't on the path without it), `unset
    ANTHROPIC_API_KEY`, then `git status` and `git log --oneline -5`: the tree should be clean
    at the last commit on `main`, pushed, with CI green (its status: see Environment).
-2. **Where things stand: the resampling study is frozen, and its paid run has started.** Its
-   pre-registration (`docs/RESAMPLING_PREREGISTRATION.md`) was approved by the owner on
-   2026-11-19, frozen in `docs/resampling/FREEZE.json` and tagged `resampling-freeze`; the
-   owner started its paid run on 2026-11-19 in this checkout (`runs/resampling`), and nothing
-   of it has been analyzed. Check it first: `python -m opt_agent.resampling_freeze` must say the
-   tag verifies and the inputs match (it needs LLM4OR's data: `python scripts/fetch_llm4or.py`).
-   - **Next, the owner's paid run**, only when the owner asks for it: first
-     `python -m opt_agent.resampling --plan` (no calls: the calls left and the worst case);
-     the paid command and its cap are in `src/opt_agent/resampling.py`'s docstring (hard cap
-     $3.00, about $1.44 expected; the owner runs it in their terminal, never Claude).
-   - **Then:** `python -m opt_agent.resampling_report` writes `results/resampling.json` (R1,
-     R2, the secondary analysis, abstention); commit the run (`git add -f runs/resampling`)
-     and the results; write the study up (a `docs/resampling/RESULTS.md`, and a README line
-     only with every number checked by a test against `results/resampling.json`, as the
-     pre-registration's section 7 says). Report R1 as supported or not supported, never as "no
-     effect".
-   - **Don't change anything under `src/opt_agent/` or `requirements.lock` before that run**:
-     `resampling_freeze.check()` fingerprints them, so the runner would refuse at HEAD. If a
-     change can't wait, run the study from the tag's tree, or record an amendment first.
+2. **Where things stand: the resampling study is done; R1 is supported.** Its paid run (the
+   owner's, from their terminal, 2026-11-19, `runs/resampling`, $1.4884 of its $3.00 cap)
+   and its analysis (2026-11-20) are committed: `results/resampling.json` (the frozen
+   analysis's report), `docs/resampling/RESULTS.md`, and one deviation that changes no number
+   (`docs/resampling/DEVIATIONS.md`: the frozen `main()` couldn't write its JSON, so
+   `scripts/resampling_results.py` writes it). The README reports it in a Results subsection
+   checked against that file. `python -m opt_agent.resampling_freeze` must still say the tag
+   verifies (the inputs at HEAD stop matching once `src/opt_agent/` changes, as for the other
+   two studies).
+   - **Next (the owner's requests of 2026-11-20):** ADR 0009, the solver's facts about each
+     constraint for the explainer (open item 16), then the demo's disagreement badge.
 3. Read "Open items" below. Everything else is optional or the owner's.
 4. Before committing: `ruff check . && ruff format --check .`, `python -m mypy`, and
    `HYPOTHESIS_PROFILE=ci python -m pytest` (about 3 minutes; with all the data here, nothing
-   skips). After a change under `src/opt_agent/`, `python scripts/reproduce.py` (about 4
+   skips). After a change under `src/opt_agent/`, `python scripts/reproduce.py` (about 5
    minutes, no key; it once took 39 on a busy machine) must still say every answer replays
-   and all 6 files match.
+   and all 8 files match.
 
 ## Current state
-- **Everything is committed and pushed** (`main`, 2026-11-19; tags `m6-freeze`,
+- **Everything is committed and pushed** (`main`, 2026-11-20; tags `m6-freeze`,
   `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`, `resampling-freeze`), and
   CI's jobs (test on 3.12 and 3.13, types, reproduce, demo-image, pictures, plugin,
   static-demo, deploy-pages) pass on the last commit. The only API calls since 2026-11-15 are
-  the owner's paid run of 2026-11-19 ($0.0399; open item 14).
-- **The resampling study: frozen, ready to run** (2026-11-19; "Start here", step 2). The
-  pre-registration is `docs/RESAMPLING_PREREGISTRATION.md` (approved by the owner in chat,
-  with three edits the owner asked for: R1's units are verified sample-3 answers, a missing
-  answer counts as disagreement, and the same model, prompts and `max_tokens` as the
-  follow-up); the runner is `src/opt_agent/resampling.py`, the analysis
-  `src/opt_agent/resampling_report.py`, the gate `src/opt_agent/resampling_freeze.py`, all
-  tested with FakeClient or synthetic answers; the freeze is `docs/resampling/FREEZE.json` (69
-  hashes) at the tag `resampling-freeze`, which `python -m opt_agent.resampling_freeze`
-  verifies. `python -m opt_agent.resampling --plan` (no calls): 726 calls, worst case $6.27
-  if every reply used all of `max_tokens`, so the $3.00 cap is what bounds it; about $1.44
-  expected. Its power: `docs/resampling/power.md`.
+  the owner's two paid runs of 2026-11-19: $0.0399 (open item 14) and the resampling study's,
+  $1.4884.
+- **The resampling study: done, R1 supported** (run 2026-11-19, analyzed 2026-11-20; "Start
+  here", step 2). The pre-registration is `docs/RESAMPLING_PREREGISTRATION.md` (approved by
+  the owner with three edits), the runner `src/opt_agent/resampling.py`, the analysis
+  `src/opt_agent/resampling_report.py`, the gate `src/opt_agent/resampling_freeze.py`; the
+  freeze is `docs/resampling/FREEZE.json` at the tag `resampling-freeze`. The run is committed
+  (`runs/resampling`, its cache included); `scripts/resampling_results.py` writes
+  `results/resampling.json` with the frozen `build()`'s report and renders
+  `docs/resampling/RESULTS.md` from it; `scripts/reproduce.py` replays the run from its cache
+  and rebuilds both files in the tag's own tree. The numbers are in those files; the run's
+  notes (one pass, the cost, the three commits made during it) are in
+  `docs/resampling/DEVIATIONS.md`.
 - **The explanation checker's finding** (2026-11-19, exploratory, Claude's labels, not a
   person's: `docs/analysis/explanation_checker.md` and its JSON). On NL4Opt's dev split no
   explanation used a wrong number, so the number check had nothing to catch (its few flags
@@ -120,7 +113,8 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
     Code 2.1.311, validates `.claude-plugin/marketplace.json` and installs the skill from it
     as the README says; the skill's scripts are executable, as Agensi asks (open item 17).
   - **The resampling study** (later list): drafted, approved by the owner with three edits,
-    built (runner, analysis, gate, tests) and frozen at `resampling-freeze`; not run.
+    built (runner, analysis, gate, tests) and frozen at `resampling-freeze`; run by the owner
+    and analyzed on 2026-11-20 (above).
   - **The paid command** (item 2, run by the owner on 2026-11-19): `scripts/paid_dev_and_demo.py`.
     Part 1 explains every verified single-shot answer on NL4Opt's dev split (all 92
     formulations replay from `runs/dev-1`; 88 explanation calls) for the explanation
@@ -193,11 +187,12 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   ComplexLP (CC BY-SA 4.0) and ORLM's IndustryOR (CC BY-NC 4.0), as cleaned by LLM4OR at
   `75962df` (no license stated), plus NL4Opt (MIT). History was kept (owner, 2026-11-15):
   rewriting it would break `followup-freeze` and the commit in `FREEZE.json`.
-- **Spend:** $3.93 of the $20 credit ($0.98 before the follow-up, $0.1775 for the
+- **Spend:** $5.42 of the $20 credit ($0.98 before the follow-up, $0.1775 for the
   condition-4 dev smoke run, $2.7176 for the test run, $0.0139 for the demo examples'
   replies, $0.0399 for the paid run of 2026-11-19, ledger
-  `logs/spend/paid-2026-11-19.jsonl`). About $6.34 of November's $10 limit is left; it resets
-  on December 1. The resampling run's cap is $3.00.
+  `logs/spend/paid-2026-11-19.jsonl`, and $1.4884 for the resampling study's run, ledger
+  `runs/resampling/spend.jsonl`). About $4.85 of November's $10 limit is left; it resets on
+  December 1.
 
 ## Open items
 1. ~~M7 demo~~ and ~~M8's README and reproduce script~~: done 2026-11-15.
@@ -283,18 +278,17 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
       item 16 follows from it).
    5. A second model under its own pre-registration and cap (ADR-0006's ladder): **open**, 2-3
       days plus a paid run sized by `evaluate --plan`; the budget is the owner's call.
-15. **The resampling study: frozen, ready to run; the paid run is the owner's** ("Start
-   here", step 2; "Current state"). After the run: `python -m opt_agent.resampling_report`,
-   commit `runs/resampling` (`git add -f`) and `results/resampling.json`, write it up, and
-   change nothing under `src/opt_agent/` or the lock before the run.
+15. ~~The resampling study~~: run (the owner's, 2026-11-19) and analyzed (2026-11-20); R1
+   is supported ("Current state").
 16. **The explanation checker's blind spot** (from item 14.4; ADR-0004, action item 3): false
    claims about slack in integer programs. Options: a check that tests each "not limiting"
    claim by re-solving without the constraint: **done, exploratory** (2026-11-19,
    `docs/analysis/ip_slack_check.md`; its numbers are in its JSON): it finds a claim only when
    its rule can parse it from the free text, which is its weak part. Not started: computing
    each constraint's effect with the solver and giving the explainer those facts, or
-   placeholders instead of free-form explanations (both change `src/opt_agent/`, so not before
-   the resampling run's analysis is committed); or telling the explanation prompt that slack
+   placeholders instead of free-form explanations (both change `src/opt_agent/`, now possible:
+   the resampling analysis is committed; the first is ADR 0009, the owner's request of
+   2026-11-20); or telling the explanation prompt that slack
    doesn't mean "not limiting" in an integer program (a prompt change: dev only, and a new
    evaluation).
 17. **The Agensi listing:** the owner uploads `skills/opt-agent/` to agensi.io by hand (its
@@ -302,11 +296,12 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    The repository's own plugin marketplace stays while CI's `plugin` job passes.
 18. **The README's exploratory bullets** (the disagreement detector, the explanation checker)
    are checked against `docs/analysis/*.json`, not the results files: the one exception to
-   the hard rule (CLAUDE.md). If the resampling study runs, its numbers go in
-   `results/resampling.json`, and any README line about it is checked against that file.
+   the hard rule (CLAUDE.md). The resampling study's numbers are in
+   `results/resampling.json`, and the README's subsection about it is checked against that
+   file.
 
 ## Environment (read before running anything)
-- **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where both studies ran and
+- **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all three studies ran and
   where CI's `reproduce` job runs (`macos-15`); CBC comes from `cbcbox` 2.929 because later
   builds crash there (CLAUDE.md).
 - **No `gh`.** Read CI from the public GitHub API with `curl` and `jq`:
@@ -343,9 +338,10 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
 - **mypy:** new code must keep `python -m mypy` clean; a `type: ignore` needs its code and a
   reason on the line. The coverage badge moves only when `scripts/coverage_badge.py` is
   rerun after a full suite with all the data, and CI fails if it's more than a point off.
-- **Both studies are frozen at their tags, not at HEAD.** Any change under `src/opt_agent/`
-  (and to the frozen docs, the lock, `split.json` or the LLM4OR files) makes
-  `python -m opt_agent.freeze` and `python -m opt_agent.followup_freeze` report a mismatch.
+- **All three studies are frozen at their tags, not at HEAD.** Any change under
+  `src/opt_agent/` (and to the frozen docs, the lock, `split.json` or the LLM4OR files) makes
+  `python -m opt_agent.freeze`, `followup_freeze` and `resampling_freeze` report a mismatch
+  (and `resampling.problems`, so `scripts/resampling_results.py`'s build, refuse at HEAD).
   For the follow-up that also means `followup.load_test` raises `FreezeError`, so
   `python -m opt_agent.followup_report runs/followup-test` and `scripts/followup_results.py`
   (the build) stop working at HEAD, as they should. To rebuild, run

@@ -1,0 +1,234 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine you're a dietitian, tasked with crafting a healthy and balanced meal plan for a client on a budget. The tricky part is that you must choose from a list of nine food items, each with their own cost and nutritional values for protein, carbohydrates, and calories.\n\nHere's the rundown of what each food item provides and its cost:\n\n- Chicken Breast: Delivers 17 grams of protein, 28 grams of carbohydrates, and 136 calories for $3.\n- Tofu: Yields 15 grams of protein, 11 grams of carbohydrates, and 198 calories for $2.\n- Brown Rice: Offers just 1 gram of protein, 11 grams of carbohydrates, and 93 calories for $2.\n- Salmon: Gives you 11 grams of protein, 3 grams of carbohydrates, and a hefty 269 calories for $6.\n- Greek Yogurt: Provides 15 grams of protein, 27 grams of carbohydrates, and 121 calories for $6.\n- Steak: Comes with 12 grams of protein, 3 grams of carbohydrates, and 80 calories for a steeper price of $10.\n- Avocado: Provides 4 grams of protein, 8 grams of carbohydrates, and a whopping 300 calories for $7.\n- Eggs: Offer 16 grams of protein, 25 grams of carbohydrates, and 99 calories for $5.\n- Quinoa: Comes with 11 grams of protein, 20 grams of carbohydrates, and 87 calories for just $2.\n\nYour goal is to make sure your client gets at least 72 grams of protein, 158 grams of carbohydrates, and 1896 calories from the combination of foods you choose. But you also need to keep costs to a minimum. What is the least amount of money you would need to spend to meet all of these nutritional targets from these nine food options?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChDbSnF5vAPbkC81pDRHm",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"chicken breast servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"tofu servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"brown rice servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"salmon servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"greek yogurt servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"steak servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"avocado servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"egg servings\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"quinoa servings\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":3},{\"var\":\"tofu servings\",\"coef\":2},{\"var\":\"brown rice servings\",\"coef\":2},{\"var\":\"salmon servings\",\"coef\":6},{\"var\":\"greek yogurt servings\",\"coef\":6},{\"var\":\"steak servings\",\"coef\":10},{\"var\":\"avocado servings\",\"coef\":7},{\"var\":\"egg servings\",\"coef\":5},{\"var\":\"quinoa servings\",\"coef\":2}]},\"constraints\":[{\"name\":\"protein\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":17},{\"var\":\"tofu servings\",\"coef\":15},{\"var\":\"brown rice servings\",\"coef\":1},{\"var\":\"salmon servings\",\"coef\":11},{\"var\":\"greek yogurt servings\",\"coef\":15},{\"var\":\"steak servings\",\"coef\":12},{\"var\":\"avocado servings\",\"coef\":4},{\"var\":\"egg servings\",\"coef\":16},{\"var\":\"quinoa servings\",\"coef\":11}],\"sense\":\">=\",\"rhs\":72},{\"name\":\"carbohydrates\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":28},{\"var\":\"tofu servings\",\"coef\":11},{\"var\":\"brown rice servings\",\"coef\":11},{\"var\":\"salmon servings\",\"coef\":3},{\"var\":\"greek yogurt servings\",\"coef\":27},{\"var\":\"steak servings\",\"coef\":3},{\"var\":\"avocado servings\",\"coef\":8},{\"var\":\"egg servings\",\"coef\":25},{\"var\":\"quinoa servings\",\"coef\":20}],\"sense\":\">=\",\"rhs\":158},{\"name\":\"calories\",\"terms\":[{\"var\":\"chicken breast servings\",\"coef\":136},{\"var\":\"tofu servings\",\"coef\":198},{\"var\":\"brown rice servings\",\"coef\":93},{\"var\":\"salmon servings\",\"coef\":269},{\"var\":\"greek yogurt servings\",\"coef\":121},{\"var\":\"steak servings\",\"coef\":80},{\"var\":\"avocado servings\",\"coef\":300},{\"var\":\"egg servings\",\"coef\":99},{\"var\":\"quinoa servings\",\"coef\":87}],\"sense\":\">=\",\"rhs\":1896}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2172,
+   "output_tokens": 1577,
+   "output_tokens_details": {
+    "thinking_tokens": 606
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "976e7af3a14d2d619e3dce1e9b6f58d76974c75e69f4ee18e92aef12c46529e8",
+  "tries": 1,
+  "latency_s": 6.530880542006344,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 4
+}

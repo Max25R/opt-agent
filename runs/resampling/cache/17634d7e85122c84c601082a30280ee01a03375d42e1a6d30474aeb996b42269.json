@@ -1,0 +1,234 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "In the heart of a bustling metropolis, there lies an intricate network of digital information pipelines connecting 8 crucial data centers. These centers, from the main server hub to the final relay station, are vital for processing and distributing vast amounts of data across the city. The connections between these data centers have specific bandwidth capacities that dictate the maximum flow of data (measured in terabytes per hour) that can be transmitted from one center to another.\n\nHere's a breakdown of the network's layout and its capacities:\n\n- From Data Center 0 (Source): Data can be sent to Center 1 (6 TB/h), Center 2 (16 TB/h), Center 3 (5 TB/h), Center 4 (6 TB/h), Center 5 (11 TB/h), Center 6 (6 TB/h), and Center 7 (4 TB/h).\n- From Data Center 1: Data can be transmitted to Center 2 (8 TB/h), Center 3 (10 TB/h), Center 4 (6 TB/h), Center 5 (3 TB/h), Center 6 (6 TB/h), and Center 7 (14 TB/h).\n- From Data Center 2: Can send data to Center 1 (6 TB/h), Center 3 (20 TB/h), Center 4 (7 TB/h), Center 5 (16 TB/h), Center 6 (13 TB/h), and Center 7 (14 TB/h).\n- From Data Center 3: Has capacities to Center 1 (11 TB/h), Center 2 (19 TB/h), Center 4 (18 TB/h), Center 5 (5 TB/h), and Center 7 (8 TB/h).\n- From Data Center 4: Can route data to Center 1 (1 TB/h), Center 2 (14 TB/h), Center 3 (18 TB/h), Center 5 (12 TB/h), Center 6 (4 TB/h), and Center 7 (7 TB/h).\n- From Data Center 5: Can dispatch data to Center 1 (16 TB/h), Center 2 (3 TB/h), Center 3 (20 TB/h), Center 4 (7 TB/h), Center 6 (15 TB/h), and Center 7 (6 TB/h).\n- From Data Center 6: Capable of sending to Center 1 (11 TB/h), Center 2 (4 TB/h), Center 3 (19 TB/h), Center 4 (7 TB/h), Center 5 (6 TB/h), and Center 7 (17 TB/h).\n- From Data Center 7 (Destination): Can receive return data flow from Center 1 (5 TB/h), Center 2 (8 TB/h), Center 3 (17 TB/h), Center 4 (2 TB/h), Center 5 (5 TB/h), and Center 6 (4 TB/h).\n\nIn this network, a capacity of \"0\" signifies an absence of direct data transmission capability between any two given data centers.\n\nThe challenge is to determine the maximum amount of data that can be efficiently transmitted from Data Center 0 (the main server hub) to Data Center 7 (the final relay station) per hour, without exceeding the bandwidth capacities of the connections between the centers. What is the optimal value of data flow (in terabytes per hour) that can be achieved from the source to the destination?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChDW5zUcwqVbRUPBn9JiC",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"TB/h from center 0 to center 1\",\"lower\":0,\"upper\":6,\"integer\":false},{\"name\":\"TB/h from center 0 to center 2\",\"lower\":0,\"upper\":16,\"integer\":false},{\"name\":\"TB/h from center 0 to center 3\",\"lower\":0,\"upper\":5,\"integer\":false},{\"name\":\"TB/h from center 0 to center 4\",\"lower\":0,\"upper\":6,\"integer\":false},{\"name\":\"TB/h from center 0 to center 5\",\"lower\":0,\"upper\":11,\"integer\":false},{\"name\":\"TB/h from center 0 to center 6\",\"lower\":0,\"upper\":6,\"integer\":false},{\"name\":\"TB/h from center 0 to center 7\",\"lower\":0,\"upper\":4,\"integer\":false},{\"name\":\"TB/h from center 1 to center 2\",\"lower\":0,\"upper\":8,\"integer\":false},{\"name\":\"TB/h from center 1 to center 3\",\"lower\":0,\"upper\":10,\"integer\":false},{\"name\":\"TB/h from center 1 to center 4\",\"lower\":0,\"upper\":6,\"integer\":false},{\"name\":\"TB/h from center 1 to center 5\",\"lower\":0,\"upper\":3,\"integer\":false},{\"name\":\"TB/h from center 1 to center 6\",\"lower\":0,\"upper\":6,\"integer\":false},{\"name\":\"TB/h from center 1 to center 7\",\"lower\":0,\"upper\":14,\"integer\":false},{\"name\":\"TB/h from center 2 to center 1\",\"lower\":0,\"upper\":6,\"integer\":false},{\"name\":\"TB/h from center 2 to center 3\",\"lower\":0,\"upper\":20,\"integer\":false},{\"name\":\"TB/h from center 2 to center 4\",\"lower\":0,\"upper\":7,\"integer\":false},{\"name\":\"TB/h from center 2 to center 5\",\"lower\":0,\"upper\":16,\"integer\":false},{\"name\":\"TB/h from center 2 to center 6\",\"lower\":0,\"upper\":13,\"integer\":false},{\"name\":\"TB/h from center 2 to center 7\",\"lower\":0,\"upper\":14,\"integer\":false},{\"name\":\"TB/h from center 3 to center 1\",\"lower\":0,\"upper\":11,\"integer\":false},{\"name\":\"TB/h from center 3 to center 2\",\"lower\":0,\"upper\":19,\"integer\":false},{\"name\":\"TB/h from center 3 to center 4\",\"lower\":0,\"upper\":18,\"integer\":false},{\"name\":\"TB/h from center 3 to center 5\",\"lower\":0,\"upper\":5,\"integer\":false},{\"name\":\"TB/h from center 3 to center 7\",\"lower\":0,\"upper\":8,\"integer\":false},{\"name\":\"TB/h from center 4 to center 1\",\"lower\":0,\"upper\":1,\"integer\":false},{\"name\":\"TB/h from center 4 to center 2\",\"lower\":0,\"upper\":14,\"integer\":false},{\"name\":\"TB/h from center 4 to center 3\",\"lower\":0,\"upper\":18,\"integer\":false},{\"name\":\"TB/h from center 4 to center 5\",\"lower\":0,\"upper\":12,\"integer\":false},{\"name\":\"TB/h from center 4 to center 6\",\"lower\":0,\"upper\":4,\"integer\":false},{\"name\":\"TB/h from center 4 to center 7\",\"lower\":0,\"upper\":7,\"integer\":false},{\"name\":\"TB/h from center 5 to center 1\",\"lower\":0,\"upper\":16,\"integer\":false},{\"name\":\"TB/h from center 5 to center 2\",\"lower\":0,\"upper\":3,\"integer\":false},{\"name\":\"TB/h from center 5 to center 3\",\"lower\":0,\"upper\":20,\"integer\":false},{\"name\":\"TB/h from center 5 to center 4\",\"lower\":0,\"upper\":7,\"integer\":false},{\"name\":\"TB/h from center 5 to center 6\",\"lower\":0,\"upper\":15,\"integer\":false},{\"name\":\"TB/h from center 5 to center 7\",\"lower\":0,\"upper\":6,\"integer\":false},{\"name\":\"TB/h from center 6 to center 1\",\"lower\":0,\"upper\":11,\"integer\":false},{\"name\":\"TB/h from center 6 to center 2\",\"lower\":0,\"upper\":4,\"integer\":false},{\"name\":\"TB/h from center 6 to center 3\",\"lower\":0,\"upper\":19,\"integer\":false},{\"name\":\"TB/h from center 6 to center 4\",\"lower\":0,\"upper\":7,\"integer\":false},{\"name\":\"TB/h from center 6 to center 5\",\"lower\":0,\"upper\":6,\"integer\":false},{\"name\":\"TB/h from center 6 to center 7\",\"lower\":0,\"upper\":17,\"integer\":false}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"TB/h from center 0 to center 7\",\"coef\":1},{\"var\":\"TB/h from center 1 to center 7\",\"coef\":1},{\"var\":\"TB/h from center 2 to center 7\",\"coef\":1},{\"var\":\"TB/h from center 3 to center 7\",\"coef\":1},{\"var\":\"TB/h from center 4 to center 7\",\"coef\":1},{\"var\":\"TB/h from center 5 to center 7\",\"coef\":1},{\"var\":\"TB/h from center 6 to center 7\",\"coef\":1}]},\"constraints\":[{\"name\":\"conservation center 1\",\"terms\":[{\"var\":\"TB/h from center 0 to center 1\",\"coef\":1},{\"var\":\"TB/h from center 2 to center 1\",\"coef\":1},{\"var\":\"TB/h from center 3 to center 1\",\"coef\":1},{\"var\":\"TB/h from center 4 to center 1\",\"coef\":1},{\"var\":\"TB/h from center 5 to center 1\",\"coef\":1},{\"var\":\"TB/h from center 6 to center 1\",\"coef\":1},{\"var\":\"TB/h from center 1 to center 2\",\"coef\":-1},{\"var\":\"TB/h from center 1 to center 3\",\"coef\":-1},{\"var\":\"TB/h from center 1 to center 4\",\"coef\":-1},{\"var\":\"TB/h from center 1 to center 5\",\"coef\":-1},{\"var\":\"TB/h from center 1 to center 6\",\"coef\":-1},{\"var\":\"TB/h from center 1 to center 7\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation center 2\",\"terms\":[{\"var\":\"TB/h from center 0 to center 2\",\"coef\":1},{\"var\":\"TB/h from center 1 to center 2\",\"coef\":1},{\"var\":\"TB/h from center 3 to center 2\",\"coef\":1},{\"var\":\"TB/h from center 4 to center 2\",\"coef\":1},{\"var\":\"TB/h from center 5 to center 2\",\"coef\":1},{\"var\":\"TB/h from center 6 to center 2\",\"coef\":1},{\"var\":\"TB/h from center 2 to center 1\",\"coef\":-1},{\"var\":\"TB/h from center 2 to center 3\",\"coef\":-1},{\"var\":\"TB/h from center 2 to center 4\",\"coef\":-1},{\"var\":\"TB/h from center 2 to center 5\",\"coef\":-1},{\"var\":\"TB/h from center 2 to center 6\",\"coef\":-1},{\"var\":\"TB/h from center 2 to center 7\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation center 3\",\"terms\":[{\"var\":\"TB/h from center 0 to center 3\",\"coef\":1},{\"var\":\"TB/h from center 1 to center 3\",\"coef\":1},{\"var\":\"TB/h from center 2 to center 3\",\"coef\":1},{\"var\":\"TB/h from center 4 to center 3\",\"coef\":1},{\"var\":\"TB/h from center 5 to center 3\",\"coef\":1},{\"var\":\"TB/h from center 6 to center 3\",\"coef\":1},{\"var\":\"TB/h from center 3 to center 1\",\"coef\":-1},{\"var\":\"TB/h from center 3 to center 2\",\"coef\":-1},{\"var\":\"TB/h from center 3 to center 4\",\"coef\":-1},{\"var\":\"TB/h from center 3 to center 5\",\"coef\":-1},{\"var\":\"TB/h from center 3 to center 7\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation center 4\",\"terms\":[{\"var\":\"TB/h from center 0 to center 4\",\"coef\":1},{\"var\":\"TB/h from center 1 to center 4\",\"coef\":1},{\"var\":\"TB/h from center 2 to center 4\",\"coef\":1},{\"var\":\"TB/h from center 3 to center 4\",\"coef\":1},{\"var\":\"TB/h from center 5 to center 4\",\"coef\":1},{\"var\":\"TB/h from center 6 to center 4\",\"coef\":1},{\"var\":\"TB/h from center 4 to center 1\",\"coef\":-1},{\"var\":\"TB/h from center 4 to center 2\",\"coef\":-1},{\"var\":\"TB/h from center 4 to center 3\",\"coef\":-1},{\"var\":\"TB/h from center 4 to center 5\",\"coef\":-1},{\"var\":\"TB/h from center 4 to center 6\",\"coef\":-1},{\"var\":\"TB/h from center 4 to center 7\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation center 5\",\"terms\":[{\"var\":\"TB/h from center 0 to center 5\",\"coef\":1},{\"var\":\"TB/h from center 1 to center 5\",\"coef\":1},{\"var\":\"TB/h from center 2 to center 5\",\"coef\":1},{\"var\":\"TB/h from center 3 to center 5\",\"coef\":1},{\"var\":\"TB/h from center 4 to center 5\",\"coef\":1},{\"var\":\"TB/h from center 6 to center 5\",\"coef\":1},{\"var\":\"TB/h from center 5 to center 1\",\"coef\":-1},{\"var\":\"TB/h from center 5 to center 2\",\"coef\":-1},{\"var\":\"TB/h from center 5 to center 3\",\"coef\":-1},{\"var\":\"TB/h from center 5 to center 4\",\"coef\":-1},{\"var\":\"TB/h from center 5 to center 6\",\"coef\":-1},{\"var\":\"TB/h from center 5 to center 7\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"conservation center 6\",\"terms\":[{\"var\":\"TB/h from center 0 to center 6\",\"coef\":1},{\"var\":\"TB/h from center 1 to center 6\",\"coef\":1},{\"var\":\"TB/h from center 2 to center 6\",\"coef\":1},{\"var\":\"TB/h from center 4 to center 6\",\"coef\":1},{\"var\":\"TB/h from center 5 to center 6\",\"coef\":1},{\"var\":\"TB/h from center 6 to center 1\",\"coef\":-1},{\"var\":\"TB/h from center 6 to center 2\",\"coef\":-1},{\"var\":\"TB/h from center 6 to center 3\",\"coef\":-1},{\"var\":\"TB/h from center 6 to center 4\",\"coef\":-1},{\"var\":\"TB/h from center 6 to center 5\",\"coef\":-1},{\"var\":\"TB/h from center 6 to center 7\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2646,
+   "output_tokens": 6531,
+   "output_tokens_details": {
+    "thinking_tokens": 2921
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "b30b6ff2ee5b4386aa5da8ff266eb6ef50b9226c9dafa0e217074a8831c65623",
+  "tries": 1,
+  "latency_s": 23.070223624934442,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 6
+}
