@@ -21,7 +21,8 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
      gets the solver's own test of what limits the answer. Measuring it needs the dev
      explanations regenerated, the owner's paid run: `python scripts/paid_explain_limits.py
      --plan` first (no calls), then the command its docstring gives (cap $0.25).
-   - **Next (the owner's request of 2026-11-20):** the demo's disagreement badge.
+   - **The demo's disagreement badge is done** (2026-11-20; "Current state"). What's left is
+     the owner's to choose: the paid steps in open items 16 and 19.
 3. Read "Open items" below. Everything else is optional or the owner's.
 4. Before committing: `ruff check . && ruff format --check .`, `python -m mypy`, and
    `HYPOTHESIS_PROFILE=ci python -m pytest` (about 3 minutes; with all the data here, nothing
@@ -57,6 +58,17 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   until its two integer examples' replies are refreshed (the owner's paid step). The dev
   explanations' regeneration is `scripts/paid_explain_limits.py` (the owner's paid run; its
   `--plan` gives the calls and the worst case). Nothing is measured yet.
+- **The demo's disagreement badge** (2026-11-20, the owner's request, after R1 was supported).
+  In the Flags card (outside the README screenshot's clip, so `docs/demo.png` is unchanged),
+  each verified answer shows "Samples disagree — lower confidence" or "Samples agree", with the
+  study's measured precision, recall and base rate and a link to `docs/resampling/RESULTS.md`.
+  The counts are `pipeline.MEASURED`, copied because the image has no `results/`, and
+  `tests/test_demo.py` checks them against `results/resampling.json`. The demo can check only
+  the flag's no-solver half: each example has one formulation, so the badge compares the
+  verified answer with Claude's direct answer (the baseline's own request), by the study's rule
+  (`followup_report.same_answer`, 1e-4; a missing direct answer counts as differing). All four
+  examples agree, so the page shows "Samples agree" on each; the static site's check requires
+  the badge.
 - **The explanation checker's finding** (2026-11-19, exploratory, Claude's labels, not a
   person's: `docs/analysis/explanation_checker.md` and its JSON). On NL4Opt's dev split no
   explanation used a wrong number, so the number check had nothing to catch (its few flags
@@ -314,6 +326,10 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    the hard rule (CLAUDE.md). The resampling study's numbers are in
    `results/resampling.json`, and the README's subsection about it is checked against that
    file.
+19. **The demo badge's five-sample half** (from 2026-11-20): the study's flag also fires when
+   five formulation samples disagree, and each example has one. Caching four more samples per
+   example would let the badge check that half too: 16 formulation calls, a paid run, the
+   owner's (like `scripts/cache_examples.py`); until then the badge says which half it checks.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all three studies ran and

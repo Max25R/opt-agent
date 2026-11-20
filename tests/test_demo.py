@@ -236,6 +236,8 @@ def test_an_example_replays_from_its_cache_and_sends_nothing(replies):
     assert sorted(r["binding"]) == ["mixing hours", "pigment kg"]
     assert r["explanation"].startswith("Make 150 litres") and r["explanation_unsupported"] == []
     assert r["low_confidence"] is False and r["checklist_flags"] == []
+    assert r["disagreement"]["samples_disagree"] is False
+    assert r["disagreement"]["measured"]["analysis"] == pipeline.ANALYSIS_URL
     assert (r["calls"], r["cached_calls"], r["paid_usd"]) == (4, 4, 0)
     assert r["model_lines"][0] == "max 4*[interior] + 5*[exterior]"
 
@@ -367,3 +369,51 @@ def test_each_committed_example_replays_and_matches_its_hand_checked_answer(exam
     r = pipeline.to_response(result, "examples", example)
     assert r.verification.verified and r.matches_reference is True
     assert r.calls == r.cached_calls and r.paid_usd == 0
+    assert r.disagreement.samples_disagree is False  # Claude's direct answer agrees on each
+
+
+# ---- the disagreement badge ---------------------------------------------------------------
+
+
+def test_the_badge_shows_what_the_resampling_study_measured():
+    """The counts beside the badge are results/resampling.json's (R1, pre-registered), and
+    the badge exists because R1 was supported."""
+    from opt_agent.runs import REPO_ROOT
+
+    r1 = json.loads((REPO_ROOT / "results" / "resampling.json").read_text())["r1"]
+    assert r1["supported"] is True
+    m = pipeline.MEASURED
+    assert m.answers == r1["units"]
+    for name in ("precision", "recall", "base_rate"):
+        assert getattr(m, name) == (r1[name]["k"], r1[name]["n"]), name
+    assert m.analysis.endswith("/docs/resampling/RESULTS.md")
+    assert (REPO_ROOT / "docs" / "resampling" / "RESULTS.md").exists()
+    page = demo_app.PAGE.read_text()
+    assert 'id="disagreement"' in page and "Samples disagree — lower confidence" in page
+
+
+@pytest.mark.parametrize(
+    ("estimate", "flagged"),
+    [
+        ('{"status": "optimal", "objective": 251}', False),  # the verified answer
+        ('{"status": "optimal", "objective": 251.01}', False),  # within the study's 1e-4
+        ('{"status": "optimal", "objective": 250}', True),
+        ('{"status": "infeasible", "objective": null}', True),
+        ("I can't answer that without a solver.", True),  # missing counts as differing
+    ],
+)
+def test_the_badge_flags_a_direct_answer_that_differs_or_is_missing(tmp_path, estimate, flagged):
+    replies = gas_replies()
+    replies[1] = estimate
+    result = pipeline.solve(GAS_PROBLEM, FakeClient(*replies), Cache(tmp_path / "cache"))
+    assert result.verified
+    assert pipeline.samples_disagree(result) is flagged
+    assert pipeline.to_response(result, "live").disagreement.samples_disagree is flagged
+
+
+def test_no_verified_answer_gets_no_badge():
+    """Only a verified answer is one of the study's units; anything else gets no badge."""
+    from types import SimpleNamespace
+
+    unverified = SimpleNamespace(verified=False, estimate=None, solution=None)
+    assert pipeline.samples_disagree(unverified) is None  # type: ignore[arg-type]

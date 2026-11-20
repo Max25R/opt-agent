@@ -207,7 +207,10 @@ docker run --rm -p 8000:8000 opt-agent
 
 Open `http://localhost:8000` and pick an example. Examples mode replays the four example
 problems' cached replies; any other text needs live mode and your own Anthropic key in `.env`
-(the image never contains it):
+(the image never contains it). Each verified answer also gets a disagreement badge, "samples
+disagree — lower confidence" or "samples agree": whether Claude's direct, no-solver answer
+matches it, the half of the [resampling study](#resampling-the-disagreement-flag-confirmed)'s
+flag that one solve can check, shown with the precision and recall that study measured.
 
 ```bash
 docker run --rm -p 8000:8000 --env-file .env -e OPT_AGENT_LIVE=1 opt-agent

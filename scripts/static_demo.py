@@ -129,7 +129,11 @@ def check(site: Path) -> None:
             answer = page.inner_text("#answer")
             if "ok" not in verdict.split() or "Matches the hand-checked answer" not in answer:
                 raise SystemExit(f"{example['id']}: not verified and matching: {answer!r}")
-            print(f"{example['id']}: verified, matches the hand-checked answer")
+            badge = page.inner_text("#disagreement")  # the resampling study's flag
+            if not badge.startswith("Samples ") or "pre-registered test" not in badge:
+                raise SystemExit(f"{example['id']}: no disagreement badge: {badge!r}")
+            print(f"{example['id']}: verified, matches the hand-checked answer; "
+                  f"{badge.splitlines()[0]}")  # fmt: skip
         page.goto(ORIGIN + BASE)
         if not page.is_visible("#static-note"):
             raise SystemExit("the static page doesn't say what it is")

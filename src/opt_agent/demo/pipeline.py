@@ -12,6 +12,8 @@ sampling settings). scripts/cache_examples.py calls the same solve().
   failure ("cut off"), never a wrong answer.
 - estimate and checklist: on, so the page shows both report-only flags (agent.py). They
   change no answer, check or revision.
+- The disagreement badge (report-only too): the resampling study's flag, as far as one solve
+  can check it (samples_disagree), shown with what the study measured (MEASURED).
 - MAX_PROBLEM_CHARS: the longest problem accepted, a live-mode guard against pasting a
   document (the examples are about 600 characters; NL4Opt's are shorter).
 """
@@ -25,6 +27,7 @@ from pydantic import BaseModel
 from opt_agent import agent, api, formulate, pricing
 from opt_agent.api import Cache
 from opt_agent.explain import solver_facts
+from opt_agent.followup_report import same_answer
 from opt_agent.formulate import DEFAULT_MODEL
 from opt_agent.runs import Run
 from opt_agent.schema import LPModel
@@ -39,6 +42,46 @@ CALLS_PER_SOLVE = MAX_ATTEMPTS + 3  # the formulations, the estimate, the checkl
 # no limits, and a replay must send the same requests: until those replies are refreshed (a paid
 # run, the owner's), the demo explains without them, in both modes, so the two modes match.
 EXPLAIN_LIMITS = False
+ANALYSIS_URL = "https://github.com/Max25R/opt-agent/blob/main/docs/resampling/RESULTS.md"
+
+
+class Measured(BaseModel):
+    """The resampling study's pre-registered disagreement flag, as the study measured it
+    (results/resampling.json, r1): counts, so the page shows each rate with what it's of."""
+
+    answers: int  # the units: verified single-shot answers, one per problem
+    precision: tuple[int, int]  # silent failures, of the flagged answers
+    recall: tuple[int, int]  # flagged, of the silent failures
+    base_rate: tuple[int, int]  # silent failures, of all the answers
+    analysis: str  # where it's written up
+
+
+# Copied from results/resampling.json, since the image has no results/: tests/test_demo.py
+# checks each count against the file, and that R1 was supported (why the badge exists).
+MEASURED = Measured(answers=119, precision=(20, 38), recall=(20, 29), base_rate=(29, 119),
+                    analysis=ANALYSIS_URL)  # fmt: skip
+
+
+class Disagreement(BaseModel):
+    """Report-only, like the other flags. The study flagged an answer when five formulation
+    samples didn't all agree or the no-solver answer differed. One solve here has one
+    formulation, so the page checks the part it can: the verified answer against Claude's
+    direct answer, which is the no-solver baseline's own request (baseline.build_request)."""
+
+    samples_disagree: bool | None  # None: no verified answer, so nothing the study would flag
+    measured: Measured
+
+
+def samples_disagree(result: agent.Result) -> bool | None:
+    """The study's no-solver signal on this answer, by its own rules (pre-registration,
+    section 4): only a verified answer is a unit, the comparison is the follow-up's
+    (followup_report.same_answer, 1e-4), and a missing direct answer counts as one that
+    differs."""
+    if not result.verified or result.estimate is None:
+        return None
+    s, e = cast(Solution, result.solution), result.estimate
+    direct = None if e.status is None else (e.status, e.objective)
+    return not same_answer(direct, (s.status.value, s.objective))
 
 
 def solve(problem: str, client: anthropic.Anthropic, cache: Cache, log: Path | None = None):
@@ -102,6 +145,7 @@ class SolveResponse(BaseModel):
     low_confidence_reason: str | None
     checklist_flags: list[dict] | None  # report-only: differences from what the text needs
     checklist_notes: list[str]
+    disagreement: Disagreement
     calls: int
     cached_calls: int
     cost_usd: float  # every call, at the token counts it was answered with
@@ -154,6 +198,7 @@ def to_response(result: agent.Result, mode: str, example=None) -> SolveResponse:
         checklist_flags=None if result.checklist_flags is None
         else [f.model_dump() for f in result.checklist_flags],
         checklist_notes=result.checklist_notes,
+        disagreement=Disagreement(samples_disagree=samples_disagree(result), measured=MEASURED),
         calls=len(priced),
         cached_calls=sum(call.cached for _, call in priced),
         cost_usd=sum(costs),

@@ -68,6 +68,11 @@
   .pass { color: var(--ok); font-weight: 600; }
   .fail { color: var(--bad); font-weight: 600; }
   .warn { color: var(--warn); font-weight: 600; }
+  .badge.flag-warn { background: var(--warn-bg); color: var(--warn); border-color: transparent;
+                    font-weight: 600; }
+  .badge.flag-pass { background: var(--ok-bg); color: var(--ok); border-color: transparent;
+                    font-weight: 600; }
+  #disagreement p { margin: 6px 0 10px; }
   .note { background: var(--warn-bg); color: var(--text); border-radius: 8px; padding: 8px 12px;
           margin-top: 8px; font-size: 14px; }
   #error { background: var(--bad-bg); color: var(--bad); border-radius: 10px; padding: 12px 16px;
@@ -123,6 +128,7 @@
     </div>
     <div class="card">
       <h2>Flags (report-only: they never change the answer)</h2>
+      <div id="disagreement"></div>
       <ul class="checks" id="flags"></ul>
     </div>
     <div class="card">
@@ -193,6 +199,23 @@ function item(list, label, value, cls) {
   const li = el("li");
   li.append(el("span", label + ": "), el("span", value, cls));
   list.append(li);
+}
+// The resampling study's flag, as far as one solve can check it, with what the study measured.
+function disagreement(d) {
+  const box = $("disagreement"); box.replaceChildren();
+  if (d.samples_disagree === null) return;  // no verified answer: nothing the study would flag
+  const m = d.measured, pct = ([k, n]) => (100 * k / n).toFixed(1) + "%";
+  box.append(el("span", d.samples_disagree ? "Samples disagree — lower confidence" : "Samples agree",
+                "badge " + (d.samples_disagree ? "flag-warn" : "flag-pass")));
+  const note = el("p", `Claude's direct answer, with no solver, ${d.samples_disagree ? "differs from" :
+    "matches"} the verified one. A pre-registered test of this flag (five formulation samples and ` +
+    `a no-solver answer, on ${m.answers} verified answers to harder problems): flagged answers ` +
+    `were wrong ${pct(m.precision)} of the time, against ${pct(m.base_rate)} overall (precision), ` +
+    `and the flag caught ${pct(m.recall)} of the wrong answers (recall). `, "muted");
+  const link = el("a", "The analysis");
+  link.href = m.analysis; link.target = "_blank"; link.rel = "noopener";
+  note.append(link, ".");
+  box.append(note);
 }
 function updateCount() {
   const n = $("problem").value.trim().length;
@@ -297,6 +320,7 @@ function show(r) {
     explanation.append(el("p", "Only verified answers are explained.", "muted"));
   }
 
+  disagreement(r.disagreement);
   const flags = $("flags"); flags.replaceChildren();
   item(flags, "Direct estimate", (r.low_confidence ? "LOW CONFIDENCE: " : "") + (r.low_confidence_reason || "n/a"),
        r.low_confidence ? "warn" : (r.low_confidence === false ? "pass" : ""));

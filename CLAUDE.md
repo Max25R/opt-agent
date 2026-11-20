@@ -49,7 +49,9 @@ the owner on 2026-11-19, analyzed on 2026-11-20): R1 is supported (`results/resa
 `docs/resampling/RESULTS.md`).** ADR-0009 (2026-11-20): for an integer program the explainer
 also gets the solver's own test of what limits the answer (`src/opt_agent/limits.py`); the dev
 explanations' regeneration with it is the owner's paid run (`scripts/paid_explain_limits.py`).
-Next, the owner's request of 2026-11-20: the demo's disagreement badge.
+The demo's disagreement badge (2026-11-20): each verified answer shows whether Claude's direct
+answer matches it, with the resampling study's measured precision and recall
+(`demo/pipeline.py`, `MEASURED`, checked against `results/resampling.json`).
 The full record, with every
 decision and its date, is in `docs/HISTORY.md` and `docs/HANDOFF.md`'s decision logs; where
 things stand, every open item and the environment are in `docs/HANDOFF.md`. **Start from
