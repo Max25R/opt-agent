@@ -10,7 +10,9 @@ and docs/followup/RESULTS.md (scripts/followup_results.py), and the IE 2310 summ
 (docs/ie2310/summary.md) against both. Two README bullets are exploratory, not results
 (EXPLORATORY, owner's request, 2026-11-19): the disagreement detector's line and the
 explanation checker's, each checked against its own record in docs/analysis/ and left out
-of the rest.
+of the rest; so is the cost and latency table at the top (TABLE, owner's request,
+2026-11-19), against results/headline.json, which scripts/headline.py computes from the
+committed test runs' logs.
 
 How a number in the README is read:
 - `-123` in backticks is a problem id, and `complexlp:14` a follow-up label: some string in
@@ -24,11 +26,11 @@ How a number in the README is read:
 - A whole number such as `264` must equal some whole value exactly.
 
 Not results, so skipped: model names ("Claude Haiku 5.5"), amendment numbers, percentile
-names ("p95"), link targets, dates, hypothesis names ("H1"), and section and condition
-numbers ("section 4", "5b", "conditions 2 to 4"), "SHA-256", a cited paper's venue and year
-("ICML 2024"), license versions ("CC BY-SA 4.0"), course numbers ("IE 2310"), Python
-versions ("Python 3.12"), and fenced code blocks. Numbers written as words aren't checked,
-so results are written in digits.
+names ("p95"), link targets, dates, hypothesis names ("H1"), the benchmark's name ("NL4Opt"),
+section and condition numbers ("section 4", "5b", "conditions 2 to 4"), "SHA-256", a cited
+paper's venue and year ("ICML 2024"), license versions ("CC BY-SA 4.0"), course numbers
+("IE 2310"), Python versions ("Python 3.12"), and fenced code blocks. Numbers written as
+words aren't checked, so results are written in digits.
 
 The check is by value, not by place: a small whole number like 3 matches many values. It
 catches numbers that appear nowhere in eval.json, such as a stale or retyped result.
@@ -55,6 +57,11 @@ EXPLORATORY = {
     "- **Exploratory: the explanation checker, on dev.**":
         ROOT / "docs" / "analysis" / "explanation_checker.json",
 }  # fmt: skip
+# The README's cost and latency table (owner's request, 2026-11-19): numbers per answer from
+# the committed test runs' logs, not results, checked against their own record
+# (scripts/headline.py writes it) and left out of the rest.
+HEADLINE = ROOT / "results" / "headline.json"
+TABLE = ("<!-- cost and latency: results/headline.json -->", "<!-- end of cost and latency -->")
 IE2310_SUMMARY = ROOT / "docs" / "ie2310" / "summary.md"
 # Each checked document, the section of it that reports results (a heading with its level;
 # None: all of it), the results files its numbers come from, how many problem ids it must
@@ -86,6 +93,7 @@ NOT_RESULTS = [
     r"\bCC BY(?:-[A-Z]{2})* \d\.\d\b",  # a license's version
     r"\bIE \d{4}\b",  # a course number
     r"\bPython \d+\.\d+\b",  # a Python version, as in "Python 3.12 or newer"
+    r"\bNL4Opt\b",  # the benchmark's name, whose 4 isn't a result
 ]
 FENCED = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 PROBLEM_ID = re.compile(r"`(-?\d+)`")
@@ -102,14 +110,22 @@ def bullet(text: str, marker: str) -> str:
     return text[start : min(ends)]
 
 
+def table(text: str) -> str:
+    """The README's cost and latency table, between its two markers."""
+    start, end = text.index(TABLE[0]), text.index(TABLE[1]) + len(TABLE[1])
+    return text[start:end]
+
+
 def section(text: str, heading: str | None) -> str:
     """From the line starting with `heading` ("## The rows", "### NL4Opt") to the next heading
     of its level or higher; the whole text for None. Fenced code blocks are left out, and so
-    are the exploratory bullets (each checked on its own)."""
+    are the exploratory bullets and the cost and latency table (each checked on its own)."""
     text = FENCED.sub(" ", text)
     for marker in EXPLORATORY:
         if marker in text:
             text = text.replace(bullet(text, marker), " ")
+    if TABLE[0] in text:
+        text = text.replace(table(text), " ")
     if heading is None:
         return text
     level = heading.split(" ")[0]
@@ -195,6 +211,15 @@ def test_each_exploratory_bullet_comes_from_its_own_record(marker):
     assert unmatched(line, [json.loads(record.read_text())]) == []
     assert len(NUMBER.findall(line)) >= 4  # it has numbers to check
     assert marker not in section(text, None)  # and only here
+
+
+def test_the_cost_and_latency_table_comes_from_its_own_record():
+    text = README.read_text()
+    block = table(text)
+    assert "scripts/headline.py" in block  # it says where its numbers come from
+    assert unmatched(block, [json.loads(HEADLINE.read_text())]) == []
+    assert len(NUMBER.findall(block)) >= 25  # it has numbers to check
+    assert text.count(TABLE[0]) == 1 and TABLE[0] not in section(text, None)  # and only here
 
 
 def test_fenced_code_and_citations_arent_results():

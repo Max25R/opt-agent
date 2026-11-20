@@ -8,24 +8,43 @@
 key; a static copy of the examples page, solved by CI from Claude's committed replies.
 
 **Plain-English operations problems in, solver-verified plans out, and an honest count of
-how often they're still wrong.** Claude writes a word problem ("how many litres of each paint
-should we make?") as a linear or integer program. A real solver (CBC) solves it, a second
-solver (HiGHS) and plain arithmetic check the answer, and only a verified answer is
-explained, in Claude's words but with the solver's numbers. Most of the project is the
-evaluation: two studies, each pre-registered and frozen before its test run, asking whether a
-solver in the loop helps at all and how often a wrong answer gets through every check.
+how often they're still wrong.**
+
+- Claude writes a word problem as a linear or integer program; a solver (CBC) solves it, a
+  second solver (HiGHS) and plain arithmetic check it, and Claude explains it with the solver's
+  numbers.
+- On NL4Opt every condition scored 96.4%, even with no solver; on 121 harder problems,
+  solving Claude's model beat answering directly by +6.3 pp (95% CI 1.4–11.6).
+- In every condition most wrong answers are *silent*: every check passes, so nothing warns you.
+
+![Two panels. Left, the NL4Opt test, 274 problems: the no-solver baseline, single-shot and self-correction each got 96.4% right (95% Wilson interval 93.4–98.0%). Right, the harder problems, 121, the two pre-registered tests: H2, single-shot minus the baseline, +6.3 pp (95% interval 1.4 to 11.6), detected; H1, checklist revision minus single-shot, +0.6 pp (-1.7 to 3.0), inconclusive](docs/headline.png)
+
+<!-- cost and latency: results/headline.json -->
+| per answer | NL4Opt: cost | median | p90 | harder problems: cost | median | p90 |
+|---|---:|---:|---:|---:|---:|---:|
+| no-solver baseline | $0.00045 | 3.8 s | 7.2 s | $0.0016 | 9.7 s | 32.6 s |
+| single-shot | $0.00055 | 3.6 s | 5.7 s | $0.0021 | 11.8 s | 25.6 s |
+| self-correction | $0.00061 | 3.7 s | 6.9 s | $0.0021 | 11.9 s | 25.6 s |
+| checklist revision | not run | | | $0.0054 | 26.8 s | 70.2 s |
+
+*From the test runs' own logs ([`scripts/headline.py`](scripts/headline.py)): the cost of
+every call an answer used, at Claude Haiku 5.5's prices, and its latency (API plus solver time,
+without retry waits), over 274 answers per condition on NL4Opt and 384 on the harder problems
+(128 problems, 3 samples each).*
+<!-- end of cost and latency -->
+
+Most of the project is the evaluation: two studies, each pre-registered and frozen before its
+test run, asking whether a solver in the loop helps at all and how often a wrong answer gets
+through every check.
 
 | accuracy (Claude Haiku 5.5) | no-solver baseline | single-shot | self-correction | checklist revision |
 |---|---|---|---|---|
 | NL4Opt, 274 problems | 96.4% | 96.4% | 96.4% | not run |
 | harder problems, 121 (3 samples each) | 75.8% | 82.1% | 82.4% | 82.6% |
 
-On NL4Opt a solver adds nothing: Claude answering directly does as well. On the harder
-problems, solving Claude's model beats answering directly by +6.3 pp (the pre-registered
-test, Holm p 0.0445), and revising on a formulation checklist adds nothing detectable. In
-every condition most wrong answers are *silent*: every check passes, so nothing warns you.
-Every reported number rebuilds from the committed runs with no API key, after fetching the
-follow-up's public benchmark data ([how](#reproduce-every-number)).
+The +6.3 pp is the pre-registered test (Holm p 0.0445), and revising on a formulation checklist
+adds nothing detectable. Every reported number rebuilds from the committed runs with no API
+key, after fetching the follow-up's public benchmark data ([how](#reproduce-every-number)).
 
 ![The demo after solving its paint example: the problem, the verified optimum (CBC and HiGHS agree, the arithmetic checks pass, and it matches the hand-checked answer), Claude's model, and Claude's explanation using the solver's numbers](docs/demo.png)
 
@@ -35,8 +54,9 @@ cache.*
 ## Results
 
 Both studies used Claude Haiku 5.5. Every number in this README comes from
-[`results/eval.json`](results/eval.json) or [`results/followup.json`](results/followup.json),
-and a test checks it. A *silent* failure is a wrong answer that passed every check; a *loud*
+[`results/eval.json`](results/eval.json) or [`results/followup.json`](results/followup.json)
+(the cost and latency table at the top: [`results/headline.json`](results/headline.json),
+computed from the runs' logs), and a test checks it. A *silent* failure is a wrong answer that passed every check; a *loud*
 one is no answer at all. "pp" is percentage points; Holm adjusts a p-value for testing more
 than one hypothesis; the sign-flip and McNemar tests compare two conditions on the same
 problems.

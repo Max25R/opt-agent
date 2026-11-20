@@ -67,6 +67,16 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   the 88 labels; the numbers are in its JSON, and its doc says what it misses. No README claim
   changed. It ran while the owner's paid resampling run was going (started 2026-11-19 in this
   checkout, `runs/resampling`): nothing the resampling freeze checks was touched.
+- **The README's first screen** (2026-11-19, the owner's request): a 3-line summary, a
+  headline figure (`docs/headline.png`: NL4Opt's accuracy per condition and the follow-up's two
+  pre-registered differences, with 95% intervals) and a cost and latency table (per answer:
+  cost, median and p90 latency), all from `scripts/headline.py`. The figure's numbers are
+  copied from the two results files; the table's are computed from the committed test runs'
+  logs, which give each condition's total cost and median latency exactly as the results files
+  do (the script refuses otherwise), and land in `results/headline.json`. Tests check the record
+  (`tests/test_headline.py`) and the README's table against it (`tests/test_readme_numbers.py`,
+  `TABLE`: a new exception to the README-number rule, on the owner's request); CI's `pictures`
+  job draws the figure. `scripts/reproduce.py` is unchanged.
 - **The polish list of 2026-11-18** (the owner's; each item its own commit, CI green each
   time, no API calls; decisions at the end of this file):
   - **The static demo** (item 1): `scripts/static_demo.py` builds the examples page as a
@@ -354,7 +364,9 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   freeze and were fixed on 2026-11-15.
 - **README numbers:** the NL4Opt results subsection and `docs/EVALUATION.md` come from
   `results/eval.json`, the "Harder problems" subsection and `docs/followup/RESULTS.md` from
-  `results/followup.json`, and the rest of the README is checked against both. Write
+  `results/followup.json`, the cost and latency table at the top from `results/headline.json`
+  (`python scripts/headline.py` rebuilds it and the figure), and the rest of the README is
+  checked against both results files. Write
   results in digits; the test matches by value at the shown precision, and signs count.
 - **Problem text is licensed data.** Don't commit new problem text or keys outside `runs/`
   without updating `DATA_NOTICE.md`; dispute packets and prompts are git-ignored. IndustryOR

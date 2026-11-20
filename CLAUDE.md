@@ -23,7 +23,10 @@ point is a trustworthy evaluation, not a demo.
   subsection, from `results/followup.json` (`scripts/followup_results.py`; the same test).
   The exceptions, the owner's (2026-11-19): the Limitations bullets labeled "Exploratory"
   (the disagreement detector, the explanation checker), each checked against its own record
-  in `docs/analysis/` (`tests/test_readme_numbers.py`, `EXPLORATORY`).
+  in `docs/analysis/` (`tests/test_readme_numbers.py`, `EXPLORATORY`); and the cost and
+  latency table at the top, checked against `results/headline.json` (`TABLE`), which
+  `scripts/headline.py` computes from the committed test runs' logs after checking each
+  condition's total cost and median latency against the results files.
 - **Results live in the results files**, and in the documents the README-number test
   checks against them. Elsewhere (this file, `docs/HANDOFF.md`) point to them; don't
   restate results by hand.
@@ -268,6 +271,7 @@ pip install -r requirements-docs.lock -c requirements.lock   # optional: Playwri
 python scripts/screenshot.py        # docs/demo.png headlessly, in its committed frame (needs: playwright install --only-shell chromium)
 python scripts/screenshot.py --check docs/demo.png   # a picture's margins against that frame
 python scripts/ie2310.py            # docs/ie2310/: the numbers table and the figures
+python scripts/headline.py          # the README's headline figure and cost/latency table: results/headline.json, docs/headline.png
 python -m opt_agent.demo            # the demo, examples mode (no key): http://127.0.0.1:8000
 python scripts/static_demo.py       # the demo as a static site (build/site; GitHub Pages, via CI)
 python scripts/static_demo.py --check build/site   # it, in headless Chromium (CI only: not in the sandbox)
