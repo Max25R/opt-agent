@@ -179,6 +179,7 @@ src/opt_agent/
   evaluate.py report.py scoring.py run_results.py stats.py                  # milestone 6
   followup.py followup_report.py                                            # the follow-up
   freeze.py followup_freeze.py frozen.py   # the freezes, checked at their tags; frozen code
+  resampling.py resampling_report.py resampling_freeze.py   # the resampling study (frozen, not run)
   packets.py taxonomy.py blind_grading.py external_check.py                 # hand checks
   demo/                       # the web demo: app, page, examples and their cached replies
 data/nl4opt/                  # the committed ground truth, reviews, labels, exclusions

@@ -276,6 +276,9 @@ anyone can rebuild without a key.
 - [`docs/audit/2026-11-review.md`](docs/audit/2026-11-review.md) and
   [`docs/audit/2026-11-final-review.md`](docs/audit/2026-11-final-review.md): two audits of
   the project, and what was fixed.
+- [`docs/RESAMPLING_PREREGISTRATION.md`](docs/RESAMPLING_PREREGISTRATION.md): a third study,
+  pre-registered and frozen but not yet run, that tests the disagreement detector on fresh
+  samples, one answer per problem.
 - [`docs/HISTORY.md`](docs/HISTORY.md): how the project got here, milestone by milestone.
 - [`DATA_NOTICE.md`](DATA_NOTICE.md): the benchmarks' licenses and attribution.
 

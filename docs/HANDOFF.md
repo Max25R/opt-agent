@@ -1,25 +1,63 @@
-# Handoff (2026-11-18, end of session)
+# Handoff (2026-11-19, end of session)
 
 Read CLAUDE.md first (rules, budget, gotchas), then this file: where things stand, every
 open item, and the environment. A new session needs nothing else; the full record of
-decisions is `docs/HISTORY.md`.
+decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this file.
 
 ## Start here (a new session)
 1. `source .venv/bin/activate` (`python` isn't on the path without it), `unset
    ANTHROPIC_API_KEY`, then `git status` and `git log --oneline -5`: the tree should be clean
    at the last commit on `main`, pushed, with CI green (its status: see Environment).
-2. Read "Open items" below. Nothing is in progress; every open item is optional or the
-   owner's.
-3. Before committing: `ruff check . && ruff format --check .`, `python -m mypy`, and
+2. **Where things stand: the resampling study is frozen and ready to run.** Its
+   pre-registration (`docs/RESAMPLING_PREREGISTRATION.md`) was approved by the owner on
+   2026-11-19, frozen in `docs/resampling/FREEZE.json` and tagged `resampling-freeze`; no call
+   of it has been made. Check it first: `python -m opt_agent.resampling_freeze` must say the
+   tag verifies and the inputs match (it needs LLM4OR's data: `python scripts/fetch_llm4or.py`).
+   - **Next, the owner's paid run**, only when the owner asks for it: first
+     `python -m opt_agent.resampling --plan` (no calls: the calls left and the worst case);
+     the paid command and its cap are in `src/opt_agent/resampling.py`'s docstring (hard cap
+     $3.00, about $1.44 expected; the owner runs it in their terminal, never Claude).
+   - **Then:** `python -m opt_agent.resampling_report` writes `results/resampling.json` (R1,
+     R2, the secondary analysis, abstention); commit the run (`git add -f runs/resampling`)
+     and the results; write the study up (a `docs/resampling/RESULTS.md`, and a README line
+     only with every number checked by a test against `results/resampling.json`, as the
+     pre-registration's section 7 says). Report R1 as supported or not supported, never as "no
+     effect".
+   - **Don't change anything under `src/opt_agent/` or `requirements.lock` before that run**:
+     `resampling_freeze.check()` fingerprints them, so the runner would refuse at HEAD. If a
+     change can't wait, run the study from the tag's tree, or record an amendment first.
+3. Read "Open items" below. Everything else is optional or the owner's.
+4. Before committing: `ruff check . && ruff format --check .`, `python -m mypy`, and
    `HYPOTHESIS_PROFILE=ci python -m pytest` (about 3 minutes; with all the data here, nothing
    skips). After a change under `src/opt_agent/`, `python scripts/reproduce.py` (about 4
-   minutes, no key) must still say every answer replays and all 6 files match.
+   minutes, no key; it once took 39 on a busy machine) must still say every answer replays
+   and all 6 files match.
 
 ## Current state
-- **Everything is committed and pushed** (`main`, 2026-11-18; tags `m6-freeze`,
-  `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`), and CI's jobs (test on
-  3.12 and 3.13, types, reproduce, demo-image, pictures, static-demo, deploy-pages) pass on
-  the last commit. No API call was made after 2026-11-15.
+- **Everything is committed and pushed** (`main`, 2026-11-19; tags `m6-freeze`,
+  `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`, `resampling-freeze`), and
+  CI's jobs (test on 3.12 and 3.13, types, reproduce, demo-image, pictures, plugin,
+  static-demo, deploy-pages) pass on the last commit. The only API calls since 2026-11-15 are
+  the owner's paid run of 2026-11-19 ($0.0399; open item 14).
+- **The resampling study: frozen, ready to run** (2026-11-19; "Start here", step 2). The
+  pre-registration is `docs/RESAMPLING_PREREGISTRATION.md` (approved by the owner in chat,
+  with three edits the owner asked for: R1's units are verified sample-3 answers, a missing
+  answer counts as disagreement, and the same model, prompts and `max_tokens` as the
+  follow-up); the runner is `src/opt_agent/resampling.py`, the analysis
+  `src/opt_agent/resampling_report.py`, the gate `src/opt_agent/resampling_freeze.py`, all
+  tested with FakeClient or synthetic answers; the freeze is `docs/resampling/FREEZE.json` (69
+  hashes) at the tag `resampling-freeze`, which `python -m opt_agent.resampling_freeze`
+  verifies. `python -m opt_agent.resampling --plan` (no calls): 726 calls, worst case $6.27
+  if every reply used all of `max_tokens`, so the $3.00 cap is what bounds it; about $1.44
+  expected. Its power: `docs/resampling/power.md`.
+- **The explanation checker's finding** (2026-11-19, exploratory, Claude's labels, not a
+  person's: `docs/analysis/explanation_checker.md` and its JSON). On NL4Opt's dev split no
+  explanation used a wrong number, so the number check had nothing to catch (its few flags
+  were correctly computed numbers); but about a quarter of the explanations made a false claim
+  with every number correct, nearly all about integer programs: a constraint with slack called
+  "not limiting" when dropping it changes the integer optimum. No number check can see that;
+  open item 16 is what to do about it. The README's limitations say so in an exploratory
+  bullet checked against the JSON.
 - **The polish list of 2026-11-18** (the owner's; each item its own commit, CI green each
   time, no API calls; decisions at the end of this file):
   - **The static demo** (item 1): `scripts/static_demo.py` builds the examples page as a
@@ -59,6 +97,11 @@ decisions is `docs/HISTORY.md`.
     exploratory bullet checked against its record. The fix-step example: none of the 15 tries
     failed its first attempt, so nothing was added to the demo
     (`docs/analysis/fix_step_tries.json`; ADR-0007's action item stays open).
+  - **The plugin marketplace and Agensi** (later list): CI's `plugin` job installs Claude
+    Code 2.1.311, validates `.claude-plugin/marketplace.json` and installs the skill from it
+    as the README says; the skill's scripts are executable, as Agensi asks (open item 17).
+  - **The resampling study** (later list): drafted, approved by the owner with three edits,
+    built (runner, analysis, gate, tests) and frozen at `resampling-freeze`; not run.
   - **The paid command** (item 2, run by the owner on 2026-11-19): `scripts/paid_dev_and_demo.py`.
     Part 1 explains every verified single-shot answer on NL4Opt's dev split (all 92
     formulations replay from `runs/dev-1`; 88 explanation calls) for the explanation
@@ -131,9 +174,11 @@ decisions is `docs/HISTORY.md`.
   ComplexLP (CC BY-SA 4.0) and ORLM's IndustryOR (CC BY-NC 4.0), as cleaned by LLM4OR at
   `75962df` (no license stated), plus NL4Opt (MIT). History was kept (owner, 2026-11-15):
   rewriting it would break `followup-freeze` and the commit in `FREEZE.json`.
-- **Spend:** $3.89 of the $20 credit ($0.98 before the follow-up, $0.1775 for the
+- **Spend:** $3.93 of the $20 credit ($0.98 before the follow-up, $0.1775 for the
   condition-4 dev smoke run, $2.7176 for the test run, $0.0139 for the demo examples'
-  replies). About $6.38 of November's $10 limit is left; it resets on December 1.
+  replies, $0.0399 for the paid run of 2026-11-19, ledger
+  `logs/spend/paid-2026-11-19.jsonl`). About $6.34 of November's $10 limit is left; it resets
+  on December 1. The resampling run's cap is $3.00.
 
 ## Open items
 1. ~~M7 demo~~ and ~~M8's README and reproduce script~~: done 2026-11-15.
@@ -202,30 +247,40 @@ decisions is `docs/HISTORY.md`.
    examples verified and matching. Every push to `main` now redeploys it. (The public
    `GET /repos/.../pages` answers 404 without a token, so it can't show whether Pages is on;
    CI's check sends the job's token.)
-14. **Proposed next (2026-11-18, item 5 of the polish list; none started, each the owner's
-   call):**
-   1. A person fills in the dispute spot-check (item 9): 1-2 hours, $0. An LLM judge flagged
-      the key on 13 of the 35 follow-up problems with a wrong answer, not verified by a
-      person; 10 verdicts are the cheapest real evidence of how many are key errors.
-   2. A demo example whose first model fails, so the static page shows the fix step
-      (ADR-0007's open action item): about 2 hours, plus a paid caching run of a few cents
-      in the owner's terminal (`scripts/cache_examples.py --plan` first).
-   3. Sample agreement as a silent-failure signal, on the follow-up's 3 committed samples per
-      problem, with the rule committed before its one run as for the silent detector: about
-      half a day, $0, exploratory (ADR-0001's open question).
-   4. The explanation checker evaluated on dev's verified answers (ADR-0004's revisit), so
-      "every number traced to the solver" becomes a measured result: about a day, a few
-      cents of dev calls in the owner's terminal.
-   5. A second model under its own pre-registration and cap (ADR-0006's model ladder): 2-3
-      days plus a paid run sized by `evaluate --plan` at the current prices; the budget is
-      the owner's call.
-15. **The resampling study: drafted, not approved, not frozen, not run** (the owner said yes
-   to drafting it, 2026-11-19): `docs/RESAMPLING_PREREGISTRATION.md`, with its power in
-   `docs/resampling/power.md` (`scripts/resampling_power.py`, seeded). Fresh samples (single-shot
-   3 to 7, baseline 3) on the follow-up's 121 unexposed problems, one unit per problem,
-   one-sided Fisher exact test; about $1.44, hard cap $3.00. Before any call: the owner's
-   approval, a runner and an analysis script with tests, and the owner's freeze
-   (`docs/resampling/FREEZE.json`, tag `resampling-freeze`).
+14. **The proposals of 2026-11-18** (item 5 of the polish list), where each stands:
+   1. A person fills in the dispute spot-check (item 9): **open**, 1-2 hours, $0. An LLM judge
+      flagged the key on 13 of the 35 follow-up problems with a wrong answer, not verified by
+      a person.
+   2. A demo example whose first model fails: **tried, none found** (the owner's paid run of
+      2026-11-19, `scripts/paid_dev_and_demo.py` part 2): three candidates with units or
+      percentage traps (`demo.examples.FIX_STEP_CANDIDATES`), five samples each, and all 15
+      first models were right (`docs/analysis/fix_step_tries.json`), so the demo is
+      unchanged and ADR-0007's action item stays open. Another try needs a trap Haiku
+      actually falls into (a paid run, the owner's).
+   3. Sample agreement as a silent-failure signal: **done, exploratory**, as the disagreement
+      detector (`docs/analysis/disagreement_detector.md`); it led to item 15.
+   4. The explanation checker evaluated on dev: **done, exploratory**
+      (`docs/analysis/explanation_checker.md`; the finding is under "Current state"; open
+      item 16 follows from it).
+   5. A second model under its own pre-registration and cap (ADR-0006's ladder): **open**, 2-3
+      days plus a paid run sized by `evaluate --plan`; the budget is the owner's call.
+15. **The resampling study: frozen, ready to run; the paid run is the owner's** ("Start
+   here", step 2; "Current state"). After the run: `python -m opt_agent.resampling_report`,
+   commit `runs/resampling` (`git add -f`) and `results/resampling.json`, write it up, and
+   change nothing under `src/opt_agent/` or the lock before the run.
+16. **The explanation checker's blind spot** (from item 14.4; ADR-0004, action item 3): false
+   claims about slack in integer programs. Options, none started: a check that tests each
+   "not limiting" claim by re-solving without the constraint (it would need claims parsed
+   from free text); placeholders instead of free-form explanations; or telling the
+   explanation prompt that slack doesn't mean "not limiting" in an integer program (a prompt
+   change: dev only, and a new evaluation).
+17. **The Agensi listing:** the owner uploads `skills/opt-agent/` to agensi.io by hand (its
+   format: `name` equals the folder, a short description, executable scripts; all done).
+   The repository's own plugin marketplace stays while CI's `plugin` job passes.
+18. **The README's exploratory bullets** (the disagreement detector, the explanation checker)
+   are checked against `docs/analysis/*.json`, not the results files: the one exception to
+   the hard rule (CLAUDE.md). If the resampling study runs, its numbers go in
+   `results/resampling.json`, and any README line about it is checked against that file.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where both studies ran and
@@ -235,6 +290,9 @@ decisions is `docs/HISTORY.md`.
   `api.github.com/repos/Max25R/opt-agent/actions/runs?head_sha=SHA` for the run, then
   `.../actions/runs/RUN_ID/jobs` for each job's name, status and conclusion. In the sandbox a
   command needs the host listed (`api.github.com`; `github.com` for `git push`).
+- **CI's jobs:** test (3.12, 3.13), types, reproduce (macOS), demo-image, pictures, plugin
+  (Claude Code's CLI validates the marketplace and installs the skill from it), static-demo
+  and deploy-pages (main only).
 - **CI waits are capped at 30 minutes** (owner): poll every minute or two; if it isn't done
   by then, stop and report each job's name and status instead of waiting. A normal run takes
   about 10 minutes (the macOS `reproduce` job is the long one). The jobs' `timeout-minutes`
@@ -501,3 +559,25 @@ Logged as the owner asked: the simplest reasonable option, where the request did
   and confirmed. Agreement between labelers wasn't measured. The run's cache was seeded with
   all of `runs/dev-1`'s cache, so it was pruned to what the run replays before committing
   (`scripts/explanation_checker.py prune`, which replays every explanation first).
+- **The resampling study's build (after the owner's approval with three edits).**
+  - **Units:** "verified" is read from the follow-up's own item records: a single-shot item
+    holds only a confirmed answer, so a confirmed optimum (status "optimal") is verified. On
+    the 121 problems, 359 of the follow-up's 363 single-shot answers were, so the expected
+    units are 120 and the power was recomputed on those answers' rates (0.97 as seen, 0.46 if
+    weaker; `docs/resampling/power.md`).
+  - **Missing answers:** the unit is always a verified answer, so a missing answer anywhere
+    differs from it and sets the flag with no special case; in R2's majority only verified
+    answers vote, and a problem with no 3 agreeing ones has no majority answer (wrong).
+  - **The same settings as the follow-up** are checked from the files, not assumed: for all 121
+    problems the study's formulation and baseline requests have the follow-up's sample-0 cache
+    keys (`resampling_freeze.requests_differ`, part of `unfinished()` and a test that runs
+    where LLM4OR's data is, as in CI's reproduce job).
+  - **The runner** has its own six cells rather than `evaluate.py`'s full cross of conditions
+    and samples, but each call goes through `evaluate.run_item`, the follow-up's per-item
+    code; Amendment 1 is a cell's fourth errored line, after which it isn't retried and the
+    analysis reads it as no answer. `followup.read_sealed`/`read_test` are the follow-up's
+    readers without its gate, used only behind `resampling_freeze.check()`.
+  - **The freeze** was written by Claude because the owner asked for it in chat (the approval
+    records that in `approved_by`); it covers every source file, so the tag's parent is the
+    approved commit and the tag is the commit that adds `FREEZE.json`, as for the follow-up.
+    CLAUDE.md and this file aren't fingerprinted, so updating them keeps the freeze matching.
