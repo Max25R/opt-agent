@@ -211,12 +211,13 @@ decisions is `docs/HISTORY.md`.
    5. A second model under its own pre-registration and cap (ADR-0006's model ladder): 2-3
       days plus a paid run sized by `evaluate --plan` at the current prices; the budget is
       the owner's call.
-15. **Proposed, not run: a pre-registered resampling study** (from the disagreement detector,
-   2026-11-19): fresh samples on the follow-up's 121 unexposed problems, one unit per problem,
-   Fisher's exact test; about $1.44 (or $2.10 with the checklist signal) at the follow-up's
-   mean cost per answer, hard cap $3.00. The design is in
-   `docs/analysis/disagreement_detector.md`; it needs its own pre-registration and freeze
-   before any paid call, and the owner's go-ahead.
+15. **The resampling study: drafted, not approved, not frozen, not run** (the owner said yes
+   to drafting it, 2026-11-19): `docs/RESAMPLING_PREREGISTRATION.md`, with its power in
+   `docs/resampling/power.md` (`scripts/resampling_power.py`, seeded). Fresh samples (single-shot
+   3 to 7, baseline 3) on the follow-up's 121 unexposed problems, one unit per problem,
+   one-sided Fisher exact test; about $1.44, hard cap $3.00. Before any call: the owner's
+   approval, a runner and an analysis script with tests, and the owner's freeze
+   (`docs/resampling/FREEZE.json`, tag `resampling-freeze`).
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where both studies ran and
@@ -457,7 +458,10 @@ Logged as the owner asked: the simplest reasonable option, where the request did
   shebang and the executable bit (its format asks for both; the skill's `name` already
   matches its folder). The repository's marketplace stays only while CI's `plugin` job
   (`claude plugin validate`, the CLI pinned at 2.1.311) passes; otherwise it and the README's
-  install commands go. The
+  install commands go. It passes, with no login, and the job also runs the README's two
+  install commands against the checkout (`claude plugin marketplace add ./`, then `install`),
+  so they're tested too. Validating `skills/opt-agent` alone fails by design: it has no
+  manifest, the docs' single-skill layout, which the marketplace entry describes. The
   plugin's root is `skills/opt-agent/` itself (a plugin with `SKILL.md` at its root loads as
   one skill), so an install copies that folder, not the 80 MB repository; no `version`, so
   updates follow the commit. The helpers are a short, self-contained restatement of the
