@@ -581,3 +581,8 @@ Logged as the owner asked: the simplest reasonable option, where the request did
     records that in `approved_by`); it covers every source file, so the tag's parent is the
     approved commit and the tag is the commit that adds `FREEZE.json`, as for the follow-up.
     CLAUDE.md and this file aren't fingerprinted, so updating them keeps the freeze matching.
+  - **The freeze commit's own CI run failed** (`4c2105e`, the tag's commit): the coverage
+    check, since the new modules' command lines and status paths had no tests and the total
+    fell more than a point under the README's badge. Tests added in `a66ec07` (no change to
+    any frozen input) brought it back within the point, and CI passes from there on. Nothing
+    about the frozen inputs was wrong; `python -m opt_agent.resampling_freeze` verifies the tag.
