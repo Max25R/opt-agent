@@ -2,8 +2,9 @@
 
 **Status.** Exploratory and post hoc: neither study pre-registered it, and nothing here is a
 result of record. The rule (`scripts/ip_slack_check.py`) and its flags (`ip_slack_check.json`,
-written by its `flags` step, which reads no label) were committed on 2026-11-19 before its
-`score` step read the labels; the results section below is that one step's output. **The
+written by its `flags` step, which reads no label) were committed and pushed on 2026-11-19
+(`4b6acd0`) before its `score` step read the labels; the results section below is that one
+step's output, and the reading after it was written once the results were in. **The
 labels are Claude's (an LLM's), not a person's**: the explanation checker's evaluation
 (`explanation_checker.md`), and Claude wrote the explanations and this rule too.
 
@@ -71,4 +72,55 @@ and solver facts): no API call, no new explanation.
 
 <!-- results: added by the score step -->
 
+## Results
+
+88 explanations (73 of them integer programs). Labels by Claude (an LLM, not a person). Exploratory.
+
+| claims found | limit wording | binding wording |
+|---|---:|---:|
+| in all explanations | 70 | 5 |
+| in integer programs (re-solved) | 60 | 5 |
+| flagged: the optimum changes without the constraint | 13 | 0 |
+| undetermined (the solvers disagree or a check fails) | 0 | 0 |
+
+Explanations flagged: 13; labeled with a false claim: 22.
+
+- **Precision** (labeled false, of those flagged): 13 of 13, 100.0% (77.2 to 100.0).
+- **Recall** (flagged, of those labeled false): 13 of 22, 59.1% (38.7 to 76.7).
+- **Recall in integer programs:** 13 of 21, 61.9% (40.9 to 79.2).
+- Flagged but labeled fine: none.
+- Labeled false but not flagged: -1091195781, -1362864316, -1603423876, -1910834629, -279354943, -668544637, -927748635, 709701618, 892653388.
+
 <!-- end of results -->
+
+## Reading it (written after the scoring)
+
+Post hoc, Claude's reading of the labelers' notes (an LLM's, not a person's), recorded under
+`post_hoc` in the JSON; none of it is part of the declared report.
+
+- **Every flag was a false claim the labelers found.** In all 13 flagged explanations the
+  flagged constraint is the one the labeler's note names, and where the note gives the
+  optimum without it (found by enumeration), the re-solve finds the same one: unbounded
+  twice, $25,000, 202 people, 0 lines, 2,500 g of protein, 46 units. Where a sentence made two
+  claims and the note says one half is true, the re-solve holds that half too. That agreement
+  is expected: the labelers settled slack claims by the same test, dropping the constraint, so
+  what this measures is mostly whether the rule finds the claim.
+- **It found 13 of the 16 slack claims** (81.2%, 57.0 to 93.4), on the text it was written
+  from. Two misses name the constraint in other words ("the rule that at least 750 units be
+  shipped" is `units transported`; "the goods requirement" is `goods_transported`), and one
+  makes the claim without a denying phrase (after listing the slack, it says the whole-number
+  requirement "is what limits the result most"; dropping the capital limit takes the optimum
+  from $9,975 to $20,700).
+- **The other 6 false claims aren't about slack**, so no re-solve can see them: two describe a
+  binding minimum as a cap, and one each gives a wrong reason for the missing shadow prices,
+  reads a slack as a share gap, compares limits across units, or states a plan and takes it
+  back (the one LP).
+- **"Not binding" claims were all true here** (5, none flagged): every flag came from "not
+  limiting" wording. In the solver's sense a constraint with slack isn't binding, so the
+  wording that misleads is the one about what limits the answer.
+- **What it suggests.** Re-solving settles a slack claim, but finding the claim in free text
+  is the weak part: a check like this one misses claims worded in ways its rule didn't
+  foresee, and it was tuned on these very explanations. Giving the explainer each constraint's
+  computed effect before it writes (open item 16's other options) avoids parsing altogether.
+- **Weak evidence, as the status says:** one sample per problem, dev only, the labels an LLM's
+  with one labeler per batch, and the rule written on the same text it's scored on.

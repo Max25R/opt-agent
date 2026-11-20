@@ -8,10 +8,11 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
 1. `source .venv/bin/activate` (`python` isn't on the path without it), `unset
    ANTHROPIC_API_KEY`, then `git status` and `git log --oneline -5`: the tree should be clean
    at the last commit on `main`, pushed, with CI green (its status: see Environment).
-2. **Where things stand: the resampling study is frozen and ready to run.** Its
+2. **Where things stand: the resampling study is frozen, and its paid run has started.** Its
    pre-registration (`docs/RESAMPLING_PREREGISTRATION.md`) was approved by the owner on
-   2026-11-19, frozen in `docs/resampling/FREEZE.json` and tagged `resampling-freeze`; no call
-   of it has been made. Check it first: `python -m opt_agent.resampling_freeze` must say the
+   2026-11-19, frozen in `docs/resampling/FREEZE.json` and tagged `resampling-freeze`; the
+   owner started its paid run on 2026-11-19 in this checkout (`runs/resampling`), and nothing
+   of it has been analyzed. Check it first: `python -m opt_agent.resampling_freeze` must say the
    tag verifies and the inputs match (it needs LLM4OR's data: `python scripts/fetch_llm4or.py`).
    - **Next, the owner's paid run**, only when the owner asks for it: first
      `python -m opt_agent.resampling --plan` (no calls: the calls left and the worst case);
@@ -58,6 +59,14 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   "not limiting" when dropping it changes the integer optimum. No number check can see that;
   open item 16 is what to do about it. The README's limitations say so in an exploratory
   bullet checked against the JSON.
+- **The IP slack-claim check** (2026-11-19, exploratory, Claude's labels:
+  `docs/analysis/ip_slack_check.md`, `scripts/ip_slack_check.py` and its JSON). From the saved
+  dev explanations only, each claim that a constraint doesn't limit an integer program's answer
+  (or isn't binding) is tested by solving the model again without it, CBC cross-checked by
+  HiGHS. Its rule and flags were committed and pushed (`4b6acd0`) before its one score against
+  the 88 labels; the numbers are in its JSON, and its doc says what it misses. No README claim
+  changed. It ran while the owner's paid resampling run was going (started 2026-11-19 in this
+  checkout, `runs/resampling`): nothing the resampling freeze checks was touched.
 - **The polish list of 2026-11-18** (the owner's; each item its own commit, CI green each
   time, no API calls; decisions at the end of this file):
   - **The static demo** (item 1): `scripts/static_demo.py` builds the examples page as a
@@ -269,11 +278,15 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    commit `runs/resampling` (`git add -f`) and `results/resampling.json`, write it up, and
    change nothing under `src/opt_agent/` or the lock before the run.
 16. **The explanation checker's blind spot** (from item 14.4; ADR-0004, action item 3): false
-   claims about slack in integer programs. Options, none started: a check that tests each
-   "not limiting" claim by re-solving without the constraint (it would need claims parsed
-   from free text); placeholders instead of free-form explanations; or telling the
-   explanation prompt that slack doesn't mean "not limiting" in an integer program (a prompt
-   change: dev only, and a new evaluation).
+   claims about slack in integer programs. Options: a check that tests each "not limiting"
+   claim by re-solving without the constraint: **done, exploratory** (2026-11-19,
+   `docs/analysis/ip_slack_check.md`; its numbers are in its JSON): it finds a claim only when
+   its rule can parse it from the free text, which is its weak part. Not started: computing
+   each constraint's effect with the solver and giving the explainer those facts, or
+   placeholders instead of free-form explanations (both change `src/opt_agent/`, so not before
+   the resampling run's analysis is committed); or telling the explanation prompt that slack
+   doesn't mean "not limiting" in an integer program (a prompt change: dev only, and a new
+   evaluation).
 17. **The Agensi listing:** the owner uploads `skills/opt-agent/` to agensi.io by hand (its
    format: `name` equals the folder, a short description, executable scripts; all done).
    The repository's own plugin marketplace stays while CI's `plugin` job passes.

@@ -38,9 +38,10 @@ All eight milestones are done (2026-11-15), and the owner's later lists (2026-11
 CI hardening, mypy and coverage, the post hoc analyses in `docs/analysis/`, the ADRs in
 `docs/adr/`, the two bugs mypy found; then the polish list: the static demo on GitHub Pages,
 the code tour in `docs/DESIGN.md`, a README pass; and on 2026-11-19 the disagreement detector,
-the explanation checker's dev evaluation, the Agent Skill, and the resampling study) are done
-too. **Where things stand: the resampling study is frozen at `resampling-freeze` and ready to
-run; its paid run is the owner's, and nothing has run.** The full record, with every
+the explanation checker's dev evaluation, the Agent Skill, the resampling study and the IP
+slack-claim check) are done too. **Where things stand: the resampling study is frozen at
+`resampling-freeze`; the owner started its paid run on 2026-11-19 in this checkout
+(`runs/resampling`), and its analysis comes once the run is done.** The full record, with every
 decision and its date, is in `docs/HISTORY.md` and `docs/HANDOFF.md`'s decision logs; where
 things stand, every open item and the environment are in `docs/HANDOFF.md`. **Start from
 `docs/HANDOFF.md`'s "Start here".**
@@ -67,7 +68,8 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
 9. [ ] **The resampling study** (2026-11-19): `docs/RESAMPLING_PREREGISTRATION.md` (approved
    by the owner with three edits), runner `src/opt_agent/resampling.py`, analysis
    `src/opt_agent/resampling_report.py`, gate `src/opt_agent/resampling_freeze.py`, frozen in
-   `docs/resampling/FREEZE.json` at tag `resampling-freeze`. **Frozen, ready to run; not run.**
+   `docs/resampling/FREEZE.json` at tag `resampling-freeze`. **Frozen; the owner's paid run started
+   on 2026-11-19 (`runs/resampling`); not analyzed yet.**
    Its hypothesis comes from the exploratory disagreement detector
    (`docs/analysis/disagreement_detector.md`).
 
@@ -233,6 +235,7 @@ python scripts/key_formats.py       # the follow-up keys' formats, aggregate onl
 python scripts/followup_power.py    # docs/followup/power.md (~2 min, seeded)
 python scripts/disagreement_detector.py --report   # its doc's results, from the one run's JSON (it never runs again)
 python scripts/explanation_checker.py score   # the checker's dev evaluation: labels (review/explain_dev/) vs flags
+python scripts/ip_slack_check.py flags|score   # IP slack claims re-solved (exploratory): flags committed first, scored once
 python -m opt_agent.freeze          # what's left before the freeze; whether inputs match it
 python -m opt_agent.freeze approve  # THE OWNER'S STEP ONLY: writes docs/FREEZE.json
 python -m opt_agent.followup_freeze          # the follow-up's: what's left, whether inputs match
