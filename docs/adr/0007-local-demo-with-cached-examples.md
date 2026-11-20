@@ -57,4 +57,6 @@ makes the spend limit public. No record weighs it: the [first audit](../audit/20
 ## Action Items
 
 1. [x] App, image, CI smoke test and the examples' replies (2026-11-15); the cap note (2026-11-16).
-2. [ ] An example that shows the fix step (a paid run, the owner's).
+2. [ ] An example that shows the fix step (a paid run, the owner's). Tried 2026-11-19: three
+   candidates with units or percentage traps, five samples each, and all 15 first models were
+   right ([`fix_step_tries.json`](../analysis/fix_step_tries.json)), so none was added.

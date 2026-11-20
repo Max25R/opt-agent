@@ -51,6 +51,14 @@ decisions is `docs/HISTORY.md`.
     labeled "Exploratory", its numbers checked against `docs/analysis/disagreement_detector.json`
     by `tests/test_readme_numbers.py` and left out of the results-file check (CLAUDE.md's hard
     rule names the exception).
+  - **Item 3, after the owner's paid run** (2026-11-19, $0.0399 on 103 calls, ledger
+    `logs/spend/paid-2026-11-19.jsonl`): the explanation checker's evaluation is written up
+    (`docs/analysis/explanation_checker.md`, its JSON and `scripts/explanation_checker.py`;
+    the run is committed in `runs/explain-dev/`, pruned to the 180 replies it replays, and the
+    labels in `review/explain_dev/`), and the README's limitation says what it found, in an
+    exploratory bullet checked against its record. The fix-step example: none of the 15 tries
+    failed its first attempt, so nothing was added to the demo
+    (`docs/analysis/fix_step_tries.json`; ADR-0007's action item stays open).
   - **The paid command** (item 2, run by the owner on 2026-11-19): `scripts/paid_dev_and_demo.py`.
     Part 1 explains every verified single-shot answer on NL4Opt's dev split (all 92
     formulations replay from `runs/dev-1`; 88 explanation calls) for the explanation
@@ -486,3 +494,10 @@ Logged as the owner asked: the simplest reasonable option, where the request did
   into one is the run's question, and if no try does, nothing is chosen. The cap ($0.30) is
   about three times the expected cost: it binds only if replies run far longer than the
   demo examples' did.
+- **Item 3, the labels.** Four Claude subagents labeled one batch each from sheets without
+  the checker's flags (the protocol's blind step); three raised the same question about
+  integer programs, settled for all four before scoring (`explanation_checker.md`, "Labeling
+  decisions"). Three of the resulting false claims were re-solved with the project's solver
+  and confirmed. Agreement between labelers wasn't measured. The run's cache was seeded with
+  all of `runs/dev-1`'s cache, so it was pruned to what the run replays before committing
+  (`scripts/explanation_checker.py prune`, which replays every explanation first).

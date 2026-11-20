@@ -110,9 +110,13 @@ Full write-up: [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md).
 - **Self-correction's 0 loud failures aren't a gain.** In the follow-up it revised
   single-shot's 4 unusable replies: 1 became right, and 3 became wrong answers with no
   warning. (The silent / loud counts cover all 128 problems; the scores, 121.)
-- **The explanation was never evaluated.** Every study run skipped it and scored answers
-  only, so "every number traced to the solver" is what the code checks, not a measured
-  result.
+- **The explanation was never evaluated in a study.** Every study run skipped it.
+- **Exploratory: the explanation checker, on dev.** By an LLM's labels (Claude's, not a
+  person's), Claude Haiku 5.5's 88 dev explanations used no wrong number, so the checker had
+  nothing to catch (its 5 flags were correctly computed numbers), but 22 of them (25.0%)
+  made a false claim with every number correct, which no number check can see: mostly that a
+  constraint with slack doesn't limit an integer program's answer, when dropping it changes
+  the optimum ([details](docs/analysis/explanation_checker.md)).
 - **One model.** Every number is Claude Haiku 5.5's, and H2 rests on the primary test
   alone (its caveats are under Results).
 - **The answer keys aren't perfect, and their errors cut both ways.** On NL4Opt, two LLM
@@ -222,7 +226,8 @@ model says what the text says (a *silent* failure).
 - **Self-correct:** an unusable reply or an infeasible or unbounded model goes back to
   Claude with specific feedback, and revisions that quietly loosen the problem are flagged.
 - **Explain** only verified answers, and flag any number in the explanation that isn't a
-  solver fact or an input (the demo shows it; the studies didn't evaluate it).
+  solver fact or an input (the demo shows it; only an exploratory check on dev, by an
+  LLM, has evaluated it: see Limitations).
 
 The details, including the solver bugs these checks caught, are in
 [`docs/DESIGN.md`](docs/DESIGN.md), which opens with

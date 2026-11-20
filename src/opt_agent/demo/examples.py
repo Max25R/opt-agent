@@ -102,11 +102,10 @@ EXAMPLES = [
 
 # Candidates for a fifth example that shows self-correction (ADR-0007, action item 2): each
 # hides a units or percentage trap whose literal misreading makes the model infeasible, so
-# the solver's feedback (the conflicting constraints) has something to fix. Not shown yet:
-# scripts/paid_dev_and_demo.py tries them (the owner's paid run), and the first whose first
-# model fails and whose revision is verified and matches its hand-checked answer joins
-# EXAMPLES, labeled as chosen to show the loop. Each answer is checked like the others'
-# (tests/test_demo.py).
+# the solver's feedback (the conflicting constraints) would have something to fix. The
+# owner's paid run (scripts/paid_dev_and_demo.py, 2026-11-19) tried five fresh samples of
+# each: all 15 first models were right (docs/analysis/fix_step_tries.json), so none showed
+# the loop and none joined EXAMPLES. Each answer is checked like the others' (tests/test_demo.py).
 FIX_STEP_CANDIDATES = [
     Example(
         id="bakery",

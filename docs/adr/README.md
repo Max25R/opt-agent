@@ -34,8 +34,8 @@ The ADRs' "revisit" items:
   ([0002](0002-structured-model-not-solver-code.md)).
 - Exact certificates (Farkas for infeasibility), an arithmetic check of HiGHS's solution, and a
   model-level check against a reference ([0003](0003-two-solvers-and-arithmetic.md)).
-- An evaluation of the explanation checker on dev's verified answers; its gaps closed, or
-  placeholders instead ([0004](0004-explanations-from-solver-numbers.md)).
+- The explanation checker's blind spot that its dev evaluation found (claims about slack in
+  integer programs), or placeholders instead ([0004](0004-explanations-from-solver-numbers.md)).
 - Judges called through the API with logged requests, so the hand checks replay too
   ([0005](0005-preregistration-freeze-and-replay.md)).
 - A model ladder, one weaker and one stronger model, each under its own pre-registration and cap

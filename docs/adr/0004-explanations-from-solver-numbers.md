@@ -57,4 +57,7 @@ hindsight: [first audit](../audit/2026-11-review.md), finding 10) would end thos
 ## Action Items
 
 1. [x] The facts-only explanation and its number check (2026-10-17).
-2. [ ] Evaluate it on dev under its own cap, then decide on placeholders.
+2. [x] Evaluate it on dev under its own cap (2026-11-19, exploratory, Claude's labels:
+   [`explanation_checker.md`](../analysis/explanation_checker.md)). It found no wrong number
+   to catch, and false claims no number check sees, mostly about integer programs.
+3. [ ] Decide on placeholders, or a check of claims about slack in integer programs.
