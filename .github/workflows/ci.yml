@@ -231,9 +231,10 @@ jobs:
 
   plugin:
     # The repository is a plugin marketplace for the Agent Skill (.claude-plugin/marketplace.json
-    # lists skills/opt-agent/). Claude Code's own validator checks the marketplace file and the
-    # plugin it points to. The CLI is pinned; the job has no key and logs in to nothing, and
-    # the README's install commands stay only while this passes.
+    # lists skills/opt-agent/, a plugin with SKILL.md at its root and no manifest of its own).
+    # Claude Code's own validator checks the marketplace file, and the README's install
+    # commands run against this checkout. The CLI is pinned; the job has no key and logs in to
+    # nothing, and the README's install commands stay only while this passes.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -249,11 +250,16 @@ jobs:
       - name: Install the Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code@2.1.311
 
-      - name: Validate the marketplace and the plugin
+      # The marketplace file, then the README's two install commands, from this checkout
+      # instead of GitHub: the plugin must install and show its one skill.
+      - name: Validate the marketplace, then install the skill from it
         run: |
           set -o pipefail
           { claude --version && claude plugin validate . \
-            && claude plugin validate ./skills/opt-agent; } 2>&1 | tee plugin.log
+            && claude plugin marketplace add ./ \
+            && claude plugin install opt-agent@max25r-opt-agent \
+            && claude plugin list && claude plugin details opt-agent; } 2>&1 | tee plugin.log
+          grep -q "opt-agent@max25r-opt-agent" plugin.log
 
       # The log needs a GitHub sign-in to read; an annotation is shown on the run's page.
       - name: What went wrong
