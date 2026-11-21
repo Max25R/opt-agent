@@ -25,7 +25,9 @@ point is a trustworthy evaluation, not a demo.
   (`scripts/resampling_results.py`; the same test).
   The exceptions, the owner's (2026-11-19): the Limitations bullets labeled "Exploratory"
   (the disagreement detector, the explanation checker), each checked against its own record
-  in `docs/analysis/` (`tests/test_readme_numbers.py`, `EXPLORATORY`); and the cost and
+  in `docs/analysis/` (`tests/test_readme_numbers.py`, `EXPLORATORY`; the explanation
+  checker's also against `limits_claims.json`, for ADR-0009's 13 → 4, the owner's request of
+  2026-11-20); and the cost and
   latency table at the top, checked against `results/headline.json` (`TABLE`), which
   `scripts/headline.py` computes from the committed test runs' logs after checking each
   condition's total cost and median latency against the results files.
@@ -49,7 +51,9 @@ the owner on 2026-11-19, analyzed on 2026-11-20): R1 is supported (`results/resa
 `docs/resampling/RESULTS.md`).** ADR-0009 (2026-11-20): for an integer program the explainer
 also gets the solver's own test of what limits the answer (`src/opt_agent/limits.py`); the owner
 regenerated the dev explanations with it (`runs/explain-dev-limits`), compared in
-`docs/analysis/limits_claims.md` (exploratory, dev only).
+`docs/analysis/limits_claims.md` (exploratory, dev only): **13 → 4** explanations with a false
+"not limiting" claim, by the same rule; keep that as the headline everywhere (owner,
+2026-11-20), and the "rule mistakes" reading as a labeled post hoc note.
 The demo's disagreement badge (2026-11-20): each verified answer shows the resampling study's
 flag (its samples and Claude's direct answer), with the study's measured precision and recall
 (`demo/pipeline.py`, `MEASURED`, checked against `results/resampling.json`); a fifth example,

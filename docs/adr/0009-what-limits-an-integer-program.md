@@ -120,9 +120,9 @@ Variable bounds aren't tested, only constraints.
    `runs/explain-dev-limits`).
 3. [x] Then compare the new explanations' claims about slack with the first run's
    (2026-11-20, exploratory, dev only: [`limits_claims.md`](../analysis/limits_claims.md)).
-   By the same rule, far fewer explanations made a false "not limiting" claim, and the flags
-   left were the rule's own misreadings (Claude's reading); the rule's recall on the new
-   wording isn't measured.
+   By the same rule, the integer programs' explanations with a false "not limiting" claim
+   went 13 → 4 (of 73). A post hoc note (Claude's reading): the 4 are the rule's own
+   misreadings. The rule's recall on the new wording isn't measured.
 4. [ ] Refresh the demo's two integer examples' replies (baristas, crates; the owner's paid
    step) and turn `pipeline.EXPLAIN_LIMITS` on.
 5. [ ] The Agent Skill (`skills/opt-agent/`) explains from slack and binding constraints too:

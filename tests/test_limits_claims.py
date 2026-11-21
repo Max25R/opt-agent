@@ -81,3 +81,22 @@ def test_the_regenerated_run_replays_from_its_committed_cache():
                            with_explanation=True, max_attempts=1, session=session)  # fmt: skip
         assert (result.explanation.text if result.explanation else None) == row["explanation"]
     assert len(rows) == 16
+
+
+HEADLINED = ["README.md", "CLAUDE.md", "docs/HANDOFF.md", "docs/analysis/limits_claims.md",
+             "docs/adr/0009-what-limits-an-integer-program.md", "docs/adr/README.md"]  # fmt: skip
+
+
+def test_the_headline_is_the_records_count_everywhere():
+    """The owner's request (2026-11-20): ADR-0009's headline is the rule's count, before -> after,
+    wherever its result is stated; what the 4 are stays a labeled post hoc note."""
+    runs = json.loads(measure.OUT.read_text())["runs"]
+    before = runs["before"]["explanations_with_a_false_claim"]
+    after = runs["after"]["explanations_with_a_false_claim"]
+    headline = f"{before} → {after}"
+    assert headline == "13 → 4"
+    for rel in HEADLINED:
+        assert headline in (ROOT / rel).read_text(), rel
+    readme = (ROOT / "README.md").read_text()
+    note = readme[readme.index(headline) :][:400]
+    assert "post hoc note" in note and "naming the wrong constraint" in note

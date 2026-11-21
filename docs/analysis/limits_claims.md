@@ -8,6 +8,10 @@ weren't read before the counts were. No person labeled anything: the claims are 
 rule Claude (an LLM) wrote, and judged by the solver's facts. The reading after the results
 was written once they were in, and is Claude's.
 
+**Headline: 13 → 4.** By the same rule, judged by the solver's facts, the integer programs'
+explanations with a false "not limiting" claim went from 13 to 4 (of 73). What the 4 are is a
+post hoc note, below.
+
 ## The two runs
 
 - **Before:** `runs/explain-dev` (2026-11-19), the explanation checker's run
@@ -62,10 +66,11 @@ Paired, by problem: 13 explanations made a false claim before and none after, 4 
 
 ## Reading it (written after the counts; Claude's reading, an LLM's, not a person's)
 
-- **By the rule, false claims fell from 13 explanations to 4,** and each of the 13 from before
-  is fine after. The before count is the IP slack-claim check's 13 flags, which the
+- **The headline, 13 → 4, is the rule's count,** and each of the 13 from before is fine
+  after. The before count is the IP slack-claim check's 13 flags, which the
   explanation checker's labels all confirmed.
-- **The 4 left are the rule's mistakes, not the explainer's.** Each new explanation says, in
+- **Post hoc note: in this reading, the 4 left are the rule's mistakes, not the explainer's.**
+  It doesn't change the headline, which is the rule's count. Each new explanation says, in
   one sentence, which constraints limit the answer and which don't ("the worker supply is the
   real limit"; "the two minimum-count rules do not limit it"). The rule pins a "do not limit"
   on every constraint named before it in the clause, so it also pinned it on the one the

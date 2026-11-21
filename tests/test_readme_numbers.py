@@ -57,12 +57,15 @@ FOLLOWUP = ROOT / "results" / "followup.json"
 FOLLOWUP_RESULTS = ROOT / "docs" / "followup" / "RESULTS.md"
 RESAMPLING = ROOT / "results" / "resampling.json"
 RESAMPLING_RESULTS = ROOT / "docs" / "resampling" / "RESULTS.md"
-# Each exploratory README bullet, by the words it starts with, and the record it comes from.
+# Each exploratory README bullet, by the words it starts with, and the records it comes from
+# (the explanation checker's also gives ADR-0009's 13 → 4, from limits_claims.json: the
+# owner's request, 2026-11-20).
+ANALYSIS = ROOT / "docs" / "analysis"
 EXPLORATORY = {
     "- **Exploratory: disagreement between attempts as a warning.**":
-        ROOT / "docs" / "analysis" / "disagreement_detector.json",
+        (ANALYSIS / "disagreement_detector.json",),
     "- **Exploratory: the explanation checker, on dev.**":
-        ROOT / "docs" / "analysis" / "explanation_checker.json",
+        (ANALYSIS / "explanation_checker.json", ANALYSIS / "limits_claims.json"),
 }  # fmt: skip
 # The README's cost and latency table (owner's request, 2026-11-19): numbers per answer from
 # the committed test runs' logs, not results, checked against their own record
@@ -219,9 +222,10 @@ def test_the_section_has_results_to_check(section_and_data):
 def test_each_exploratory_bullet_comes_from_its_own_record(marker):
     text = README.read_text()
     line = bullet(text, marker)
-    record = EXPLORATORY[marker]
-    assert f"docs/analysis/{record.stem}.md" in line  # it links its write-up
-    assert unmatched(line, [json.loads(record.read_text())]) == []
+    records = EXPLORATORY[marker]
+    for record in records:
+        assert f"docs/analysis/{record.stem}.md" in line  # it links each write-up
+    assert unmatched(line, [json.loads(r.read_text()) for r in records]) == []
     assert len(NUMBER.findall(line)) >= 4  # it has numbers to check
     assert marker not in section(text, None)  # and only here
 

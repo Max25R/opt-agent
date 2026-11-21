@@ -20,7 +20,9 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    - **ADR-0009 is done and measured on dev** (2026-11-20, open item 16): for an integer
      program, the explainer gets the solver's own test of what limits the answer. The owner
      regenerated the dev explanations with it (`runs/explain-dev-limits`, $0.0358), and
-     `docs/analysis/limits_claims.md` compares the two runs (exploratory).
+     `docs/analysis/limits_claims.md` compares the two runs (exploratory): by the same rule,
+     explanations with a false "not limiting" claim went 13 → 4 (the headline; what the 4 are
+     is a labeled post hoc note).
    - **The demo's disagreement badge** (2026-11-20; "Current state") now has a fifth example
      chosen to show its warning ("Freight cars", from the resampling run, its own replies).
      **Next, the owner's paid run** (open item 19): `python scripts/cache_examples.py --plan`
@@ -63,9 +65,11 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   `--plan` gives the calls and the worst case); the owner ran it on 2026-11-20
   (`runs/explain-dev-limits`, 73 calls, $0.0358). **Measured on dev, exploratory**
   (`docs/analysis/limits_claims.md`, `scripts/limits_claims.py`): the IP slack check's rule,
-  unchanged, against the solver's facts, in both runs; the counts are in its JSON. Its
-  reading (Claude's) is that the flags left after are the rule's misattributions; the rule's
-  recall on the new wording isn't measured.
+  unchanged, against the solver's facts, in both runs. **Headline: 13 → 4** explanations with
+  a false "not limiting" claim (its JSON; the owner asked for this headline everywhere,
+  2026-11-20, and `tests/test_limits_claims.py` checks it). A post hoc note, labeled as such:
+  in Claude's reading the 4 left are the rule's misattributions; the rule's recall on the new
+  wording isn't measured.
 - **The demo's disagreement badge** (2026-11-20, the owner's requests, after R1 was supported).
   In the Flags card (outside the README screenshot's clip, so `docs/demo.png` is unchanged),
   each verified answer shows "Samples disagree — lower confidence" or "Samples agree", what it
