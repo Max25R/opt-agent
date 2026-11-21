@@ -68,8 +68,9 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   unchanged, against the solver's facts, in both runs. **Headline: 13 → 4** explanations with
   a false "not limiting" claim (its JSON; the owner asked for this headline everywhere,
   2026-11-20, and `tests/test_limits_claims.py` checks it). A post hoc note, labeled as such:
-  in Claude's reading the 4 left are the rule's misattributions; the rule's recall on the new
-  wording isn't measured.
+  in Claude's reading the 4 left are the rule's misattributions. The rule against the
+  explanation checker's blind labels (post hoc, 2026-11-21):
+  `review/explain_dev_limits/RESULTS.md`.
 - **The demo's disagreement badge** (2026-11-20, the owner's requests, after R1 was supported).
   In the Flags card (outside the README screenshot's clip, so `docs/demo.png` is unchanged),
   each verified answer shows "Samples disagree — lower confidence" or "Samples agree", what it
@@ -357,7 +358,9 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    blind Claude subagents labeled `review/explain_dev_limits/` in a session (no API call), and
    `scripts/explanation_checker.py score --after` scored it: 22 → 11 explanations with a false
    claim, comparable by the owner's rule (15 of 15 shared LP entries alike). Exploratory,
-   Claude's labels; the headline stays the rule's 13 → 4.
+   Claude's labels; the headline stays the rule's 13 → 4. The rule's precision and recall
+   against these labels (post hoc, the owner's request) and Claude's reading of what the
+   labeled false claims are: `review/explain_dev_limits/RESULTS.md`, from the same record.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all three studies ran and

@@ -105,3 +105,22 @@ def test_the_after_record_is_what_the_two_labelings_give():
     assert sum(paired.values()) == committed["explanations"] == 88
     assert false["before"] == paired["false_before_fine_after"] + paired["false_in_both"] == 22
     assert false["after"] == paired["fine_before_false_after"] + paired["false_in_both"]
+
+
+def test_the_rule_against_the_labels_and_the_note():
+    """score --after also scores the rule's flags (limits_claims.json) against each labeling,
+    over the integer programs. On the first run that's the IP slack check's own score, from its
+    own re-solves and the same labels, so the two computations must agree; and the note in
+    review/explain_dev_limits/ shows the record."""
+    committed = json.loads(checker_eval.AFTER_OUT.read_text())
+    rule = committed["rule_vs_labels"]
+    ip_check = json.loads((ROOT / "docs" / "analysis" / "ip_slack_check.json").read_text())
+    assert rule["before"]["precision"] == ip_check["results"]["precision"]
+    assert rule["before"]["recall"] == ip_check["results"]["recall_integer_programs"]
+    runs = json.loads(checker_eval.RULE.read_text())["runs"]
+    for run in ("before", "after"):
+        assert rule[run]["flagged"] == runs[run]["explanations_with_a_false_claim"]
+        assert rule[run]["labeled_false"] == committed["false_claims_integer_programs"][run]
+    note = checker_eval.NOTE.read_text()
+    assert checker_eval.render_note(committed) in note
+    assert "Exploratory" in note and "post hoc" in note

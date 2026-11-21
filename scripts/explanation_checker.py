@@ -18,7 +18,9 @@ none), the same batches, and still none of the checker's flags.
 `score --after`: those labels against the first run's (docs/analysis/limits_checker.json and
 the checker results in docs/analysis/limits_claims.md): explanations with a false claim
 before and after, paired by problem, and the owner's consistency rule on the 15 LP entries
-the two sheets share word for word (fewer than 13 matching: inconclusive).
+the two sheets share word for word (fewer than 13 matching: inconclusive). It also scores the
+rule's flags (docs/analysis/limits_claims.json, scripts/limits_claims.py) against each
+labeling, and writes the numbers of review/explain_dev_limits/RESULTS.md.
 
 No API calls. Run:  python scripts/explanation_checker.py sheet [--after]|score|prune
 """
@@ -50,6 +52,10 @@ AFTER_OUT = ROOT / "docs" / "analysis" / "limits_checker.json"
 AFTER_DOC = ROOT / "docs" / "analysis" / "limits_claims.md"
 AFTER_BEGIN = "<!-- checker results: written by scripts/explanation_checker.py score --after -->"
 AFTER_END = "<!-- end of checker results -->"
+RULE = ROOT / "docs" / "analysis" / "limits_claims.json"  # the rule's flags, both runs
+NOTE = AFTER_SHEETS / "RESULTS.md"
+NOTE_BEGIN = "<!-- results: written by scripts/explanation_checker.py score --after -->"
+NOTE_END = "<!-- end of results -->"
 LP_RULE = 13  # of the 15 LP entries both sheets share: the owner's rule, fixed before labeling
 BATCHES = 4
 LABELS = {"correct", "wrong"}
@@ -244,6 +250,21 @@ def compare() -> dict:
     matching = [p for p in lps if same_claim(p) and before_numbers.get(p, []) ==
                 after_numbers.get(p, [])]  # fmt: skip
     ips = [p for p in problems if p not in lps]
+    rule = {r["problem"]: r for r in json.loads(RULE.read_text())["per_problem"]}
+    if set(rule) != set(ips):
+        raise SystemExit("the rule's record doesn't cover the same integer programs")
+
+    def against_rule(claims: dict[str, dict], run: str) -> dict:
+        """The rule's flags (a false "not limiting" claim) against a labeling's false claims,
+        which can be of any kind, over the integer programs: the only ones the rule reads."""
+        flagged = [p for p in ips if any(c["verdict"] == "false" for c in rule[p][run])]
+        labeled = [p for p in ips if false(claims, p)]
+        both = [p for p in flagged if p in labeled]
+        return {"flagged": len(flagged), "labeled_false": len(labeled),
+                "precision": rate(len(both), len(flagged)),
+                "recall": rate(len(both), len(labeled)),
+                "flagged_but_labeled_fine": [p for p in flagged if p not in labeled],
+                "labeled_false_not_flagged": [p for p in labeled if p not in flagged]}  # fmt: skip
 
     def count(claims: dict[str, dict], among: list[str]) -> int:
         return sum(false(claims, p) for p in among)
@@ -272,6 +293,13 @@ def compare() -> dict:
                                  for p in problems),
             "fine_in_both": sum(not false(before_claims, p) and not false(after_claims, p)
                                 for p in problems),
+        },
+        "rule_vs_labels": {
+            "label": "added after the labels were in (the owner's request, 2026-11-21), so post "
+                     "hoc: scripts/limits_claims.py's flags against each labeling's false "
+                     "claims, of any kind, over the integer programs",
+            "before": against_rule(before_claims, "before"),
+            "after": against_rule(after_claims, "after"),
         },
         "lp_entries_not_matching": [p for p in lps if p not in matching],
         "per_problem": [{"problem": p, "integer_program": p in ips,
@@ -306,11 +334,45 @@ def render_after(d: dict) -> str:
     ])  # fmt: skip
 
 
+def render_note(d: dict) -> str:
+    """The numbers of review/explain_dev_limits/RESULTS.md: the consistency rule, and the
+    rule's flags against both labelings over the integer programs."""
+    lp, f, fi = d["lp_agreement"], d["false_claims"], d["false_claims_integer_programs"]
+    before, after = d["rule_vs_labels"]["before"], d["rule_vs_labels"]["after"]
+    verdict = ("**inconclusive**: the counts below are reported as they are, not as a "
+               "comparison" if d["verdict"] == "inconclusive" else "**comparable**")  # fmt: skip
+    return "\n".join([
+        f"**The consistency rule:** {lp['matching']} of the {lp['entries']} LP entries both "
+        f"sheets share got the first labeling's labels ({lp['needed']} needed), so the "
+        f"before/after comparison is {verdict}.", "",
+        f"| over the {d['integer_programs']} integer programs | first explanations | "
+        "regenerated |", "|---|---:|---:|",
+        f"| labeled with a false claim (any kind) | {fi['before']} | {fi['after']} |",
+        f"| flagged by the rule (a false \"not limiting\" claim) | {before['flagged']} | "
+        f"{after['flagged']} |",
+        f"| the rule's precision (labeled false, of those flagged) | "
+        f"{pct(before['precision'])} | {pct(after['precision'])} |",
+        f"| the rule's recall (flagged, of those labeled false) | {pct(before['recall'])} | "
+        f"{pct(after['recall'])} |", "",
+        f"Of all {d['explanations']} explanations, LPs included, {f['before']} were labeled "
+        f"with a false claim before and {f['after']} after. Regenerated explanations the rule "
+        f"flags but the labels call fine: {', '.join(after['flagged_but_labeled_fine']) or 'none'}"
+        f"; labeled false but not flagged: "
+        f"{', '.join(after['labeled_false_not_flagged']) or 'none'}.",
+    ])  # fmt: skip
+
+
+def fill(path: Path, begin: str, end: str, text: str) -> None:
+    """Replace what a document has between two markers."""
+    doc = path.read_text()
+    start, stop = doc.index(begin) + len(begin), doc.index(end)
+    path.write_text(doc[:start] + "\n\n" + text + "\n\n" + doc[stop:])
+
+
 def write_after(d: dict) -> None:
     AFTER_OUT.write_text(json.dumps(d, indent=1) + "\n")
-    doc = AFTER_DOC.read_text()
-    start, end = doc.index(AFTER_BEGIN) + len(AFTER_BEGIN), doc.index(AFTER_END)
-    AFTER_DOC.write_text(doc[:start] + "\n\n" + render_after(d) + "\n\n" + doc[end:])
+    fill(AFTER_DOC, AFTER_BEGIN, AFTER_END, render_after(d))
+    fill(NOTE, NOTE_BEGIN, NOTE_END, render_note(d))
 
 
 def score() -> dict:
@@ -403,7 +465,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.step == "score" and args.after:
         result = compare()
         write_after(result)
-        print(render_after(result))
+        print(render_after(result) + "\n\n" + render_note(result))
     elif args.step == "prune":
         prune()
     else:

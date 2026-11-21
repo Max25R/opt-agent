@@ -80,8 +80,10 @@ Paired, by problem: 13 explanations made a false claim before and none after, 4 
 - **What could still hide:** pinning a claim on an extra constraint can only add a flag, so a
   false claim slips through only if the rule misses its phrasing or the name of its
   constraint. That recall was 13 of 16 on the first run's text (the IP check's reading) and
-  isn't measured on the new text, which words things differently: of the rule's phrase
-  matches, more name several constraints after (24 of 88) than before (17 of 46).
+  wasn't measured on the new text, which words things differently: of the rule's phrase
+  matches, more name several constraints after (24 of 88) than before (17 of 46). It has been
+  since, against the explanation checker's blind labels below (post hoc:
+  [`review/explain_dev_limits/RESULTS.md`](../../review/explain_dev_limits/RESULTS.md)).
 - **The new facts are used.** The after run makes more claims the rule finds (72 "not
   limiting" claims against 60), and they're true more often (67 against 47); several
   explanations now say that a constraint limits the result even with slack left, or that one
