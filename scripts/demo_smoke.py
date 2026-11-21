@@ -1,10 +1,11 @@
 """Smoke-test a running demo (CI runs it against the Docker image; standard library only).
 
-Checks that /health answers in examples mode, that /examples lists the four examples, and
+Checks that /health answers in examples mode, that /examples lists the five examples, and
 that each example given with --example solves through the replay path: verified, equal to
-its hand-checked answer, and every call replayed (nothing paid, and no key in the image).
+its hand-checked answer (the one chosen to show the disagreement badge's warning: flagged and
+wrong, as chosen), and every call replayed (nothing paid, and no key in the image).
 
-Run:  python scripts/demo_smoke.py http://localhost:8000 --example paint
+Run:  python scripts/demo_smoke.py http://localhost:8000 --example paint --example freight
 """
 
 import argparse
@@ -50,16 +51,21 @@ def main(argv: list[str] | None = None) -> None:
     assert health["status"] == "ok" and health["mode"] == "examples", health
     print(f"health: {health}")
     examples = {e["id"]: e for e in get(f"{base}/examples")}
-    assert sorted(examples) == ["baristas", "crates", "feed", "paint"], sorted(examples)
+    assert sorted(examples) == ["baristas", "crates", "feed", "freight", "paint"], sorted(examples)
     for name in args.example:
         example = examples[name]
         assert example["cached"], f"{name}'s replies aren't in the image"
         r = post(f"{base}/solve", {"problem": example["text"]})
         assert r["verification"]["verified"], r["stopped"]
-        assert r["matches_reference"] is True, (r["objective"], example["reference_objective"])
+        chosen = example["chosen"] is not None  # chosen to show the warning: flagged, wrong
+        expected = (r["objective"], example["reference_objective"])
+        assert r["matches_reference"] is not chosen, expected
+        assert r["disagreement"]["samples_disagree"] is chosen, r["disagreement"]
         assert r["calls"] == r["cached_calls"] and r["paid_usd"] == 0, r
-        print(f"{name}: verified, objective {r['objective']} (hand-checked "
-              f"{example['reference_objective']}), {r['calls']} calls, all replayed")  # fmt: skip
+        print(f"{name}: verified, objective {r['objective']} ({r['reference_kind']} "
+              f"{example['reference_objective']}), "
+              f"{'flagged, as chosen' if chosen else 'samples agree'}, "
+              f"{r['calls']} calls, all replayed")  # fmt: skip
     print("demo smoke test passed")
 
 
