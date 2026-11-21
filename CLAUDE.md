@@ -47,8 +47,9 @@ the explanation checker's dev evaluation, the Agent Skill, the resampling study 
 slack-claim check) are done too. **Where things stand: the resampling study is done (run by
 the owner on 2026-11-19, analyzed on 2026-11-20): R1 is supported (`results/resampling.json`,
 `docs/resampling/RESULTS.md`).** ADR-0009 (2026-11-20): for an integer program the explainer
-also gets the solver's own test of what limits the answer (`src/opt_agent/limits.py`); the dev
-explanations' regeneration with it is the owner's paid run (`scripts/paid_explain_limits.py`).
+also gets the solver's own test of what limits the answer (`src/opt_agent/limits.py`); the owner
+regenerated the dev explanations with it (`runs/explain-dev-limits`), compared in
+`docs/analysis/limits_claims.md` (exploratory, dev only).
 The demo's disagreement badge (2026-11-20): each verified answer shows whether Claude's direct
 answer matches it, with the resampling study's measured precision and recall
 (`demo/pipeline.py`, `MEASURED`, checked against `results/resampling.json`).
@@ -205,8 +206,10 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
   agent CLI (`--cap`, $0.50 by default, `logs/spend/agent.jsonl`; since 2026-11-15, from the
   final review). The paid run of 2026-11-19 (`scripts/paid_dev_and_demo.py`): cap $0.30,
   paid $0.0399. The resampling study's run: hard cap $3.00, paid $1.4884 (owner's terminal,
-  2026-11-19; `runs/resampling/spend.jsonl`). Spent so far: $5.42 of the $20 credit
-  (2026-11-20; the ledger is in `docs/HANDOFF.md`).
+  2026-11-19; `runs/resampling/spend.jsonl`). ADR-0009's dev regeneration
+  (`scripts/paid_explain_limits.py`): cap $0.25, paid $0.0358 (owner's terminal, 2026-11-20;
+  `runs/explain-dev-limits/spend.jsonl`). Spent so far: $5.45 of the $20 credit (2026-11-20;
+  the ledger is in `docs/HANDOFF.md`).
 - `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
   paid run. An unlisted model raises instead of being guessed.
 - Budget stops, spend-limit errors (`api.SpendLimitReached`: a 429 with
@@ -249,6 +252,7 @@ python scripts/followup_power.py    # docs/followup/power.md (~2 min, seeded)
 python scripts/disagreement_detector.py --report   # its doc's results, from the one run's JSON (it never runs again)
 python scripts/explanation_checker.py score   # the checker's dev evaluation: labels (review/explain_dev/) vs flags
 python scripts/ip_slack_check.py flags|score   # IP slack claims re-solved (exploratory): flags committed first, scored once
+python scripts/limits_claims.py [--verify]     # ADR-0009 on dev (exploratory): both runs' claims vs the solver's facts
 python -m opt_agent.freeze          # what's left before the freeze; whether inputs match it
 python -m opt_agent.freeze approve  # THE OWNER'S STEP ONLY: writes docs/FREEZE.json
 python -m opt_agent.followup_freeze          # the follow-up's: what's left, whether inputs match

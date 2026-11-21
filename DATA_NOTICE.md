@@ -37,7 +37,8 @@ license applies.
 
 ## Milestone 6's problems (NL4Opt)
 
-`runs/test/`, `runs/test-perturbed/` and `data/nl4opt/` hold NL4Opt problem text and
+`runs/test/`, `runs/test-perturbed/`, `runs/explain-dev/`, `runs/explain-dev-limits/` and
+`data/nl4opt/` hold NL4Opt problem text and
 annotations, and so do the review packets and prompts under `review/` (for example
 `review/test_reviews/PACKET.md`), the test fixtures `tests/problems.py` and `tests/fakes.py`,
 and short quotes in `docs/`: Ramamonjison et al., "NL4Opt Competition: Formulating Optimization Problems

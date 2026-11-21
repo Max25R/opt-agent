@@ -17,10 +17,10 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    checked against that file. `python -m opt_agent.resampling_freeze` must still say the tag
    verifies (the inputs at HEAD stop matching once `src/opt_agent/` changes, as for the other
    two studies).
-   - **ADR-0009 is done** (2026-11-20, open item 16): for an integer program, the explainer
-     gets the solver's own test of what limits the answer. Measuring it needs the dev
-     explanations regenerated, the owner's paid run: `python scripts/paid_explain_limits.py
-     --plan` first (no calls), then the command its docstring gives (cap $0.25).
+   - **ADR-0009 is done and measured on dev** (2026-11-20, open item 16): for an integer
+     program, the explainer gets the solver's own test of what limits the answer. The owner
+     regenerated the dev explanations with it (`runs/explain-dev-limits`, $0.0358), and
+     `docs/analysis/limits_claims.md` compares the two runs (exploratory).
    - **The demo's disagreement badge is done** (2026-11-20; "Current state"). What's left is
      the owner's to choose: the paid steps in open items 16 and 19.
 3. Read "Open items" below. Everything else is optional or the owner's.
@@ -57,7 +57,12 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   one, so every cached explanation still replays; the demo pins `pipeline.EXPLAIN_LIMITS` off
   until its two integer examples' replies are refreshed (the owner's paid step). The dev
   explanations' regeneration is `scripts/paid_explain_limits.py` (the owner's paid run; its
-  `--plan` gives the calls and the worst case). Nothing is measured yet.
+  `--plan` gives the calls and the worst case); the owner ran it on 2026-11-20
+  (`runs/explain-dev-limits`, 73 calls, $0.0358). **Measured on dev, exploratory**
+  (`docs/analysis/limits_claims.md`, `scripts/limits_claims.py`): the IP slack check's rule,
+  unchanged, against the solver's facts, in both runs; the counts are in its JSON. Its
+  reading (Claude's) is that the flags left after are the rule's misattributions; the rule's
+  recall on the new wording isn't measured.
 - **The demo's disagreement badge** (2026-11-20, the owner's request, after R1 was supported).
   In the Flags card (outside the README screenshot's clip, so `docs/demo.png` is unchanged),
   each verified answer shows "Samples disagree — lower confidence" or "Samples agree", with the
@@ -212,12 +217,13 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   ComplexLP (CC BY-SA 4.0) and ORLM's IndustryOR (CC BY-NC 4.0), as cleaned by LLM4OR at
   `75962df` (no license stated), plus NL4Opt (MIT). History was kept (owner, 2026-11-15):
   rewriting it would break `followup-freeze` and the commit in `FREEZE.json`.
-- **Spend:** $5.42 of the $20 credit ($0.98 before the follow-up, $0.1775 for the
+- **Spend:** $5.45 of the $20 credit ($0.98 before the follow-up, $0.1775 for the
   condition-4 dev smoke run, $2.7176 for the test run, $0.0139 for the demo examples'
   replies, $0.0399 for the paid run of 2026-11-19, ledger
   `logs/spend/paid-2026-11-19.jsonl`, and $1.4884 for the resampling study's run, ledger
-  `runs/resampling/spend.jsonl`). About $4.85 of November's $10 limit is left; it resets on
-  December 1.
+  `runs/resampling/spend.jsonl`, and $0.0358 for ADR-0009's dev regeneration, ledger
+  `runs/explain-dev-limits/spend.jsonl`). About $4.82 of November's $10 limit is left; it
+  resets on December 1.
 
 ## Open items
 1. ~~M7 demo~~ and ~~M8's README and reproduce script~~: done 2026-11-15.
@@ -312,9 +318,9 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    `docs/analysis/ip_slack_check.md`; its numbers are in its JSON): it finds a claim only when
    its rule can parse it from the free text, which is its weak part. Computing each
    constraint's effect with the solver and giving the explainer those facts: **done** as
-   ADR-0009 (2026-11-20); its open steps are the owner's paid regeneration
-   (`scripts/paid_explain_limits.py`), then comparing the new explanations with the first
-   run's, refreshing the demo's two integer examples, and the Agent Skill. Not started:
+   ADR-0009 (2026-11-20), regenerated and compared on dev (exploratory,
+   `docs/analysis/limits_claims.md`); its open steps are refreshing the demo's two integer
+   examples (open item 19's paid run) and the Agent Skill. Not started:
    placeholders instead of free-form explanations; or telling the explanation prompt that slack
    doesn't mean "not limiting" in an integer program (a prompt change: dev only, and a new
    evaluation).
