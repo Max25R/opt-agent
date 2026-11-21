@@ -90,3 +90,25 @@ Paired, by problem: 13 explanations made a false claim before and none after, 4 
 - **Weak evidence:** dev only, one sample per problem, the rule written on the first run's
   text, and one reader. It says ADR-0009 helps on dev; a test would need fresh problems and a
   person's labels.
+
+## Next: the explanation checker's own labels on the regenerated run (planned, not run)
+
+The counts above come from a rule. The first run's 22 false claims came from the explanation
+checker's evaluation ([`explanation_checker.md`](explanation_checker.md)): four Claude
+subagents, one batch each, labeled sheets by written rules, in a session, with no API call.
+To compare like with like, the regenerated explanations get the same checker:
+
+- **The sheets:** `python scripts/explanation_checker.py sheet --after` wrote
+  `review/explain_dev_limits/` (committed blank, before any label): the same format and
+  batches, the same facts (not the new limits, which the first sheets didn't have), and none
+  of the checker's flags. The 15 LP entries are the first sheets' own, word for word, so
+  their labels also show how consistent the labelers are.
+- **The labelers:** four Claude subagents again, one batch each, given only the rules
+  ("The labels" and "Labeling decisions" in `explanation_checker.md`), not the first run's
+  labels, explanations or results, and not ADR-0009's facts.
+- **The score:** the same rule as before, false claims among the 88, reported against the
+  first run's 22 whatever it shows, labeled exploratory and Claude's.
+
+A paid API call can't stand in for this checker: a model labeling through the API, without
+the subagents' tools to enumerate integer solutions, would be a different checker, and its
+before count wouldn't be 22.

@@ -350,7 +350,16 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    and the two integer examples' explanations with ADR-0009's limits: 18 calls, worst case
    $0.08, expected about $0.03 (`--plan`), cap $0.15. "Freight cars" needs none: it replays
    the resampling run's replies. After the run, `pipeline.REFRESHED = True` (one line; a test
-   refuses it while anything is missing) and the replies get committed.
+   refuses it while anything is missing) and the replies get committed. On 2026-11-21 the
+   owner reported running it, but no reply or ledger line reached this checkout
+   (`src/opt_agent/demo/replies/` still 23 files, `--plan` still 18 calls missing), so
+   `REFRESHED` stays off until a run lands here.
+20. **The explanation checker on ADR-0009's regenerated explanations** (planned, not run;
+   `docs/analysis/limits_claims.md`, last section): the blank sheets are committed in
+   `review/explain_dev_limits/` (`scripts/explanation_checker.py sheet --after`). The same
+   checker as the first run's 22 is four Claude subagents labeling them in a session (no API
+   call), given only the rules; a paid API labeler would be a different checker. Scoring it
+   needs a `score --after` step, not written yet.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all three studies ran and

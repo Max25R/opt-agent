@@ -257,6 +257,7 @@ python scripts/key_formats.py       # the follow-up keys' formats, aggregate onl
 python scripts/followup_power.py    # docs/followup/power.md (~2 min, seeded)
 python scripts/disagreement_detector.py --report   # its doc's results, from the one run's JSON (it never runs again)
 python scripts/explanation_checker.py score   # the checker's dev evaluation: labels (review/explain_dev/) vs flags
+python scripts/explanation_checker.py sheet --after   # the same blank sheets for ADR-0009's regenerated run (review/explain_dev_limits/)
 python scripts/ip_slack_check.py flags|score   # IP slack claims re-solved (exploratory): flags committed first, scored once
 python scripts/limits_claims.py [--verify]     # ADR-0009 on dev (exploratory): both runs' claims vs the solver's facts
 python -m opt_agent.freeze          # what's left before the freeze; whether inputs match it

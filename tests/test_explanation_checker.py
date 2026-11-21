@@ -56,6 +56,36 @@ def test_every_explanation_replays_from_the_committed_cache():
 
 def test_label_files_keep_their_rows():
     """The sheet step writes the rows; labeling fills two columns and nothing else."""
-    for path in checker_eval.SHEETS.glob("labels-*.csv"):
+    for path in [*checker_eval.SHEETS.glob("labels-*.csv"),
+                 *checker_eval.AFTER_SHEETS.glob("labels-*.csv")]:  # fmt: skip
         with path.open(newline="") as f:
             assert next(csv.reader(f)) == ["problem", "index", "token", "label", "note"]
+
+
+def test_the_after_sheets_are_the_scripts_own_and_show_what_the_first_ones_did(tmp_path):
+    """review/explain_dev_limits/ (`sheet --after`): ADR-0009's regenerated explanations, on
+    the same sheets as the first run's, so the same checker can label them. The facts line
+    leaves out the new limits, as the first sheets had none; the 15 LP entries are the first
+    sheets' own, word for word; and each row of the label files is still the script's."""
+    checker_eval.write_sheets(checker_eval.AFTER_ROWS, tmp_path)
+    committed = checker_eval.AFTER_SHEETS
+    for k in range(1, checker_eval.BATCHES + 1):
+        sheet = (committed / f"batch-{k}.md").read_text()
+        assert sheet == (tmp_path / f"batch-{k}.md").read_text()
+        assert "dropped_improves" not in sheet and "loosened_improves" not in sheet
+        for name, keys in ((f"labels-{k}.csv", ("problem", "index", "token")),
+                           (f"claims-{k}.csv", ("problem",))):  # fmt: skip
+            with (committed / name).open(newline="") as a, (tmp_path / name).open(newline="") as b:
+                rows = [[r[key] for key in keys] for r in csv.DictReader(a)]
+                assert rows == [[r[key] for key in keys] for r in csv.DictReader(b)]
+
+    def entries(directory) -> dict[str, str]:
+        found = {}
+        for path in sorted(directory.glob("batch-*.md")):
+            for part in path.read_text().split("\n## ")[1:]:
+                found[part.split("\n", 1)[0]] = part
+        return found
+
+    before, after = entries(checker_eval.SHEETS), entries(committed)
+    assert before.keys() == after.keys() and len(after) == 88
+    assert sum(before[p] == after[p] for p in after) == 15  # the LPs: their requests didn't change

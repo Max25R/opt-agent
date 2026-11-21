@@ -11,7 +11,12 @@ owner's paid run (runs/explain-dev/explanations.jsonl, scripts/paid_dev_and_demo
   prune   keep in runs/explain-dev/cache only the replies the run replays (it was seeded with
           a copy of runs/dev-1's whole cache).
 
-No API calls. Run:  python scripts/explanation_checker.py sheet|score|prune
+`sheet --after`: the same sheets for ADR-0009's regenerated explanations
+(runs/explain-dev-limits, into review/explain_dev_limits/), so the same checker can label
+them: the same fields (the facts line leaves out the new limits, as the first sheets had
+none), the same batches, and still none of the checker's flags.
+
+No API calls. Run:  python scripts/explanation_checker.py sheet [--after]|score|prune
 """
 
 import argparse
@@ -35,13 +40,15 @@ SHEETS = ROOT / "review" / "explain_dev"
 DOC = ROOT / "docs" / "analysis" / "explanation_checker.md"
 OUT = ROOT / "docs" / "analysis" / "explanation_checker.json"
 BEGIN, END = "<!-- results: added after the labels -->", "<!-- end of results -->"
+AFTER_ROWS = ROOT / "runs" / "explain-dev-limits" / "explanations.jsonl"  # ADR-0009's run
+AFTER_SHEETS = ROOT / "review" / "explain_dev_limits"
 BATCHES = 4
 LABELS = {"correct", "wrong"}
 
 
-def explained() -> list[dict]:
+def explained(rows: Path = ROWS) -> list[dict]:
     """The run's explained answers, in its order."""
-    return [r for r in map(json.loads, ROWS.read_text().splitlines()) if r["explanation"]]
+    return [r for r in map(json.loads, rows.read_text().splitlines()) if r["explanation"]]
 
 
 def texts() -> dict[str, str]:
@@ -70,9 +77,9 @@ def flagged(row: dict, problem: str) -> list[bool]:
 # ---- sheet --------------------------------------------------------------------------------
 
 
-def write_sheets() -> None:
-    rows, problems = explained(), texts()
-    SHEETS.mkdir(parents=True, exist_ok=True)
+def write_sheets(source: Path = ROWS, sheets: Path = SHEETS) -> None:
+    rows, problems = explained(source), texts()
+    sheets.mkdir(parents=True, exist_ok=True)
     for k in range(BATCHES):
         batch = rows[k::BATCHES]
         lines = [f"# Explanation labels, batch {k + 1} of {BATCHES}", "",
@@ -98,19 +105,20 @@ def write_sheets() -> None:
                                    "label": "", "note": ""})  # fmt: skip
             claim_rows.append({"problem": r["problem"], "false_claim": "", "note": ""})
             lines.append("")
-        (SHEETS / f"batch-{k + 1}.md").write_text("\n".join(lines))
+        (sheets / f"batch-{k + 1}.md").write_text("\n".join(lines))
         for name, fields, data in ((f"labels-{k + 1}.csv", ["problem", "index", "token", "label",
                                                             "note"], label_rows),
                                    (f"claims-{k + 1}.csv", ["problem", "false_claim", "note"],
                                     claim_rows)):  # fmt: skip
-            path = SHEETS / name
+            path = sheets / name
             if path.exists():
                 raise SystemExit(f"{path.relative_to(ROOT)} exists: labels are never overwritten")
             with path.open("w", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=fields)
                 writer.writeheader()
                 writer.writerows(data)
-    print(f"wrote {BATCHES} sheets for {len(rows)} explanations to {SHEETS.relative_to(ROOT)}")
+    shown = sheets.relative_to(ROOT) if sheets.is_relative_to(ROOT) else sheets
+    print(f"wrote {BATCHES} sheets for {len(rows)} explanations to {shown}")
 
 
 # ---- score --------------------------------------------------------------------------------
@@ -267,9 +275,10 @@ def prune() -> None:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="The explanation checker's evaluation on dev.")
     parser.add_argument("step", choices=["sheet", "score", "prune"])
+    parser.add_argument("--after", action="store_true", help="sheet: ADR-0009's regenerated run")
     args = parser.parse_args(argv)
     if args.step == "sheet":
-        write_sheets()
+        write_sheets(*((AFTER_ROWS, AFTER_SHEETS) if args.after else (ROWS, SHEETS)))
     elif args.step == "prune":
         prune()
     else:
