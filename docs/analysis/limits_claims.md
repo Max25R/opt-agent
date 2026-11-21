@@ -104,10 +104,19 @@ To compare like with like, the regenerated explanations get the same checker:
   of the checker's flags. The 15 LP entries are the first sheets' own, word for word, so
   their labels also show how consistent the labelers are.
 - **The labelers:** four Claude subagents again, one batch each, given only the rules
-  ("The labels" and "Labeling decisions" in `explanation_checker.md`), not the first run's
-  labels, explanations or results, and not ADR-0009's facts.
+  ("The labels" and "Labeling decisions" in `explanation_checker.md`, word for word), not the
+  first run's labels, explanations or results, and not ADR-0009's facts. Blind as the owner
+  asked (2026-11-21): each gets a copy of its sheet and its two blank label files in a neutral
+  folder, and nothing else: not ADR-0009, the folder's name, the first labels, the limit facts
+  or the checker's flags. The copies' first paragraph points to the rules in the prompt
+  instead of `explanation_checker.md` (which now holds the first run's results, which the
+  first labelers never saw); the rest of each sheet is unchanged. No API calls.
 - **The score:** the same rule as before, false claims among the 88, reported against the
-  first run's 22 whatever it shows, labeled exploratory and Claude's.
+  first run's 22 whatever it shows, paired by problem, labeled exploratory and Claude's.
+- **The consistency rule (the owner's, 2026-11-21, fixed before any label):** the 15 LP entries
+  are identical in both sheets. An entry's labels **match** when its false-claim label and
+  every one of its number labels equal the first labeling's. If fewer than 13 of the 15 match,
+  the before/after comparison is **inconclusive**, and is reported as that, with its counts.
 
 A paid API call can't stand in for this checker: a model labeling through the API, without
 the subagents' tools to enumerate integer solutions, would be a different checker, and its
