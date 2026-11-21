@@ -23,11 +23,10 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
      `docs/analysis/limits_claims.md` compares the two runs (exploratory): by the same rule,
      explanations with a false "not limiting" claim went 13 → 4 (the headline; what the 4 are
      is a labeled post hoc note).
-   - **The demo's disagreement badge** (2026-11-20; "Current state") now has a fifth example
-     chosen to show its warning ("Freight cars", from the resampling run, its own replies).
-     **Next, the owner's paid run** (open item 19): `python scripts/cache_examples.py --plan`
-     (no calls), then the command in its docstring (cap $0.15); then Claude turns
-     `pipeline.REFRESHED` on and commits the replies.
+   - **The demo's disagreement badge** (2026-11-20; "Current state") has a fifth example
+     chosen to show its warning ("Freight cars", from the resampling run, its own replies),
+     and since the owner's refresh (2026-11-21, $0.0136) every example compares five samples
+     and the direct answer (`pipeline.REFRESHED` on): the four written ones agree.
 3. Read "Open items" below. Everything else is optional or the owner's.
 4. Before committing: `ruff check . && ruff format --check .`, `python -m mypy`, and
    `HYPOTHESIS_PROFILE=ci python -m pytest` (about 3 minutes; with all the data here, nothing
@@ -59,8 +58,9 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   limit one unit further out (CBC and HiGHS must agree, and the arithmetic checks pass;
   otherwise null), and the explainer's facts carry the result with one more paragraph of the
   system prompt. An LP's request, and any request without limits, is byte for byte the old
-  one, so every cached explanation still replays; the demo pins `pipeline.EXPLAIN_LIMITS` off
-  until its two integer examples' replies are refreshed (the owner's paid step). The dev
+  one, so every cached explanation still replays; the demo's two integer examples were
+  re-explained with limits in the owner's refresh (2026-11-21), so `pipeline.EXPLAIN_LIMITS`
+  is on. The dev
   explanations' regeneration is `scripts/paid_explain_limits.py` (the owner's paid run; its
   `--plan` gives the calls and the worst case); the owner ran it on 2026-11-20
   (`runs/explain-dev-limits`, 73 calls, $0.0358). **Measured on dev, exploratory**
@@ -84,9 +84,9 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   own replies (samples 3 to 7 and the no-solver answer; no checklist or explanation, which the
   study never asked for): verified, flagged and wrong (5,875 against the key's 11,370). It's
   licensed text (`DATA_NOTICE.md`; the page shows its source) and an exception to "demos use
-  dev problems only" (CLAUDE.md). The four written examples still compare one sample with the
-  direct answer until the owner's paid run caches their other four samples (open item 19);
-  all agree.
+  dev problems only" (CLAUDE.md). The four written examples compare five samples and the
+  direct answer since the owner's refresh (2026-11-21, open item 19), and all agree: paint
+  1,600, baristas 16, crates 2,370, feed 370, every sample and the direct answer alike.
 - **The explanation checker's finding** (2026-11-19, exploratory, Claude's labels, not a
   person's: `docs/analysis/explanation_checker.md` and its JSON). On NL4Opt's dev split no
   explanation used a wrong number, so the number check had nothing to catch (its few flags
@@ -230,13 +230,14 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   ComplexLP (CC BY-SA 4.0) and ORLM's IndustryOR (CC BY-NC 4.0), as cleaned by LLM4OR at
   `75962df` (no license stated), plus NL4Opt (MIT). History was kept (owner, 2026-11-15):
   rewriting it would break `followup-freeze` and the commit in `FREEZE.json`.
-- **Spend:** $5.45 of the $20 credit ($0.98 before the follow-up, $0.1775 for the
+- **Spend:** $5.47 of the $20 credit ($0.98 before the follow-up, $0.1775 for the
   condition-4 dev smoke run, $2.7176 for the test run, $0.0139 for the demo examples'
   replies, $0.0399 for the paid run of 2026-11-19, ledger
   `logs/spend/paid-2026-11-19.jsonl`, and $1.4884 for the resampling study's run, ledger
   `runs/resampling/spend.jsonl`, and $0.0358 for ADR-0009's dev regeneration, ledger
-  `runs/explain-dev-limits/spend.jsonl`). About $4.82 of November's $10 limit is left; it
-  resets on December 1.
+  `runs/explain-dev-limits/spend.jsonl`, and $0.0136 for the demo's refresh, ledger
+  `logs/spend/demo-examples.jsonl`). About $4.80 of November's $10 limit is left; it resets
+  on December 1.
 
 ## Open items
 1. ~~M7 demo~~ and ~~M8's README and reproduce script~~: done 2026-11-15.
@@ -345,15 +346,12 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    the hard rule (CLAUDE.md). The resampling study's numbers are in
    `results/resampling.json`, and the README's subsection about it is checked against that
    file.
-19. **The demo's refresh, the owner's paid run** (2026-11-20): `scripts/cache_examples.py`
-   caches four more formulation samples of each written example (the badge's five-sample half)
-   and the two integer examples' explanations with ADR-0009's limits: 18 calls, worst case
-   $0.08, expected about $0.03 (`--plan`), cap $0.15. "Freight cars" needs none: it replays
-   the resampling run's replies. After the run, `pipeline.REFRESHED = True` (one line; a test
-   refuses it while anything is missing) and the replies get committed. On 2026-11-21 the
-   owner reported running it, but no reply or ledger line reached this checkout
-   (`src/opt_agent/demo/replies/` still 23 files, `--plan` still 18 calls missing), so
-   `REFRESHED` stays off until a run lands here.
+19. ~~The demo's refresh~~: done 2026-11-21. `scripts/cache_examples.py` (the owner's paid run,
+   cap $0.15) cached four more formulation samples of each written example (the badge's
+   five-sample half) and the two integer examples' explanations with ADR-0009's limits: 18
+   calls, $0.0136 (`--plan` had said worst case $0.08, expected about $0.03). "Freight cars"
+   needed none. The run landed at 00:20-00:22 EST (an earlier report of it had left nothing
+   here), and `pipeline.REFRESHED` turned on; a test refuses it while anything is missing.
 20. **The explanation checker on ADR-0009's regenerated explanations** (planned, not run;
    `docs/analysis/limits_claims.md`, last section): the blank sheets are committed in
    `review/explain_dev_limits/` (`scripts/explanation_checker.py sheet --after`). The same

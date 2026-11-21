@@ -1,0 +1,234 @@
+{
+ "request": {
+  "model": "claude-haiku-5-5",
+  "max_tokens": 8000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "A café is open every day and needs at least this many baristas on duty: 10 on Monday, 8 on Tuesday, 9 on Wednesday, 9 on Thursday, 12 on Friday, 15 on Saturday and 14 on Sunday. Each barista works five consecutive days and then has two days off, and the schedule repeats every week, so a barista can start their five-day stretch on any day. How many baristas should start on each day so that every day is covered with as few baristas as possible in total?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChFWbBCcddad4QzoFuSof",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"baristas_starting_Monday\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"baristas_starting_Tuesday\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"baristas_starting_Wednesday\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"baristas_starting_Thursday\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"baristas_starting_Friday\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"baristas_starting_Saturday\",\"lower\":0,\"upper\":null,\"integer\":true},{\"name\":\"baristas_starting_Sunday\",\"lower\":0,\"upper\":null,\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"baristas_starting_Monday\",\"coef\":1},{\"var\":\"baristas_starting_Tuesday\",\"coef\":1},{\"var\":\"baristas_starting_Wednesday\",\"coef\":1},{\"var\":\"baristas_starting_Thursday\",\"coef\":1},{\"var\":\"baristas_starting_Friday\",\"coef\":1},{\"var\":\"baristas_starting_Saturday\",\"coef\":1},{\"var\":\"baristas_starting_Sunday\",\"coef\":1}]},\"constraints\":[{\"name\":\"coverage_Monday\",\"terms\":[{\"var\":\"baristas_starting_Thursday\",\"coef\":1},{\"var\":\"baristas_starting_Friday\",\"coef\":1},{\"var\":\"baristas_starting_Saturday\",\"coef\":1},{\"var\":\"baristas_starting_Sunday\",\"coef\":1},{\"var\":\"baristas_starting_Monday\",\"coef\":1}],\"sense\":\">=\",\"rhs\":10},{\"name\":\"coverage_Tuesday\",\"terms\":[{\"var\":\"baristas_starting_Friday\",\"coef\":1},{\"var\":\"baristas_starting_Saturday\",\"coef\":1},{\"var\":\"baristas_starting_Sunday\",\"coef\":1},{\"var\":\"baristas_starting_Monday\",\"coef\":1},{\"var\":\"baristas_starting_Tuesday\",\"coef\":1}],\"sense\":\">=\",\"rhs\":8},{\"name\":\"coverage_Wednesday\",\"terms\":[{\"var\":\"baristas_starting_Saturday\",\"coef\":1},{\"var\":\"baristas_starting_Sunday\",\"coef\":1},{\"var\":\"baristas_starting_Monday\",\"coef\":1},{\"var\":\"baristas_starting_Tuesday\",\"coef\":1},{\"var\":\"baristas_starting_Wednesday\",\"coef\":1}],\"sense\":\">=\",\"rhs\":9},{\"name\":\"coverage_Thursday\",\"terms\":[{\"var\":\"baristas_starting_Sunday\",\"coef\":1},{\"var\":\"baristas_starting_Monday\",\"coef\":1},{\"var\":\"baristas_starting_Tuesday\",\"coef\":1},{\"var\":\"baristas_starting_Wednesday\",\"coef\":1},{\"var\":\"baristas_starting_Thursday\",\"coef\":1}],\"sense\":\">=\",\"rhs\":9},{\"name\":\"coverage_Friday\",\"terms\":[{\"var\":\"baristas_starting_Monday\",\"coef\":1},{\"var\":\"baristas_starting_Tuesday\",\"coef\":1},{\"var\":\"baristas_starting_Wednesday\",\"coef\":1},{\"var\":\"baristas_starting_Thursday\",\"coef\":1},{\"var\":\"baristas_starting_Friday\",\"coef\":1}],\"sense\":\">=\",\"rhs\":12},{\"name\":\"coverage_Saturday\",\"terms\":[{\"var\":\"baristas_starting_Tuesday\",\"coef\":1},{\"var\":\"baristas_starting_Wednesday\",\"coef\":1},{\"var\":\"baristas_starting_Thursday\",\"coef\":1},{\"var\":\"baristas_starting_Friday\",\"coef\":1},{\"var\":\"baristas_starting_Saturday\",\"coef\":1}],\"sense\":\">=\",\"rhs\":15},{\"name\":\"coverage_Sunday\",\"terms\":[{\"var\":\"baristas_starting_Wednesday\",\"coef\":1},{\"var\":\"baristas_starting_Thursday\",\"coef\":1},{\"var\":\"baristas_starting_Friday\",\"coef\":1},{\"var\":\"baristas_starting_Saturday\",\"coef\":1},{\"var\":\"baristas_starting_Sunday\",\"coef\":1}],\"sense\":\">=\",\"rhs\":14}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-haiku-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 1713,
+   "output_tokens": 2232,
+   "output_tokens_details": {
+    "thinking_tokens": 811
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "c163e119e56121c1761f0cff16d8b42b5360cc9e0e1c5d2eec15fb0de7bae54b",
+  "tries": 1,
+  "latency_s": 7.748131666099653,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ },
+ "sample": 2
+}

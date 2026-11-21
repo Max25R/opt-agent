@@ -123,7 +123,7 @@ Variable bounds aren't tested, only constraints.
    By the same rule, the integer programs' explanations with a false "not limiting" claim
    went 13 → 4 (of 73). A post hoc note (Claude's reading): the 4 are the rule's own
    misreadings. The rule's recall on the new wording isn't measured.
-4. [ ] Refresh the demo's two integer examples' replies (baristas, crates; the owner's paid
-   step) and turn `pipeline.EXPLAIN_LIMITS` on.
+4. [x] Refresh the demo's two integer examples' replies (baristas, crates; the owner's paid
+   run, 2026-11-21) and turn `pipeline.EXPLAIN_LIMITS` on (with `pipeline.REFRESHED`).
 5. [ ] The Agent Skill (`skills/opt-agent/`) explains from slack and binding constraints too:
    give it the same test.

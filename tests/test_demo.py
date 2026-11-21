@@ -200,14 +200,19 @@ def paint_replies() -> list[str]:
             json.dumps(checklist), explanation]  # fmt: skip
 
 
+# The badge's other formulation samples per solve (pipeline.demo_profile): 4 once refreshed.
+EXTRA = len(pipeline.demo_profile().samples) - 1
+
+
 @pytest.fixture
 def replies(tmp_path):
     """A replies directory with the paint example cached, the way cache_examples.py does it
-    but with FakeClient's replies."""
+    but with FakeClient's replies: the solve, then the badge's other samples."""
     directory = tmp_path / "replies"
-    client = FakeClient(*paint_replies())
+    client = FakeClient(*paint_replies(), *[json.dumps(REFERENCE_MODELS["paint"])] * EXTRA)
     pipeline.solve(PAINT.text, client, Cache(directory))
-    assert client.replies == []  # the whole solve used exactly these four calls
+    pipeline.extra_samples(PAINT.text, client, Cache(directory))
+    assert client.replies == []  # the solve's four calls, and one per extra sample
     return directory
 
 
@@ -249,7 +254,7 @@ def test_an_example_replays_from_its_cache_and_sends_nothing(replies):
     assert r["low_confidence"] is False and r["checklist_flags"] == []
     assert r["disagreement"]["samples_disagree"] is False
     assert r["disagreement"]["measured"]["analysis"] == pipeline.ANALYSIS_URL
-    assert (r["calls"], r["cached_calls"], r["paid_usd"]) == (4, 4, 0)
+    assert (r["calls"], r["cached_calls"], r["paid_usd"]) == (4 + EXTRA, 4 + EXTRA, 0)
     assert r["model_lines"][0] == "max 4*[interior] + 5*[exterior]"
 
 
@@ -272,7 +277,8 @@ def test_the_replay_only_client_never_sends():
 def gas_replies() -> list[str]:
     checklist = json.dumps({"variables": [], "objective": None, "requirements": [],
                             "not_requirements": [], "cannot_express": []})  # fmt: skip
-    return [GAS_REPLY, '{"status": "optimal", "objective": 251}', checklist, GOOD_EXPLANATION]
+    return [GAS_REPLY, '{"status": "optimal", "objective": 251}', checklist, GOOD_EXPLANATION,
+            *[GAS_REPLY] * EXTRA]  # the badge's other samples  # fmt: skip
 
 
 def test_live_mode_solves_with_every_reply_capped(tmp_path):
@@ -282,8 +288,10 @@ def test_live_mode_solves_with_every_reply_capped(tmp_path):
     r = response.json()
     assert r["mode"] == "live" and r["verification"]["verified"]
     assert r["objective"] == approx(251) and r["reference_objective"] is None
-    assert len(client.requests) == 4
+    assert len(client.requests) == 4 + EXTRA
     assert {req["max_tokens"] for req in client.requests} == {pipeline.MAX_TOKENS}
+    assert r["disagreement"]["samples_disagree"] is False
+    assert len(r["disagreement"]["samples"]) == 1 + EXTRA
     assert r["paid_usd"] > 0 and r["cached_calls"] == 0
     assert (tmp_path / "log.jsonl").exists()  # live calls are logged
 
@@ -293,7 +301,7 @@ def test_a_live_answer_asked_again_replays(tmp_path):
     web = live_app(tmp_path, client)
     web.post("/solve", json={"problem": GAS_PROBLEM})
     again = web.post("/solve", json={"problem": GAS_PROBLEM}).json()
-    assert again["cached_calls"] == again["calls"] == 4 and again["paid_usd"] == 0
+    assert again["cached_calls"] == again["calls"] == 4 + EXTRA and again["paid_usd"] == 0
 
 
 def test_live_mode_replays_the_examples_without_the_client(tmp_path, replies):

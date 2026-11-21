@@ -45,7 +45,7 @@ CALLS_PER_SOLVE = MAX_ATTEMPTS + 3  # the formulations, the estimate, the checkl
 # owner's) caches what's missing: the integer examples' explanations with limits, and four more
 # formulation samples of each example. Then REFRESHED turns True, and the demo explains with
 # limits and draws five samples, in both modes, so the two modes match.
-REFRESHED = False
+REFRESHED = True
 EXPLAIN_LIMITS = REFRESHED
 ANALYSIS_URL = "https://github.com/Max25R/opt-agent/blob/main/docs/resampling/RESULTS.md"
 

@@ -58,7 +58,9 @@ The demo's disagreement badge (2026-11-20): each verified answer shows the resam
 flag (its samples and Claude's direct answer), with the study's measured precision and recall
 (`demo/pipeline.py`, `MEASURED`, checked against `results/resampling.json`); a fifth example,
 "Freight cars", is chosen to show the warning. The four written examples get their extra
-samples from the owner's paid run (`scripts/cache_examples.py`), then `pipeline.REFRESHED`.
+samples from the owner's paid run (`scripts/cache_examples.py`, 2026-11-21), so
+`pipeline.REFRESHED` is on: five samples for every example, and ADR-0009's limits in the
+integer examples' explanations.
 The full record, with every
 decision and its date, is in `docs/HISTORY.md` and `docs/HANDOFF.md`'s decision logs; where
 things stand, every open item and the environment are in `docs/HANDOFF.md`. **Start from
@@ -214,8 +216,9 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
   paid $0.0399. The resampling study's run: hard cap $3.00, paid $1.4884 (owner's terminal,
   2026-11-19; `runs/resampling/spend.jsonl`). ADR-0009's dev regeneration
   (`scripts/paid_explain_limits.py`): cap $0.25, paid $0.0358 (owner's terminal, 2026-11-20;
-  `runs/explain-dev-limits/spend.jsonl`). Spent so far: $5.45 of the $20 credit (2026-11-20;
-  the ledger is in `docs/HANDOFF.md`).
+  `runs/explain-dev-limits/spend.jsonl`). The demo's refresh (`scripts/cache_examples.py`):
+  cap $0.15, paid $0.0136 (owner's terminal, 2026-11-21; `logs/spend/demo-examples.jsonl`).
+  Spent so far: $5.47 of the $20 credit (2026-11-21; the ledger is in `docs/HANDOFF.md`).
 - `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
   paid run. An unlisted model raises instead of being guessed.
 - Budget stops, spend-limit errors (`api.SpendLimitReached`: a 429 with
@@ -410,14 +413,14 @@ docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the im
 - **An explanation request without limits must stay byte for byte the one from before
   ADR-0009** (`explain.build_request` leaves `limits` out when it's None, and adds
   `LIMITS_PROMPT` only with them): every cached explanation, the demo's included, replays only
-  so (`tests/test_limits.py`). The demo keeps `pipeline.EXPLAIN_LIMITS` off until its two
-  integer examples' replies are refreshed.
+  so (`tests/test_limits.py`). The demo's `pipeline.EXPLAIN_LIMITS` follows `REFRESHED`, on
+  since the refresh of 2026-11-21.
 - **The demo replays each example with the settings its replies were made with**
   (`pipeline.profile_for`): the four written examples with the demo's, and "Freight cars"
   with the resampling study's (`pipeline.STUDY`: samples 3 to 7, 16,000 tokens, no checklist
   or explanation). `pipeline.REFRESHED` turns on the four examples' extra badge samples and
-  ADR-0009's limits together, only after `scripts/cache_examples.py` (the owner's paid run)
-  has cached them; a test fails if it's on with anything missing.
+  ADR-0009's limits together; it's on since `scripts/cache_examples.py` (the owner's paid run,
+  2026-11-21) cached them, and a test fails if anything it needs is missing.
 - **anthropic 1.15 uses `httpx2`**, not `httpx`; tests build API errors from
   `SimpleNamespace` responses (`tests/fakes.status_error`).
 - Don't keep the repo or its `.venv` under iCloud: iCloud hides `.pth` files and
