@@ -111,6 +111,9 @@ Variable bounds aren't tested, only constraints.
   does after any change under `src/opt_agent/`.
 - Revisit: if the regenerated explanations still call a limiting constraint "not limiting",
   check each claim against `dropped_improves` (Option B without its re-solve), or Option D.
+  And if the new false claims about loosening last (its direction reversed, or one unit's
+  result said of any loosening), say in the prompt that `loosened_improves` is about one unit
+  further out.
 
 ## Action Items
 
@@ -127,3 +130,7 @@ Variable bounds aren't tested, only constraints.
    run, 2026-11-21) and turn `pipeline.EXPLAIN_LIMITS` on (with `pipeline.REFRESHED`).
 5. [ ] The Agent Skill (`skills/opt-agent/`) explains from slack and binding constraints too:
    give it the same test.
+6. [x] The explanation checker's own blind labels on the regenerated explanations
+   (2026-11-21, exploratory, Claude's labels): explanations with a false claim went 22 → 11 of
+   88, comparable by the owner's rule (all 15 shared LP entries labeled alike). In Claude's
+   post hoc grouping, 4 of the 6 newly false misuse the new facts (the revisit above).

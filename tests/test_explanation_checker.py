@@ -89,3 +89,19 @@ def test_the_after_sheets_are_the_scripts_own_and_show_what_the_first_ones_did(t
     before, after = entries(checker_eval.SHEETS), entries(committed)
     assert before.keys() == after.keys() and len(after) == 88
     assert sum(before[p] == after[p] for p in after) == 15  # the LPs: their requests didn't change
+
+
+def test_the_after_record_is_what_the_two_labelings_give():
+    """score --after: the regenerated explanations' labels against the first run's, the owner's
+    consistency rule on the 15 shared LP entries, and the doc's checker results."""
+    committed = json.loads(checker_eval.AFTER_OUT.read_text())
+    assert checker_eval.compare() == committed
+    assert checker_eval.render_after(committed) in checker_eval.AFTER_DOC.read_text()
+    lp = committed["lp_agreement"]
+    assert lp["entries"] == 15 and lp["needed"] == checker_eval.LP_RULE == 13
+    expected = "inconclusive" if lp["matching"] < lp["needed"] else "comparable"
+    assert committed["verdict"] == expected
+    paired, false = committed["paired"], committed["false_claims"]
+    assert sum(paired.values()) == committed["explanations"] == 88
+    assert false["before"] == paired["false_before_fine_after"] + paired["false_in_both"] == 22
+    assert false["after"] == paired["fine_before_false_after"] + paired["false_in_both"]

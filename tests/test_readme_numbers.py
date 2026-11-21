@@ -65,8 +65,10 @@ EXPLORATORY = {
     "- **Exploratory: disagreement between attempts as a warning.**":
         (ANALYSIS / "disagreement_detector.json",),
     "- **Exploratory: the explanation checker, on dev.**":
-        (ANALYSIS / "explanation_checker.json", ANALYSIS / "limits_claims.json"),
+        (ANALYSIS / "explanation_checker.json", ANALYSIS / "limits_claims.json",
+         ANALYSIS / "limits_checker.json"),
 }  # fmt: skip
+WRITE_UP = {"limits_checker": "limits_claims"}  # a record whose write-up has another name
 # The README's cost and latency table (owner's request, 2026-11-19): numbers per answer from
 # the committed test runs' logs, not results, checked against their own record
 # (scripts/headline.py writes it) and left out of the rest.
@@ -224,7 +226,7 @@ def test_each_exploratory_bullet_comes_from_its_own_record(marker):
     line = bullet(text, marker)
     records = EXPLORATORY[marker]
     for record in records:
-        assert f"docs/analysis/{record.stem}.md" in line  # it links each write-up
+        assert f"docs/analysis/{WRITE_UP.get(record.stem, record.stem)}.md" in line  # each write-up
     assert unmatched(line, [json.loads(r.read_text()) for r in records]) == []
     assert len(NUMBER.findall(line)) >= 4  # it has numbers to check
     assert marker not in section(text, None)  # and only here

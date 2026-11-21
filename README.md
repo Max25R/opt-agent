@@ -160,8 +160,10 @@ Full write-up, with its one deviation (it changes no number):
   the solver's own test of what limits an integer program
   ([an ADR](docs/adr/0009-what-limits-an-integer-program.md)). Explaining the same dev answers
   again with it, the integer programs' explanations with such a false claim went 13 → 4 by the
-  same rule (exploratory, dev only: [details](docs/analysis/limits_claims.md); a post hoc note,
-  Claude's reading: those 4 are the rule naming the wrong constraint).
+  same rule (a post hoc note, Claude's reading: those 4 are the rule naming the wrong
+  constraint), and explanations with any false claim went 22 → 11 by the explanation checker's
+  own blind labels (exploratory, dev only, Claude's labels:
+  [details](docs/analysis/limits_claims.md)).
 - **One model.** Every number is Claude Haiku 5.5's, and H2 rests on the primary test
   alone (its caveats are under Results).
 - **The answer keys aren't perfect, and their errors cut both ways.** On NL4Opt, two LLM

@@ -98,5 +98,5 @@ def test_the_headline_is_the_records_count_everywhere():
     for rel in HEADLINED:
         assert headline in (ROOT / rel).read_text(), rel
     readme = (ROOT / "README.md").read_text()
-    note = readme[readme.index(headline) :][:400]
+    note = " ".join(readme[readme.index(headline) :][:400].split())  # line wraps aside
     assert "post hoc note" in note and "naming the wrong constraint" in note

@@ -15,6 +15,10 @@ owner's paid run (runs/explain-dev/explanations.jsonl, scripts/paid_dev_and_demo
 (runs/explain-dev-limits, into review/explain_dev_limits/), so the same checker can label
 them: the same fields (the facts line leaves out the new limits, as the first sheets had
 none), the same batches, and still none of the checker's flags.
+`score --after`: those labels against the first run's (docs/analysis/limits_checker.json and
+the checker results in docs/analysis/limits_claims.md): explanations with a false claim
+before and after, paired by problem, and the owner's consistency rule on the 15 LP entries
+the two sheets share word for word (fewer than 13 matching: inconclusive).
 
 No API calls. Run:  python scripts/explanation_checker.py sheet [--after]|score|prune
 """
@@ -42,6 +46,11 @@ OUT = ROOT / "docs" / "analysis" / "explanation_checker.json"
 BEGIN, END = "<!-- results: added after the labels -->", "<!-- end of results -->"
 AFTER_ROWS = ROOT / "runs" / "explain-dev-limits" / "explanations.jsonl"  # ADR-0009's run
 AFTER_SHEETS = ROOT / "review" / "explain_dev_limits"
+AFTER_OUT = ROOT / "docs" / "analysis" / "limits_checker.json"
+AFTER_DOC = ROOT / "docs" / "analysis" / "limits_claims.md"
+AFTER_BEGIN = "<!-- checker results: written by scripts/explanation_checker.py score --after -->"
+AFTER_END = "<!-- end of checker results -->"
+LP_RULE = 13  # of the 15 LP entries both sheets share: the owner's rule, fixed before labeling
 BATCHES = 4
 LABELS = {"correct", "wrong"}
 
@@ -192,6 +201,118 @@ def compute() -> dict:
     return result
 
 
+# ---- score --after: ADR-0009's regenerated explanations ------------------------------------
+
+
+def labeled(sheets: Path) -> tuple[dict[str, list[str]], dict[str, dict]]:
+    """Each problem's number labels, in the sheet's order, and its claims row; a blank or
+    unknown label is refused."""
+    numbers: dict[str, list[str]] = {}
+    claims: dict[str, dict] = {}
+    for path in sorted(sheets.glob("labels-*.csv")):
+        with path.open(newline="") as f:
+            for row in csv.DictReader(f):
+                if row["label"] not in LABELS:
+                    raise SystemExit(f"{path.name}: {row['problem']} number {row['index']} "
+                                     "isn't labeled correct or wrong")  # fmt: skip
+                numbers.setdefault(row["problem"], []).append(row["label"])
+    for path in sorted(sheets.glob("claims-*.csv")):
+        with path.open(newline="") as f:
+            for row in csv.DictReader(f):
+                if row["false_claim"] not in ("yes", "no"):
+                    raise SystemExit(f"{path.name}: {row['problem']}: false_claim is yes or no")
+                claims[row["problem"]] = row
+    return numbers, claims
+
+
+def compare() -> dict:
+    """The regenerated explanations' labels against the first run's; writes nothing."""
+    before_numbers, before_claims = labeled(SHEETS)
+    after_numbers, after_claims = labeled(AFTER_SHEETS)
+    rows = explained(AFTER_ROWS)
+    problems = [r["problem"] for r in rows]
+    if set(problems) != set(after_claims) or set(before_claims) != set(after_claims):
+        raise SystemExit("the two labelings don't cover the same 88 explanations")
+    lps = [r["problem"] for r in rows if not LPModel.model_validate(r["model"]).is_mip]
+
+    def false(claims: dict[str, dict], p: str) -> bool:
+        return claims[p]["false_claim"] == "yes"
+
+    def same_claim(p: str) -> bool:
+        return false(before_claims, p) == false(after_claims, p)
+
+    matching = [p for p in lps if same_claim(p) and before_numbers.get(p, []) ==
+                after_numbers.get(p, [])]  # fmt: skip
+    ips = [p for p in problems if p not in lps]
+
+    def count(claims: dict[str, dict], among: list[str]) -> int:
+        return sum(false(claims, p) for p in among)
+
+    def wrong(numbers: dict[str, list[str]]) -> int:
+        return sum(labels.count("wrong") for labels in numbers.values())
+
+    return {
+        "label": "exploratory, dev only: labels by Claude (four Claude subagents per run, an "
+                 "LLM's, not a person's), blind, by the same rules and sheets",
+        "explanations": len(problems), "integer_programs": len(ips),
+        "lp_agreement": {"entries": len(lps), "matching": len(matching), "needed": LP_RULE,
+                         "matching_false_claim_label": sum(same_claim(p) for p in lps)},
+        "verdict": "inconclusive" if len(matching) < LP_RULE else "comparable",
+        "false_claims": {"before": count(before_claims, problems),
+                         "after": count(after_claims, problems)},
+        "false_claims_integer_programs": {"before": count(before_claims, ips),
+                                          "after": count(after_claims, ips)},
+        "wrong_numbers": {"before": wrong(before_numbers), "after": wrong(after_numbers)},
+        "paired": {
+            "false_before_fine_after": sum(false(before_claims, p) and not false(after_claims, p)
+                                           for p in problems),
+            "fine_before_false_after": sum(false(after_claims, p) and not false(before_claims, p)
+                                           for p in problems),
+            "false_in_both": sum(false(before_claims, p) and false(after_claims, p)
+                                 for p in problems),
+            "fine_in_both": sum(not false(before_claims, p) and not false(after_claims, p)
+                                for p in problems),
+        },
+        "lp_entries_not_matching": [p for p in lps if p not in matching],
+        "per_problem": [{"problem": p, "integer_program": p in ips,
+                         "before": false(before_claims, p), "after": false(after_claims, p),
+                         "after_note": after_claims[p]["note"]} for p in problems],
+    }  # fmt: skip
+
+
+def render_after(d: dict) -> str:
+    lp, f, fi, w, p = (d["lp_agreement"], d["false_claims"], d["false_claims_integer_programs"],
+                       d["wrong_numbers"], d["paired"])  # fmt: skip
+    verdict = ("**inconclusive**: the labelers didn't agree with the first labeling closely "
+               "enough on entries that didn't change" if d["verdict"] == "inconclusive"
+               else "comparable")  # fmt: skip
+    return "\n".join([
+        "### The checker's labels, before and after", "",
+        "Exploratory, dev only, one sample per problem; labels by Claude (four Claude subagents "
+        "per run, an LLM's, not a person's), blind, by the same rules and sheets.", "",
+        f"**The consistency rule:** on the {lp['entries']} LP entries both sheets share word for "
+        f"word, the new labels match the first labeling's on {lp['matching']} (every label "
+        f"alike; on the false-claim label alone, {lp['matching_false_claim_label']}); "
+        f"{lp['needed']} were needed, so the before/after comparison is {verdict}.", "",
+        "| | before | after |", "|---|---:|---:|",
+        f"| explanations with a false claim (of {d['explanations']}) | {f['before']} | "
+        f"{f['after']} |",
+        f"| ... of the {d['integer_programs']} integer programs | {fi['before']} | "
+        f"{fi['after']} |",
+        f"| numbers labeled wrong | {w['before']} | {w['after']} |", "",
+        f"Paired by problem: {p['false_before_fine_after']} explanations had a false claim "
+        f"before and none after, {p['fine_before_false_after']} the reverse, "
+        f"{p['false_in_both']} had one in both, and {p['fine_in_both']} in neither.",
+    ])  # fmt: skip
+
+
+def write_after(d: dict) -> None:
+    AFTER_OUT.write_text(json.dumps(d, indent=1) + "\n")
+    doc = AFTER_DOC.read_text()
+    start, end = doc.index(AFTER_BEGIN) + len(AFTER_BEGIN), doc.index(AFTER_END)
+    AFTER_DOC.write_text(doc[:start] + "\n\n" + render_after(d) + "\n\n" + doc[end:])
+
+
 def score() -> dict:
     result = compute()
     OUT.write_text(json.dumps(result, indent=1) + "\n")
@@ -279,6 +400,10 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.step == "sheet":
         write_sheets(*((AFTER_ROWS, AFTER_SHEETS) if args.after else (ROWS, SHEETS)))
+    elif args.step == "score" and args.after:
+        result = compare()
+        write_after(result)
+        print(render_after(result))
     elif args.step == "prune":
         prune()
     else:

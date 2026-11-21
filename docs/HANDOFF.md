@@ -352,12 +352,12 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    calls, $0.0136 (`--plan` had said worst case $0.08, expected about $0.03). "Freight cars"
    needed none. The run landed at 00:20-00:22 EST (an earlier report of it had left nothing
    here), and `pipeline.REFRESHED` turned on; a test refuses it while anything is missing.
-20. **The explanation checker on ADR-0009's regenerated explanations** (planned, not run;
-   `docs/analysis/limits_claims.md`, last section): the blank sheets are committed in
-   `review/explain_dev_limits/` (`scripts/explanation_checker.py sheet --after`). The same
-   checker as the first run's 22 is four Claude subagents labeling them in a session (no API
-   call), given only the rules; a paid API labeler would be a different checker. Scoring it
-   needs a `score --after` step, not written yet.
+20. ~~The explanation checker on ADR-0009's regenerated explanations~~: done 2026-11-21
+   (`docs/analysis/limits_claims.md`, last section; `docs/analysis/limits_checker.json`). Four
+   blind Claude subagents labeled `review/explain_dev_limits/` in a session (no API call), and
+   `scripts/explanation_checker.py score --after` scored it: 22 → 11 explanations with a false
+   claim, comparable by the owner's rule (15 of 15 shared LP entries alike). Exploratory,
+   Claude's labels; the headline stays the rule's 13 → 4.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all three studies ran and
