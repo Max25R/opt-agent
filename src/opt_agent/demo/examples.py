@@ -11,7 +11,13 @@ model is the right reading of the text, so the reference is the part only a pers
 Integrality: the staffing problem is the one where it matters (its LP relaxation is 15.4
 baristas, the integer optimum 16). The transportation problem counts crates, but its LP
 optimum is whole anyway, and the other two are in litres and kilograms.
+
+A fifth example (FREIGHT) is none of the four kinds: it's benchmark text, chosen to show the
+disagreement badge's warning, which the four never trigger (the owner's request,
+2026-11-20). See its comment.
 """
+
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -24,6 +30,10 @@ class Example(BaseModel):
     reference_objective: float
     reference_note: str  # the hand-worked optimum, in words
     integer: bool  # whether integrality changes the answer
+    replay: Literal["demo", "resampling"] = "demo"  # whose replies it replays (pipeline.PROFILES)
+    reference_kind: str = "hand-checked"  # who worked out reference_objective
+    source: str | None = None  # a benchmark problem's origin and license
+    chosen: str | None = None  # why an example that's none of the four kinds is here
 
 
 EXAMPLES = [
@@ -98,9 +108,53 @@ EXAMPLES = [
         "the protein minimum and the fiber maximum are both exactly met.",
         integer=False,
     ),
+    # Chosen to show the disagreement badge's warning (the owner's request, 2026-11-20): the
+    # four above all agree. This is benchmark text, the follow-up's test problem
+    # complexlp:195 (ComplexLP, CC BY-SA 4.0; DATA_NOTICE.md), so it breaks the rule that
+    # demos use dev problems only, on the owner's request; the resampling study it comes from
+    # is analyzed, so no result changes, but a future study on those problems should count it
+    # as exposed. It replays that study's own recorded replies (pipeline.PROFILES
+    # ["resampling"]): sample 3, its unit, which passed every check and was wrong (it left out
+    # the two surplus regions' limits), four other samples and the no-solver answer.
+    Example(
+        id="freight",
+        kind="chosen to show the warning",
+        title="Freight cars",
+        text=(
+            "The China Railroad Ministry is in the process of planning relocations of freight "
+            "cars among 5 regions of the country to get ready for the fall harvest. The "
+            "following presents the costs of moving a car between each pair of regions. The "
+            "costs are as follows: moving a car from region 1 to region 2 costs 10 units, to "
+            "region 3 costs 12 units, to region 4 costs 17 units, and to region 5 costs 34 "
+            "units. From region 2 to region 1 costs 10 units, to region 3 costs 18 units, to "
+            "region 4 costs 8 units, and to region 5 costs 46 units. From region 3, moving a car "
+            "to region 1 costs 12 units, to region 2 costs 18 units, to region 4 costs 9 units, "
+            "and to region 5 costs 27 units. From region 4, the cost to move a car to region 1 "
+            "is 17 units, to region 2 is 8 units, to region 3 is 9 units, and to region 5 is 20 "
+            "units. Lastly, from region 5 to region 1 the cost is 34 units, to region 2 is 46 "
+            "units, to region 3 is 27 units, and to region 4 is 20 units. The following displays "
+            "the current number of cars and the number needed for harvest shipping in each "
+            "region. Region 1 currently has 115 cars but needs 200. Region 2 has 385 cars "
+            "available but requires 500. Region 3 has 410 cars against a need of 800. Region 4 "
+            "is currently equipped with 480 cars, yet the need is only for 200. Finally, region "
+            "5 has 610 cars available, with a need for 300 cars. Minimize the cost to move the "
+            "cars such as the need is met. Provide your answer rounded to the nearest dollar."
+        ),
+        reference_objective=11370,
+        reference_note="11,370: the benchmark's answer key, as the follow-up scored it; not "
+        "worked out by hand.",
+        integer=False,
+        replay="resampling",
+        reference_kind="benchmark's",
+        source="complexlp:195 from ComplexLP (the Mamo benchmark, Huang et al. 2024, CC BY-SA "
+        "4.0), as cleaned by LLM4OR (commit 75962df); the text is unchanged.",
+        chosen="Chosen to show the warning: in the pre-registered resampling study, this "
+        "answer passed every check and was wrong, and Claude's other samples and its "
+        "no-solver answer disagreed with it. Its replies are that run's own.",
+    ),
 ]
 
-# Candidates for a fifth example that shows self-correction (ADR-0007, action item 2): each
+# Candidates for an example that shows self-correction (ADR-0007, action item 2): each
 # hides a units or percentage trap whose literal misreading makes the model infeasible, so
 # the solver's feedback (the conflicting constraints) would have something to fix. The
 # owner's paid run (scripts/paid_dev_and_demo.py, 2026-11-19) tried five fresh samples of

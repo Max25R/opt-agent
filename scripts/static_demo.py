@@ -22,7 +22,8 @@ couldn't say what built it. A build refuses to finish if any response isn't a 20
 `--check DIR` opens a built site in headless Chromium (Playwright, from the optional
 requirements-docs.lock) under a base path, as GitHub Pages serves it, and answers every
 request from DIR: nothing listens on a port and nothing is sent. Each example's button must
-give a verified answer that matches its hand-checked one, other text must get the
+give a verified answer that matches its hand-checked one (the example chosen to show the
+disagreement badge's warning: a verified, flagged and wrong one), other text must get the
 examples-only refusal, the page must raise no error, and it must ask for nothing but GETs of
 the site's own files.
 
@@ -127,11 +128,18 @@ def check(site: Path) -> None:
             page.wait_for_selector("#result:not([hidden])")
             verdict = page.get_attribute("#verdict", "class") or ""
             answer = page.inner_text("#answer")
+            badge = page.inner_text("#disagreement")  # the resampling study's flag
+            if "pre-registered test" not in badge:
+                raise SystemExit(f"{example['id']}: no disagreement badge: {badge!r}")
+            if example["chosen"]:  # chosen to show the warning: verified, flagged, and wrong
+                shown = (badge.startswith("Samples disagree") and "ok" in verdict.split()
+                         and page.is_visible("#example-note"))  # fmt: skip
+                if not shown or "benchmark's answer is" not in answer:
+                    raise SystemExit(f"{example['id']}: not the warning it was chosen for")
+                print(f"{example['id']}: verified, flagged by the badge, and wrong, as chosen")
+                continue
             if "ok" not in verdict.split() or "Matches the hand-checked answer" not in answer:
                 raise SystemExit(f"{example['id']}: not verified and matching: {answer!r}")
-            badge = page.inner_text("#disagreement")  # the resampling study's flag
-            if not badge.startswith("Samples ") or "pre-registered test" not in badge:
-                raise SystemExit(f"{example['id']}: no disagreement badge: {badge!r}")
             print(f"{example['id']}: verified, matches the hand-checked answer; "
                   f"{badge.splitlines()[0]}")  # fmt: skip
         page.goto(ORIGIN + BASE)

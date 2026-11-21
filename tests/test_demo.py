@@ -88,7 +88,10 @@ REFERENCE_MODELS = {
 # ---- the examples -----------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("example", examples.EXAMPLES + examples.FIX_STEP_CANDIDATES,
+HAND_CHECKED = [e for e in examples.EXAMPLES if e.reference_kind == "hand-checked"]
+
+
+@pytest.mark.parametrize("example", HAND_CHECKED + examples.FIX_STEP_CANDIDATES,
                          ids=lambda e: e.id)  # fmt: skip
 def test_each_reference_answer_is_its_hand_written_models_optimum(example):
     lp = LPModel.model_validate(REFERENCE_MODELS[example.id])
@@ -135,12 +138,20 @@ def benchmark_texts() -> dict[str, list[str]]:
 
 
 def test_the_examples_are_four_kinds_and_none_is_benchmark_text():
-    assert [e.kind for e in examples.EXAMPLES] == [
+    """The four kinds are written for this project. The one benchmark problem is labeled as
+    chosen, says where its text comes from, and replays the resampling study's replies."""
+    mine = [e for e in examples.EXAMPLES if e.source is None]
+    assert [e.kind for e in mine] == [
         "production mix", "staffing", "transportation", "blending"]  # fmt: skip
-    assert any(e.integer for e in examples.EXAMPLES)
+    assert any(e.integer for e in mine)
+    chosen = [e for e in examples.EXAMPLES if e.source is not None]
+    assert [(e.id, e.replay, e.reference_kind) for e in chosen] == [
+        ("freight", "resampling", "benchmark's")]  # fmt: skip
+    assert chosen[0].chosen.startswith("Chosen to show the warning")
+    assert "CC BY-SA 4.0" in chosen[0].source
     sources = {name: set().union(*map(eight_word_runs, texts))
                for name, texts in benchmark_texts().items()}  # fmt: skip
-    for e in examples.EXAMPLES + examples.FIX_STEP_CANDIDATES:
+    for e in mine + examples.FIX_STEP_CANDIDATES:
         mine = eight_word_runs(e.text)
         for name, runs in sources.items():
             assert not mine & runs, f"{e.id} shares 8 words in a row with a {name} problem"
@@ -221,8 +232,8 @@ def test_the_page_health_and_examples(tmp_path, replies):
     assert (health["status"], health["mode"], health["examples_cached"]) == ("ok", "examples", 1)
     assert health["max_tokens"] == pipeline.MAX_TOKENS == 8_000
     listed = web.get("/examples").json()
-    assert [e["id"] for e in listed] == ["paint", "baristas", "crates", "feed"]
-    assert [e["cached"] for e in listed] == [True, False, False, False]
+    assert [e["id"] for e in listed] == ["paint", "baristas", "crates", "feed", "freight"]
+    assert [e["cached"] for e in listed] == [True, False, False, False, False]
 
 
 def test_an_example_replays_from_its_cache_and_sends_nothing(replies):
@@ -360,16 +371,50 @@ def test_the_image_never_gets_the_key_the_data_or_the_runs():
 # ---- the committed replies --------------------------------------------------------------
 
 
-@pytest.mark.parametrize("example", examples.EXAMPLES, ids=lambda e: e.id)
+def replayed(example) -> pipeline.SolveResponse:
+    """An example from the committed replies, with no client at all, as the app replays it."""
+    profile, cache = pipeline.profile_for(example), Cache(demo_app.REPLIES)
+    result = pipeline.solve(example.text, ReplayOnlyClient(), cache, profile=profile)
+    samples = pipeline.extra_samples(example.text, ReplayOnlyClient(), cache, profile)
+    return pipeline.to_response(result, "examples", example, samples)
+
+
+@pytest.mark.parametrize("example", HAND_CHECKED, ids=lambda e: e.id)
 def test_each_committed_example_replays_and_matches_its_hand_checked_answer(example):
     """The replies scripts/cache_examples.py wrote (the owner's paid run, 2026-11-15) replay
     with no client at all, every call from the cache. A change to a prompt or a setting
     would miss them: re-cache, never edit them."""
-    result = pipeline.solve(example.text, ReplayOnlyClient(), Cache(demo_app.REPLIES))
-    r = pipeline.to_response(result, "examples", example)
+    r = replayed(example)
     assert r.verification.verified and r.matches_reference is True
     assert r.calls == r.cached_calls and r.paid_usd == 0
-    assert r.disagreement.samples_disagree is False  # Claude's direct answer agrees on each
+    assert r.disagreement.samples_disagree is False  # every sample and the direct answer agree
+    assert len(r.disagreement.samples) == len(pipeline.demo_profile().samples)
+
+
+def test_the_example_chosen_to_show_the_warning_replays_the_studys_own_replies():
+    """complexlp:195's six recorded replies from the resampling run (copied from
+    runs/resampling/cache): sample 3, its unit, verified and wrong (5,875 against the key's
+    11,370); four other samples and the no-solver answer, all 11,370. Nothing else is asked."""
+    r = replayed(examples.BY_ID["freight"])
+    assert r.verification.verified and r.matches_reference is False
+    assert (r.objective, r.reference_objective, r.reference_kind) == (5875, 11370, "benchmark's")
+    d = r.disagreement
+    assert d.samples_disagree is True
+    assert [a.objective for a in d.samples] == [5875, 11370, 11370, 11370, 11370]
+    assert d.direct is not None and d.direct.objective == 11370
+    assert (r.calls, r.cached_calls, r.paid_usd) == (6, 6, 0)
+    assert r.explanation is None and r.no_explanation and r.checklist_flags is None
+    assert r.example_note.startswith("Chosen to show the warning") and "CC BY-SA" in r.example_note
+
+
+def test_its_text_and_key_are_the_benchmarks():
+    from opt_agent import followup, followup_freeze
+
+    if not all(p.exists() for p in followup_freeze.data_files()):
+        pytest.skip("needs the LLM4OR data (docs/EXTERNAL_DATA.md)")
+    record = {p.id: p for p in followup.read_test()}["complexlp:195"]
+    freight = examples.BY_ID["freight"]
+    assert freight.text == record.document and freight.reference_objective == record.answer
 
 
 # ---- the disagreement badge ---------------------------------------------------------------
@@ -407,13 +452,58 @@ def test_the_badge_flags_a_direct_answer_that_differs_or_is_missing(tmp_path, es
     replies[1] = estimate
     result = pipeline.solve(GAS_PROBLEM, FakeClient(*replies), Cache(tmp_path / "cache"))
     assert result.verified
-    assert pipeline.samples_disagree(result) is flagged
+    assert pipeline.disagreement(result, []).samples_disagree is flagged
     assert pipeline.to_response(result, "live").disagreement.samples_disagree is flagged
+
+
+@pytest.mark.parametrize(
+    ("other", "flagged"),
+    [
+        (GAS_REPLY, False),  # the same model: the same answer
+        (json.dumps(model(["x"], "max", {"x": 1}, [("cap", {"x": 1}, "<=", 3)])), True),
+        ('{"variables": []}', True),  # an unusable reply: no answer, which differs
+    ],
+)
+def test_the_badge_flags_samples_that_dont_all_agree(tmp_path, other, flagged):
+    """Five samples, as the study drew them: the answer, three that repeat it, and `other`."""
+    profile = pipeline.Profile(max_tokens=pipeline.MAX_TOKENS, max_attempts=1, checklist=False,
+                               explain=False, samples=(0, 1, 2, 3, 4))  # fmt: skip
+    client = FakeClient(GAS_REPLY, '{"status": "optimal", "objective": 251}', GAS_REPLY,
+                        GAS_REPLY, GAS_REPLY, other)  # fmt: skip
+    cache = Cache(tmp_path / "cache")
+    result = pipeline.solve(GAS_PROBLEM, client, cache, profile=profile)
+    samples = pipeline.extra_samples(GAS_PROBLEM, client, cache, profile)
+    assert client.replies == [] and len(samples) == 4
+    d = pipeline.disagreement(result, samples)
+    assert d.samples_disagree is flagged and len(d.samples) == 5
+    assert pipeline.to_response(result, "live", samples=samples).calls == 6
 
 
 def test_no_verified_answer_gets_no_badge():
     """Only a verified answer is one of the study's units; anything else gets no badge."""
     from types import SimpleNamespace
 
-    unverified = SimpleNamespace(verified=False, estimate=None, solution=None)
-    assert pipeline.samples_disagree(unverified) is None  # type: ignore[arg-type]
+    unverified = SimpleNamespace(verified=False, confirmed=False, estimate=None, solution=None)
+    assert pipeline.disagreement(unverified, []).samples_disagree is None  # type: ignore[arg-type]
+
+
+def test_the_refresh_plan_counts_only_what_the_refreshed_demo_lacks():
+    """scripts/cache_examples.py --plan: once REFRESHED is on, nothing may be missing (so the
+    switch can't turn on before the owner's paid run has cached its replies); before, only the
+    four examples' extra samples and the integer examples' explanations with limits."""
+    import importlib.util
+
+    from opt_agent.runs import REPO_ROOT
+
+    spec = importlib.util.spec_from_file_location(
+        "cache_examples", REPO_ROOT / "scripts" / "cache_examples.py")  # fmt: skip
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    cache = Cache(demo_app.REPLIES)
+    for e in examples.EXAMPLES:
+        kinds = [kind for kind, _ in script.missing(e, cache)]
+        if pipeline.REFRESHED or e.replay == "resampling":
+            assert kinds == [], e.id
+        else:
+            assert kinds.count("formulation") == 4 and set(kinds) <= {"formulation", "explanation"}
+            assert ("explanation" in kinds) == (e.id in ("baristas", "crates")), e.id

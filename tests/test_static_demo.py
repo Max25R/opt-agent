@@ -40,10 +40,14 @@ def test_the_site_is_the_page_and_the_apps_own_responses(site):
 
 
 def test_every_example_on_the_site_is_verified_matches_and_paid_nothing(site):
-    assert json.loads((site / "health.json").read_text())["examples_cached"] == 4
+    """Each example matches its hand-checked answer, except the one chosen to show the
+    disagreement badge's warning, which is flagged and wrong, as chosen."""
+    assert json.loads((site / "health.json").read_text())["examples_cached"] == 5
     for e in examples.EXAMPLES:
         r = json.loads((site / "solve" / f"{e.id}.json").read_text())
-        assert r["verification"]["verified"] and r["matches_reference"] is True, e.id
+        assert r["verification"]["verified"], e.id
+        assert r["matches_reference"] is (e.chosen is None), e.id
+        assert r["disagreement"]["samples_disagree"] is (e.chosen is not None), e.id
         assert r["calls"] == r["cached_calls"] and r["paid_usd"] == 0, e.id
 
 

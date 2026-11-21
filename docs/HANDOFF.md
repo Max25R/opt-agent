@@ -21,8 +21,11 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
      program, the explainer gets the solver's own test of what limits the answer. The owner
      regenerated the dev explanations with it (`runs/explain-dev-limits`, $0.0358), and
      `docs/analysis/limits_claims.md` compares the two runs (exploratory).
-   - **The demo's disagreement badge is done** (2026-11-20; "Current state"). What's left is
-     the owner's to choose: the paid steps in open items 16 and 19.
+   - **The demo's disagreement badge** (2026-11-20; "Current state") now has a fifth example
+     chosen to show its warning ("Freight cars", from the resampling run, its own replies).
+     **Next, the owner's paid run** (open item 19): `python scripts/cache_examples.py --plan`
+     (no calls), then the command in its docstring (cap $0.15); then Claude turns
+     `pipeline.REFRESHED` on and commits the replies.
 3. Read "Open items" below. Everything else is optional or the owner's.
 4. Before committing: `ruff check . && ruff format --check .`, `python -m mypy`, and
    `HYPOTHESIS_PROFILE=ci python -m pytest` (about 3 minutes; with all the data here, nothing
@@ -63,17 +66,23 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   unchanged, against the solver's facts, in both runs; the counts are in its JSON. Its
   reading (Claude's) is that the flags left after are the rule's misattributions; the rule's
   recall on the new wording isn't measured.
-- **The demo's disagreement badge** (2026-11-20, the owner's request, after R1 was supported).
+- **The demo's disagreement badge** (2026-11-20, the owner's requests, after R1 was supported).
   In the Flags card (outside the README screenshot's clip, so `docs/demo.png` is unchanged),
-  each verified answer shows "Samples disagree — lower confidence" or "Samples agree", with the
-  study's measured precision, recall and base rate and a link to `docs/resampling/RESULTS.md`.
-  The counts are `pipeline.MEASURED`, copied because the image has no `results/`, and
-  `tests/test_demo.py` checks them against `results/resampling.json`. The demo can check only
-  the flag's no-solver half: each example has one formulation, so the badge compares the
-  verified answer with Claude's direct answer (the baseline's own request), by the study's rule
-  (`followup_report.same_answer`, 1e-4; a missing direct answer counts as differing). All four
-  examples agree, so the page shows "Samples agree" on each; the static site's check requires
-  the badge.
+  each verified answer shows "Samples disagree — lower confidence" or "Samples agree", what it
+  compared, the study's measured precision, recall and base rate, and a link to
+  `docs/resampling/RESULTS.md`. The counts are `pipeline.MEASURED`, copied because the image
+  has no `results/`, and `tests/test_demo.py` checks them against `results/resampling.json`.
+  The flag is the study's (`pipeline.disagreement`, its rules and its `all_agree` and
+  `same_answer`): the answer and the other formulation samples must agree, and so must Claude's
+  direct answer. Each example replays with the settings its replies were made with
+  (`pipeline.profile_for`). **"Freight cars"** (the owner's request): the follow-up's test
+  problem `complexlp:195`, chosen to show the warning, replaying six of the resampling run's
+  own replies (samples 3 to 7 and the no-solver answer; no checklist or explanation, which the
+  study never asked for): verified, flagged and wrong (5,875 against the key's 11,370). It's
+  licensed text (`DATA_NOTICE.md`; the page shows its source) and an exception to "demos use
+  dev problems only" (CLAUDE.md). The four written examples still compare one sample with the
+  direct answer until the owner's paid run caches their other four samples (open item 19);
+  all agree.
 - **The explanation checker's finding** (2026-11-19, exploratory, Claude's labels, not a
   person's: `docs/analysis/explanation_checker.md` and its JSON). On NL4Opt's dev split no
   explanation used a wrong number, so the number check had nothing to catch (its few flags
@@ -332,10 +341,12 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    the hard rule (CLAUDE.md). The resampling study's numbers are in
    `results/resampling.json`, and the README's subsection about it is checked against that
    file.
-19. **The demo badge's five-sample half** (from 2026-11-20): the study's flag also fires when
-   five formulation samples disagree, and each example has one. Caching four more samples per
-   example would let the badge check that half too: 16 formulation calls, a paid run, the
-   owner's (like `scripts/cache_examples.py`); until then the badge says which half it checks.
+19. **The demo's refresh, the owner's paid run** (2026-11-20): `scripts/cache_examples.py`
+   caches four more formulation samples of each written example (the badge's five-sample half)
+   and the two integer examples' explanations with ADR-0009's limits: 18 calls, worst case
+   $0.08, expected about $0.03 (`--plan`), cap $0.15. "Freight cars" needs none: it replays
+   the resampling run's replies. After the run, `pipeline.REFRESHED = True` (one line; a test
+   refuses it while anything is missing) and the replies get committed.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all three studies ran and

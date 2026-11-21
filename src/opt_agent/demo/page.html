@@ -108,6 +108,7 @@
 
   <section id="result" hidden>
     <div class="verdict" id="verdict"></div>
+    <p class="note" id="example-note" hidden></p>
     <div class="grid">
       <div class="card">
         <h2>Answer</h2>
@@ -205,11 +206,15 @@ function disagreement(d) {
   const box = $("disagreement"); box.replaceChildren();
   if (d.samples_disagree === null) return;  // no verified answer: nothing the study would flag
   const m = d.measured, pct = ([k, n]) => (100 * k / n).toFixed(1) + "%";
+  const said = (a) => a === null ? "no answer" : (a.objective !== null ? num(a.objective) : a.status);
   box.append(el("span", d.samples_disagree ? "Samples disagree — lower confidence" : "Samples agree",
                 "badge " + (d.samples_disagree ? "flag-warn" : "flag-pass")));
-  const note = el("p", `Claude's direct answer, with no solver, ${d.samples_disagree ? "differs from" :
-    "matches"} the verified one. A pre-registered test of this flag (five formulation samples and ` +
-    `a no-solver answer, on ${m.answers} verified answers to harder problems): flagged answers ` +
+  const compared = d.samples.length > 1
+    ? `${d.samples.length} formulation samples (this answer first): ${d.samples.map(said).join(" · ")}`
+    : `this answer, ${said(d.samples[0])}`;
+  const note = el("p", `Compared: ${compared}; and Claude's direct answer, with no solver: ` +
+    `${said(d.direct)}. A pre-registered test of this flag (five formulation samples and a ` +
+    `no-solver answer, on ${m.answers} verified answers to harder problems): flagged answers ` +
     `were wrong ${pct(m.precision)} of the time, against ${pct(m.base_rate)} overall (precision), ` +
     `and the flag caught ${pct(m.recall)} of the wrong answers (recall). `, "muted");
   const link = el("a", "The analysis");
@@ -292,11 +297,13 @@ function show(r) {
   } else {
     answer.append(el("p", r.status ? `The model is ${r.status}.` : "No usable model.", "muted"));
   }
+  $("example-note").textContent = r.example_note || "";
+  $("example-note").hidden = !r.example_note;
   if (r.reference_objective !== null) {
-    const ok = r.matches_reference;
+    const ok = r.matches_reference, whose = r.reference_kind || "hand-checked";
     answer.append(el("div", ok
-      ? `Matches the hand-checked answer (${num(r.reference_objective)}).`
-      : `The hand-checked answer is ${num(r.reference_objective)}: verification can't see a model that misreads the text.`,
+      ? `Matches the ${whose} answer (${num(r.reference_objective)}).`
+      : `The ${whose} answer is ${num(r.reference_objective)}: verification can't see a model that misreads the text.`,
       "note"));
   }
 
@@ -317,7 +324,7 @@ function show(r) {
       explanation.append(el("div", "Not backed by the solver's numbers: " + r.explanation_unsupported.join(", "), "note"));
     if (r.explanation_problem) explanation.append(el("div", r.explanation_problem, "note"));
   } else {
-    explanation.append(el("p", "Only verified answers are explained.", "muted"));
+    explanation.append(el("p", r.no_explanation || "Only verified answers are explained.", "muted"));
   }
 
   disagreement(r.disagreement);

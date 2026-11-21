@@ -207,12 +207,14 @@ docker build -t opt-agent .
 docker run --rm -p 8000:8000 opt-agent
 ```
 
-Open `http://localhost:8000` and pick an example. Examples mode replays the four example
+Open `http://localhost:8000` and pick an example. Examples mode replays the example
 problems' cached replies; any other text needs live mode and your own Anthropic key in `.env`
-(the image never contains it). Each verified answer also gets a disagreement badge, "samples
-disagree — lower confidence" or "samples agree": whether Claude's direct, no-solver answer
-matches it, the half of the [resampling study](#resampling-the-disagreement-flag-confirmed)'s
-flag that one solve can check, shown with the precision and recall that study measured.
+(the image never contains it). Each verified answer also gets the
+[resampling study](#resampling-the-disagreement-flag-confirmed)'s disagreement badge,
+"samples disagree — lower confidence" or "samples agree", shown with the precision and recall
+that study measured. Four examples are written for this project and all agree; the fifth,
+"Freight cars", is benchmark text chosen to show the warning: a problem from the resampling
+study whose answer passed every check and was wrong, replayed from that run's own replies.
 
 ```bash
 docker run --rm -p 8000:8000 --env-file .env -e OPT_AGENT_LIVE=1 opt-agent

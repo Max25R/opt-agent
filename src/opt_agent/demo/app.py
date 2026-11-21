@@ -86,12 +86,12 @@ def create_app(settings: Settings | None = None, client=None) -> FastAPI:
             "model": pipeline.MODEL,
             "max_problem_chars": pipeline.MAX_PROBLEM_CHARS,
             "max_tokens": pipeline.MAX_TOKENS,
-            "examples_cached": sum(_cached(e.text, settings) for e in examples.EXAMPLES),
+            "examples_cached": sum(_cached(e, settings) for e in examples.EXAMPLES),
         }
 
     @app.get("/examples")
     def list_examples() -> list[dict]:
-        return [e.model_dump() | {"cached": _cached(e.text, settings)}
+        return [e.model_dump() | {"cached": _cached(e, settings)}
                 for e in examples.EXAMPLES]  # fmt: skip
 
     @app.post("/solve", response_model=pipeline.SolveResponse)
@@ -111,26 +111,33 @@ def create_app(settings: Settings | None = None, client=None) -> FastAPI:
                                 "with OPT_AGENT_LIVE=1 and your own key)")  # fmt: skip
         if not app.state.one_at_a_time.acquire(blocking=False):
             raise HTTPException(429, "busy: live mode solves one problem at a time")
+        cache = Cache(settings.live_cache)
         try:
-            result = pipeline.solve(problem, client, Cache(settings.live_cache), settings.log)
+            result = pipeline.solve(problem, client, cache, settings.log)
+            samples = pipeline.extra_samples(problem, client, cache, log=settings.log)
         except RunStopped as stop:  # the dollar cap, or the account's spend limit
             raise HTTPException(503, f"no more live calls: {stop}") from None
         finally:
             app.state.one_at_a_time.release()
-        return pipeline.to_response(result, "live")
+        return pipeline.to_response(result, "live", samples=samples)
 
     return app
 
 
 def _replay(problem: str, example: examples.Example, settings: Settings):
+    """An example, from its cached replies, with the settings they were made with."""
+    profile, cache = pipeline.profile_for(example), Cache(settings.replies)
+    client = ReplayOnlyClient()
     try:
-        result = pipeline.solve(problem, ReplayOnlyClient(), Cache(settings.replies))  # type: ignore[arg-type]  # it stands in for anthropic.Anthropic
+        result = pipeline.solve(problem, client, cache, profile=profile)  # type: ignore[arg-type]  # it stands in for anthropic.Anthropic
+        samples = pipeline.extra_samples(problem, client, cache, profile)  # type: ignore[arg-type]
     except NotCached:
         raise HTTPException(503, f"the replies for example '{example.id}' aren't cached yet "
                             "(scripts/cache_examples.py)") from None  # fmt: skip
-    return pipeline.to_response(result, settings.mode, example)
+    return pipeline.to_response(result, settings.mode, example, samples)
 
 
-def _cached(problem: str, settings: Settings) -> bool:
+def _cached(example: examples.Example, settings: Settings) -> bool:
     """Whether the example's first call (its formulation) replays; the rest follow it."""
-    return pipeline.first_call_cached(problem, Cache(settings.replies))
+    profile = pipeline.profile_for(example)
+    return pipeline.first_call_cached(example.text, Cache(settings.replies), profile)

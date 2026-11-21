@@ -50,9 +50,11 @@ the owner on 2026-11-19, analyzed on 2026-11-20): R1 is supported (`results/resa
 also gets the solver's own test of what limits the answer (`src/opt_agent/limits.py`); the owner
 regenerated the dev explanations with it (`runs/explain-dev-limits`), compared in
 `docs/analysis/limits_claims.md` (exploratory, dev only).
-The demo's disagreement badge (2026-11-20): each verified answer shows whether Claude's direct
-answer matches it, with the resampling study's measured precision and recall
-(`demo/pipeline.py`, `MEASURED`, checked against `results/resampling.json`).
+The demo's disagreement badge (2026-11-20): each verified answer shows the resampling study's
+flag (its samples and Claude's direct answer), with the study's measured precision and recall
+(`demo/pipeline.py`, `MEASURED`, checked against `results/resampling.json`); a fifth example,
+"Freight cars", is chosen to show the warning. The four written examples get their extra
+samples from the owner's paid run (`scripts/cache_examples.py`), then `pipeline.REFRESHED`.
 The full record, with every
 decision and its date, is in `docs/HISTORY.md` and `docs/HANDOFF.md`'s decision logs; where
 things stand, every open item and the environment are in `docs/HANDOFF.md`. **Start from
@@ -290,7 +292,7 @@ python -m opt_agent.demo            # the demo, examples mode (no key): http://1
 python scripts/static_demo.py       # the demo as a static site (build/site; GitHub Pages, via CI)
 python scripts/static_demo.py --check build/site   # it, in headless Chromium (CI only: not in the sandbox)
 OPT_AGENT_LIVE=1 python -m opt_agent.demo   # live mode: the key in .env; guarded (demo/app.py)
-python scripts/cache_examples.py --plan     # the examples' replies: worst case (the paid run is the owner's)
+python scripts/cache_examples.py --plan     # the examples' missing replies, counted with no calls (the paid run is the owner's, --cap 0.15)
 python scripts/paid_dev_and_demo.py --plan  # 2026-11-19's paid run (the owner's, --cap 0.30): dev explanations + the fix-step example
 python scripts/paid_explain_limits.py --plan  # ADR-0009: the dev explanations again, with limits (the paid run is the owner's, --cap 0.25)
 docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the image (CI builds it)
@@ -332,7 +334,10 @@ docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the im
 - **Exclusions:** test problems used while building the agent are not scorable
   (`data/nl4opt/exclusions.json`: the fishery and ads problems), nor are the 2 that
   Amendment 2's rules exclude (`1283305022`, `-1715698555`). Demos, fakes and live
-  tests use dev problems only.
+  tests use dev problems only, with one exception (owner, 2026-11-20): the demo's "Freight
+  cars" example is the follow-up's test problem `complexlp:195`, chosen to show the
+  disagreement badge's warning and replaying the resampling run's own replies. No study's
+  result changes, but a future study on those problems should count it as exposed.
 - `answer()` returns None (and `scorable()` False) unless HiGHS agrees and the
   arithmetic checks pass.
 - `data/nl4opt/reviews.json` is **hand-written input**. Every problem with no optimum, a
@@ -402,6 +407,12 @@ docker build -t opt-agent . && docker run --rm -p 8000:8000 opt-agent   # the im
   `LIMITS_PROMPT` only with them): every cached explanation, the demo's included, replays only
   so (`tests/test_limits.py`). The demo keeps `pipeline.EXPLAIN_LIMITS` off until its two
   integer examples' replies are refreshed.
+- **The demo replays each example with the settings its replies were made with**
+  (`pipeline.profile_for`): the four written examples with the demo's, and "Freight cars"
+  with the resampling study's (`pipeline.STUDY`: samples 3 to 7, 16,000 tokens, no checklist
+  or explanation). `pipeline.REFRESHED` turns on the four examples' extra badge samples and
+  ADR-0009's limits together, only after `scripts/cache_examples.py` (the owner's paid run)
+  has cached them; a test fails if it's on with anything missing.
 - **anthropic 1.15 uses `httpx2`**, not `httpx`; tests build API errors from
   `SimpleNamespace` responses (`tests/fakes.status_error`).
 - Don't keep the repo or its `.venv` under iCloud: iCloud hides `.pth` files and
