@@ -124,3 +124,43 @@ def test_the_rule_against_the_labels_and_the_note():
     note = checker_eval.NOTE.read_text()
     assert checker_eval.render_note(committed) in note
     assert "Exploratory" in note and "post hoc" in note
+
+
+def test_the_update_and_its_pairs():
+    """ADR-0009's update shows the record's summary between the note's own markers, and the
+    pairs over the integer programs add up to the before and after counts."""
+    committed = json.loads(checker_eval.AFTER_OUT.read_text())
+    adr = checker_eval.ADR.read_text()
+    update = adr[adr.index("## Update (2026-11-21): blind relabeling") :]
+    assert update.count(checker_eval.NOTE_BEGIN) == 1 and update.count(checker_eval.NOTE_END) == 1
+    assert checker_eval.render_summary(committed) in update
+    assert "Exploratory" in update and "Post hoc" in update
+    assert "#update-2026-11-21-blind-relabeling" in adr[: adr.index("## Update")]  # the pointer
+    paired, ips = committed["paired_integer_programs"], committed["false_claims_integer_programs"]
+    assert sum(paired.values()) == committed["integer_programs"] == 73
+    assert ips["before"] == paired["false_before_fine_after"] + paired["false_in_both"]
+    assert ips["after"] == paired["fine_before_false_after"] + paired["false_in_both"]
+    kinds = committed["rule_vs_labels"]["post_hoc_kinds"]
+    after = committed["rule_vs_labels"]["after"]
+    for key in ("flagged_but_labeled_fine", "labeled_false_not_flagged"):
+        assert sum(kinds[key].values()) == len(after[key])
+
+
+HEADLINED = ["README.md", "CLAUDE.md", "docs/HANDOFF.md", "docs/analysis/limits_claims.md",
+             "docs/adr/0009-what-limits-an-integer-program.md", "docs/adr/README.md"]  # fmt: skip
+
+
+def test_the_headline_is_the_blind_labels_count_everywhere():
+    """The owner's request (2026-11-21): ADR-0009's headline is the blind labels' count of the
+    integer programs' explanations with a false claim, before -> after, wherever its result is
+    stated. It replaced the rule's count (the owner's headline of 2026-11-20), which against
+    these labels doesn't measure the regenerated explanations, so the README drops it."""
+    ips = json.loads(checker_eval.AFTER_OUT.read_text())["false_claims_integer_programs"]
+    headline = f"{ips['before']} → {ips['after']}"
+    assert headline == "21 → 10"
+    for rel in HEADLINED:
+        assert headline in (ROOT / rel).read_text(), rel
+    readme = (ROOT / "README.md").read_text()
+    assert "13 → 4" not in readme
+    near = " ".join(readme[readme.index(headline) :][:200].split())  # line wraps aside
+    assert "blind labels" in near

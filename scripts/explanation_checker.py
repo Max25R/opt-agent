@@ -20,7 +20,8 @@ the checker results in docs/analysis/limits_claims.md): explanations with a fals
 before and after, paired by problem, and the owner's consistency rule on the 15 LP entries
 the two sheets share word for word (fewer than 13 matching: inconclusive). It also scores the
 rule's flags (docs/analysis/limits_claims.json, scripts/limits_claims.py) against each
-labeling, and writes the numbers of review/explain_dev_limits/RESULTS.md.
+labeling, and writes the numbers of review/explain_dev_limits/RESULTS.md and of ADR-0009's
+update, whose headline is the labels' count (the owner's call, 2026-11-21).
 
 No API calls. Run:  python scripts/explanation_checker.py sheet [--after]|score|prune
 """
@@ -54,8 +55,26 @@ AFTER_BEGIN = "<!-- checker results: written by scripts/explanation_checker.py s
 AFTER_END = "<!-- end of checker results -->"
 RULE = ROOT / "docs" / "analysis" / "limits_claims.json"  # the rule's flags, both runs
 NOTE = AFTER_SHEETS / "RESULTS.md"
+ADR = ROOT / "docs" / "adr" / "0009-what-limits-an-integer-program.md"  # its update section
 NOTE_BEGIN = "<!-- results: written by scripts/explanation_checker.py score --after -->"
 NOTE_END = "<!-- end of results -->"
+# Claude's post hoc reading of the labelers' notes (2026-11-21; an LLM's, not a person's): the
+# kind of each regenerated explanation the rule and the labels disagree on. compare() refuses
+# if those explanations change, so the reading can't silently go stale.
+MISATTRIBUTED = ("misattributions (a \"does not limit\" pinned on a constraint the "
+                 "explanation calls limiting)")  # fmt: skip
+LOOSENING = '"loosening wouldn\'t help" claims (true for one unit, false for a larger loosening)'
+DIRECTION = "changes whose effect is stated the wrong way round"
+FULLY_USED = "misstatements of what's fully used"
+POST_HOC = {
+    "flagged_but_labeled_fine": {"-920265113": MISATTRIBUTED, "-1633326119": MISATTRIBUTED,
+                                 "-654999513": MISATTRIBUTED},
+    "labeled_false_not_flagged": {"368302984": LOOSENING, "471112257": LOOSENING,
+                                  "-1829385566": LOOSENING, "-594806556": LOOSENING,
+                                  "690843809": DIRECTION, "709701618": DIRECTION,
+                                  "1738481857": DIRECTION, "-1211890581": FULLY_USED,
+                                  "-537539268": FULLY_USED},
+}  # fmt: skip
 LP_RULE = 13  # of the 15 LP entries both sheets share: the owner's rule, fixed before labeling
 BATCHES = 4
 LABELS = {"correct", "wrong"}
@@ -266,11 +285,25 @@ def compare() -> dict:
                 "flagged_but_labeled_fine": [p for p in flagged if p not in labeled],
                 "labeled_false_not_flagged": [p for p in labeled if p not in flagged]}  # fmt: skip
 
+    after = against_rule(after_claims, "after")
+    for key, reading in POST_HOC.items():
+        if sorted(reading) != sorted(after[key]):
+            raise SystemExit(f"the post hoc reading doesn't cover {key}: read the notes again")
+
     def count(claims: dict[str, dict], among: list[str]) -> int:
         return sum(false(claims, p) for p in among)
 
     def wrong(numbers: dict[str, list[str]]) -> int:
         return sum(labels.count("wrong") for labels in numbers.values())
+
+    def paired(among: list[str]) -> dict:
+        def n(was: bool, now: bool) -> int:
+            return sum(false(before_claims, p) == was and false(after_claims, p) == now
+                       for p in among)  # fmt: skip
+
+        return {"false_before_fine_after": n(True, False),
+                "fine_before_false_after": n(False, True),
+                "false_in_both": n(True, True), "fine_in_both": n(False, False)}  # fmt: skip
 
     return {
         "label": "exploratory, dev only: labels by Claude (four Claude subagents per run, an "
@@ -284,22 +317,18 @@ def compare() -> dict:
         "false_claims_integer_programs": {"before": count(before_claims, ips),
                                           "after": count(after_claims, ips)},
         "wrong_numbers": {"before": wrong(before_numbers), "after": wrong(after_numbers)},
-        "paired": {
-            "false_before_fine_after": sum(false(before_claims, p) and not false(after_claims, p)
-                                           for p in problems),
-            "fine_before_false_after": sum(false(after_claims, p) and not false(before_claims, p)
-                                           for p in problems),
-            "false_in_both": sum(false(before_claims, p) and false(after_claims, p)
-                                 for p in problems),
-            "fine_in_both": sum(not false(before_claims, p) and not false(after_claims, p)
-                                for p in problems),
-        },
+        "paired": paired(problems),
+        "paired_integer_programs": paired(ips),
         "rule_vs_labels": {
             "label": "added after the labels were in (the owner's request, 2026-11-21), so post "
                      "hoc: scripts/limits_claims.py's flags against each labeling's false "
                      "claims, of any kind, over the integer programs",
             "before": against_rule(before_claims, "before"),
-            "after": against_rule(after_claims, "after"),
+            "after": after,
+            "post_hoc_kinds": {
+                "label": "Claude's reading of the labelers' notes, an LLM's, not a person's",
+                **{key: dict(Counter(reading.values())) for key, reading in POST_HOC.items()},
+            },
         },
         "lp_entries_not_matching": [p for p in lps if p not in matching],
         "per_problem": [{"problem": p, "integer_program": p in ips,
@@ -334,19 +363,30 @@ def render_after(d: dict) -> str:
     ])  # fmt: skip
 
 
-def render_note(d: dict) -> str:
-    """The numbers of review/explain_dev_limits/RESULTS.md: the consistency rule, and the
-    rule's flags against both labelings over the integer programs."""
+def kinds(counts: dict[str, int]) -> str:
+    """'4 x; 3 y; and 2 z', from counts by kind (kinds can hold commas of their own)."""
+    parts = [f"{n} {kind}" for kind, n in counts.items()]
+    return parts[0] if len(parts) == 1 else "; ".join(parts[:-1]) + "; and " + parts[-1]
+
+
+def render_summary(d: dict) -> str:
+    """The numbers of ADR-0009's update, and the first of review/explain_dev_limits/RESULTS.md:
+    the consistency rule, the headline, the rule against both labelings, and the pairs."""
     lp, f, fi = d["lp_agreement"], d["false_claims"], d["false_claims_integer_programs"]
-    before, after = d["rule_vs_labels"]["before"], d["rule_vs_labels"]["after"]
-    verdict = ("**inconclusive**: the counts below are reported as they are, not as a "
-               "comparison" if d["verdict"] == "inconclusive" else "**comparable**")  # fmt: skip
+    rule, p, n = d["rule_vs_labels"], d["paired_integer_programs"], d["integer_programs"]
+    before, after, post_hoc = rule["before"], rule["after"], rule["post_hoc_kinds"]
+    conclusive = d["verdict"] != "inconclusive"
     return "\n".join([
         f"**The consistency rule:** {lp['matching']} of the {lp['entries']} LP entries both "
-        f"sheets share got the first labeling's labels ({lp['needed']} needed), so the "
-        f"before/after comparison is {verdict}.", "",
-        f"| over the {d['integer_programs']} integer programs | first explanations | "
-        "regenerated |", "|---|---:|---:|",
+        f"sheets share got the first labeling's labels ({lp['needed']} needed), so by the "
+        "pre-set rule the result is " + ("**conclusive**." if conclusive else "**inconclusive**: "
+        "the counts below are reported as they are, not as a before/after comparison."), "",
+        f"**Headline{'' if conclusive else ' (inconclusive)'}:** by the blind labels, the "
+        f"integer programs' explanations with a false claim, of any kind, went {fi['before']} → "
+        f"{fi['after']} of {n} ({f['before']} → {f['after']} of all {d['explanations']}, LPs "
+        "included). Exploratory, dev only, one sample per problem.", "",
+        f"| over the {n} integer programs | first explanations | regenerated |",
+        "|---|---:|---:|",
         f"| labeled with a false claim (any kind) | {fi['before']} | {fi['after']} |",
         f"| flagged by the rule (a false \"not limiting\" claim) | {before['flagged']} | "
         f"{after['flagged']} |",
@@ -354,12 +394,26 @@ def render_note(d: dict) -> str:
         f"{pct(before['precision'])} | {pct(after['precision'])} |",
         f"| the rule's recall (flagged, of those labeled false) | {pct(before['recall'])} | "
         f"{pct(after['recall'])} |", "",
-        f"Of all {d['explanations']} explanations, LPs included, {f['before']} were labeled "
-        f"with a false claim before and {f['after']} after. Regenerated explanations the rule "
-        f"flags but the labels call fine: {', '.join(after['flagged_but_labeled_fine']) or 'none'}"
-        f"; labeled false but not flagged: "
-        f"{', '.join(after['labeled_false_not_flagged']) or 'none'}.",
+        f"Paired by problem over the {n} integer programs, descriptive counts only: "
+        f"{p['false_before_fine_after']} fixed (a false claim before, none after), "
+        f"{p['fine_before_false_after']} newly false, {p['false_in_both']} stayed false, and "
+        f"{p['fine_in_both']} fine in both.", "",
+        f"Post hoc ({post_hoc['label']}): the rule's {len(after['flagged_but_labeled_fine'])} "
+        f"false positives are {kinds(post_hoc['flagged_but_labeled_fine'])}, and its "
+        f"{len(after['labeled_false_not_flagged'])} misses are "
+        f"{kinds(post_hoc['labeled_false_not_flagged'])}, none of them a claim its phrasings "
+        "cover.",
     ])  # fmt: skip
+
+
+def render_note(d: dict) -> str:
+    """The numbers of review/explain_dev_limits/RESULTS.md: the update's, and which
+    regenerated explanations the rule and the labels disagree on."""
+    after = d["rule_vs_labels"]["after"]
+    return render_summary(d) + "\n\n" + (
+        f"The rule flags, but the labels call fine: "
+        f"{', '.join(after['flagged_but_labeled_fine']) or 'none'}. Labeled false, but not "
+        f"flagged: {', '.join(after['labeled_false_not_flagged']) or 'none'}.")  # fmt: skip
 
 
 def fill(path: Path, begin: str, end: str, text: str) -> None:
@@ -373,6 +427,7 @@ def write_after(d: dict) -> None:
     AFTER_OUT.write_text(json.dumps(d, indent=1) + "\n")
     fill(AFTER_DOC, AFTER_BEGIN, AFTER_END, render_after(d))
     fill(NOTE, NOTE_BEGIN, NOTE_END, render_note(d))
+    fill(ADR, NOTE_BEGIN, NOTE_END, render_summary(d))  # the same markers as the note's
 
 
 def score() -> dict:

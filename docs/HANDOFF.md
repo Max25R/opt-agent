@@ -20,9 +20,10 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    - **ADR-0009 is done and measured on dev** (2026-11-20, open item 16): for an integer
      program, the explainer gets the solver's own test of what limits the answer. The owner
      regenerated the dev explanations with it (`runs/explain-dev-limits`, $0.0358), and
-     `docs/analysis/limits_claims.md` compares the two runs (exploratory): by the same rule,
-     explanations with a false "not limiting" claim went 13 → 4 (the headline; what the 4 are
-     is a labeled post hoc note).
+     `docs/analysis/limits_claims.md` compares the two runs (exploratory). The headline, since
+     the owner's call of 2026-11-21: the integer programs' explanations with a false claim of
+     any kind went 21 → 10 by the explanation checker's blind labels (ADR-0009's update; the
+     rule's count, the headline before, doesn't measure the regenerated text).
    - **The demo's disagreement badge** (2026-11-20; "Current state") has a fifth example
      chosen to show its warning ("Freight cars", from the resampling run, its own replies),
      and since the owner's refresh (2026-11-21, $0.0136) every example compares five samples
@@ -63,14 +64,14 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   is on. The dev
   explanations' regeneration is `scripts/paid_explain_limits.py` (the owner's paid run; its
   `--plan` gives the calls and the worst case); the owner ran it on 2026-11-20
-  (`runs/explain-dev-limits`, 73 calls, $0.0358). **Measured on dev, exploratory**
-  (`docs/analysis/limits_claims.md`, `scripts/limits_claims.py`): the IP slack check's rule,
-  unchanged, against the solver's facts, in both runs. **Headline: 13 → 4** explanations with
-  a false "not limiting" claim (its JSON; the owner asked for this headline everywhere,
-  2026-11-20, and `tests/test_limits_claims.py` checks it). A post hoc note, labeled as such:
-  in Claude's reading the 4 left are the rule's misattributions. The rule against the
-  explanation checker's blind labels (post hoc, 2026-11-21):
-  `review/explain_dev_limits/RESULTS.md`.
+  (`runs/explain-dev-limits`, 73 calls, $0.0358). **Measured on dev, exploratory.**
+  **Headline: 21 → 10** integer-program explanations with a false claim of any kind, by the
+  explanation checker's blind labels (`docs/analysis/limits_checker.json`; the owner's call,
+  2026-11-21, for everywhere the result is stated, and `tests/test_explanation_checker.py`
+  checks it). It replaced the IP slack check's rule (`docs/analysis/limits_claims.md`,
+  `scripts/limits_claims.py`), whose count was the headline from 2026-11-20: against those
+  labels the rule doesn't measure the regenerated text (ADR-0009's update and
+  `review/explain_dev_limits/RESULTS.md`, both written from that record).
 - **The demo's disagreement badge** (2026-11-20, the owner's requests, after R1 was supported).
   In the Flags card (outside the README screenshot's clip, so `docs/demo.png` is unchanged),
   each verified answer shows "Samples disagree — lower confidence" or "Samples agree", what it
@@ -358,9 +359,11 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    blind Claude subagents labeled `review/explain_dev_limits/` in a session (no API call), and
    `scripts/explanation_checker.py score --after` scored it: 22 → 11 explanations with a false
    claim, comparable by the owner's rule (15 of 15 shared LP entries alike). Exploratory,
-   Claude's labels; the headline stays the rule's 13 → 4. The rule's precision and recall
-   against these labels (post hoc, the owner's request) and Claude's reading of what the
-   labeled false claims are: `review/explain_dev_limits/RESULTS.md`, from the same record.
+   Claude's labels. Since the owner's call of 2026-11-21, its integer-program count, 21 → 10,
+   is ADR-0009's headline, in place of the rule's. The rule's precision and recall against
+   these labels, the pairs (post hoc, the owner's requests) and Claude's reading of what the
+   labeled false claims are: `review/explain_dev_limits/RESULTS.md` and ADR-0009's update,
+   from the same record.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all three studies ran and

@@ -8,9 +8,12 @@ weren't read before the counts were. No person labeled anything: the claims are 
 rule Claude (an LLM) wrote, and judged by the solver's facts. The reading after the results
 was written once they were in, and is Claude's.
 
-**Headline: 13 → 4.** By the same rule, judged by the solver's facts, the integer programs'
-explanations with a false "not limiting" claim went from 13 to 4 (of 73). What the 4 are is a
-post hoc note, below.
+**Headline (since 2026-11-21, the owner's call): 21 → 10,** by the explanation checker's blind
+labels: the integer programs' explanations with a false claim of any kind (of 73; the last
+section, and [ADR-0009's update](../adr/0009-what-limits-an-integer-program.md#update-2026-11-21-blind-relabeling)).
+The rule's own count, below, was the headline until then; against those labels it doesn't
+measure the regenerated explanations
+([`review/explain_dev_limits/RESULTS.md`](../../review/explain_dev_limits/RESULTS.md)).
 
 ## The two runs
 
@@ -66,11 +69,11 @@ Paired, by problem: 13 explanations made a false claim before and none after, 4 
 
 ## Reading it (written after the counts; Claude's reading, an LLM's, not a person's)
 
-- **The headline, 13 → 4, is the rule's count,** and each of the 13 from before is fine
-  after. The before count is the IP slack-claim check's 13 flags, which the
-  explanation checker's labels all confirmed.
+- **The rule's count went 13 → 4** (the headline until the blind relabeling, which replaced
+  it), and each of the 13 from before is fine after. The before count is the IP slack-claim
+  check's 13 flags, which the explanation checker's labels all confirmed.
 - **Post hoc note: in this reading, the 4 left are the rule's mistakes, not the explainer's.**
-  It doesn't change the headline, which is the rule's count. Each new explanation says, in
+  It doesn't change the rule's count. Each new explanation says, in
   one sentence, which constraints limit the answer and which don't ("the worker supply is the
   real limit"; "the two minimum-count rules do not limit it"). The rule pins a "do not limit"
   on every constraint named before it in the clause, so it also pinned it on the one the
@@ -146,8 +149,9 @@ Paired by problem: 17 explanations had a false claim before and none after, 6 th
 
 - **It counts, by the owner's rule:** all 15 LP entries the two sheets share got the same labels
   as the first time, so the before/after comparison is comparable. By the same checker,
-  explanations with a false claim went 22 → 11, alongside the rule's 13 → 4 above, which stays
-  the headline. Exploratory: dev only, one sample per problem, Claude's labels.
+  explanations with a false claim went 22 → 11 (21 → 10 among the integer programs, the
+  headline since the owner's call of 2026-11-21, in place of the rule's count above).
+  Exploratory: dev only, one sample per problem, Claude's labels.
 - **The labelers:** four Claude subagents on this session's model (Claude Opus 5.5; the first
   labelers' model isn't recorded), each with its copy of the sheet and the rules only; each
   said it opened nothing else. They enumerated integer solutions with their own code, as the

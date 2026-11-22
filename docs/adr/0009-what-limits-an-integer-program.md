@@ -125,7 +125,8 @@ Variable bounds aren't tested, only constraints.
    (2026-11-20, exploratory, dev only: [`limits_claims.md`](../analysis/limits_claims.md)).
    By the same rule, the integer programs' explanations with a false "not limiting" claim
    went 13 → 4 (of 73). A post hoc note (Claude's reading): the 4 are the rule's own
-   misreadings. The rule's recall on the new wording isn't measured.
+   misreadings. The rule's recall on the new wording, and the headline that replaced this
+   count: [Update (2026-11-21)](#update-2026-11-21-blind-relabeling).
 4. [x] Refresh the demo's two integer examples' replies (baristas, crates; the owner's paid
    run, 2026-11-21) and turn `pipeline.EXPLAIN_LIMITS` on (with `pipeline.REFRESHED`).
 5. [ ] The Agent Skill (`skills/opt-agent/`) explains from slack and binding constraints too:
@@ -134,3 +135,43 @@ Variable bounds aren't tested, only constraints.
    (2026-11-21, exploratory, Claude's labels): explanations with a false claim went 22 → 11 of
    88, comparable by the owner's rule (all 15 shared LP entries labeled alike). In Claude's
    post hoc grouping, 4 of the 6 newly false misuse the new facts (the revisit above).
+
+## Update (2026-11-21): blind relabeling
+
+Exploratory, dev only, and Claude's labels (an LLM's, not a person's). Max asked for this
+section after the labels were in; the text above stands as written.
+
+Four Claude subagents labeled the regenerated explanations blind, by the first labeling's
+rules and sheets: the results are in
+[`review/explain_dev_limits/RESULTS.md`](../../review/explain_dev_limits/RESULTS.md), and how
+the labelers were kept blind is in the last section of
+[`limits_claims.md`](../analysis/limits_claims.md). Each explanation gets one false-claim
+label, which covers false claims of any kind, not only "not limiting" ones. The numbers below
+are written by `python scripts/explanation_checker.py score --after` from
+[`limits_checker.json`](../analysis/limits_checker.json).
+
+<!-- results: written by scripts/explanation_checker.py score --after -->
+
+**The consistency rule:** 15 of the 15 LP entries both sheets share got the first labeling's labels (13 needed), so by the pre-set rule the result is **conclusive**.
+
+**Headline:** by the blind labels, the integer programs' explanations with a false claim, of any kind, went 21 → 10 of 73 (22 → 11 of all 88, LPs included). Exploratory, dev only, one sample per problem.
+
+| over the 73 integer programs | first explanations | regenerated |
+|---|---:|---:|
+| labeled with a false claim (any kind) | 21 | 10 |
+| flagged by the rule (a false "not limiting" claim) | 13 | 4 |
+| the rule's precision (labeled false, of those flagged) | 13 of 13, 100.0% (77.2 to 100.0) | 1 of 4, 25.0% (4.6 to 69.9) |
+| the rule's recall (flagged, of those labeled false) | 13 of 21, 61.9% (40.9 to 79.2) | 1 of 10, 10.0% (1.8 to 40.4) |
+
+Paired by problem over the 73 integer programs, descriptive counts only: 17 fixed (a false claim before, none after), 6 newly false, 4 stayed false, and 46 fine in both.
+
+Post hoc (Claude's reading of the labelers' notes, an LLM's, not a person's): the rule's 3 false positives are 3 misattributions (a "does not limit" pinned on a constraint the explanation calls limiting), and its 9 misses are 4 "loosening wouldn't help" claims (true for one unit, false for a larger loosening); 3 changes whose effect is stated the wrong way round; and 2 misstatements of what's fully used, none of them a claim its phrasings cover.
+
+<!-- end of results -->
+
+**What changes.** On the first explanations the rule (`scripts/limits_claims.py`) found its
+false claims where the labels did. On the regenerated ones it misses most of what the labels
+find, and most of what it flags isn't false, so its count doesn't measure the regenerated
+explanations. The headline of this decision's measurement is now the blind labels' count above
+(Max's call), not the rule's (Action Item 3). Among the misses are the one-unit loosening
+claims that the Consequences' revisit names.

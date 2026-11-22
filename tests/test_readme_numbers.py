@@ -58,15 +58,14 @@ FOLLOWUP_RESULTS = ROOT / "docs" / "followup" / "RESULTS.md"
 RESAMPLING = ROOT / "results" / "resampling.json"
 RESAMPLING_RESULTS = ROOT / "docs" / "resampling" / "RESULTS.md"
 # Each exploratory README bullet, by the words it starts with, and the records it comes from
-# (the explanation checker's also gives ADR-0009's 13 → 4, from limits_claims.json: the
-# owner's request, 2026-11-20).
+# (the explanation checker's also gives ADR-0009's headline, 21 → 10, from limits_checker.json:
+# the owner's request, 2026-11-21, which replaced the rule's count from limits_claims.json).
 ANALYSIS = ROOT / "docs" / "analysis"
 EXPLORATORY = {
     "- **Exploratory: disagreement between attempts as a warning.**":
         (ANALYSIS / "disagreement_detector.json",),
     "- **Exploratory: the explanation checker, on dev.**":
-        (ANALYSIS / "explanation_checker.json", ANALYSIS / "limits_claims.json",
-         ANALYSIS / "limits_checker.json"),
+        (ANALYSIS / "explanation_checker.json", ANALYSIS / "limits_checker.json"),
 }  # fmt: skip
 WRITE_UP = {"limits_checker": "limits_claims"}  # a record whose write-up has another name
 # The README's cost and latency table (owner's request, 2026-11-19): numbers per answer from

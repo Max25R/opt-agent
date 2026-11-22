@@ -38,8 +38,9 @@ The ADRs' "revisit" items:
 - The explanation checker's blind spot that its dev evaluation found (claims about slack in
   integer programs), or placeholders instead ([0004](0004-explanations-from-solver-numbers.md)):
   the explainer now gets the solver's facts about it ([0009](0009-what-limits-an-integer-program.md)),
-  and on dev, by the same rule, the explanations with such a false claim went 13 → 4, and by
-  the explanation checker's own labels 22 → 11 (exploratory:
+  and on dev the integer programs' explanations with a false claim went 21 → 10 by the
+  explanation checker's own blind labels (22 → 11 of all 88; exploratory:
+  [0009's update](0009-what-limits-an-integer-program.md#update-2026-11-21-blind-relabeling),
   [`limits_claims.md`](../analysis/limits_claims.md)).
 - Judges called through the API with logged requests, so the hand checks replay too
   ([0005](0005-preregistration-freeze-and-replay.md)).
