@@ -115,6 +115,12 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   (`tests/test_headline.py`) and the README's table against it (`tests/test_readme_numbers.py`,
   `TABLE`: a new exception to the README-number rule, on the owner's request); CI's `pictures`
   job draws the figure. `scripts/reproduce.py` is unchanged.
+  **Reordered on 2026-11-22** (the owner's portfolio pass): one plain-English sentence, the
+  demo link, the figure, then three headline bullets (NL4Opt's 96.4%, the resampling flag, and
+  ADR-0009's 21 → 10, the last labeled "Exploratory" and checked against
+  `limits_checker.json` as a third `EXPLORATORY` bullet). The accuracy table, the +6.3 pp,
+  the cost and latency table and the demo screenshot follow, so CBC, Holm and McNemar are off
+  the first screen.
 - **The polish list of 2026-11-18** (the owner's; each item its own commit, CI green each
   time, no API calls; decisions at the end of this file):
   - **The static demo** (item 1): `scripts/static_demo.py` builds the examples page as a
@@ -672,3 +678,21 @@ Logged as the owner asked: the simplest reasonable option, where the request did
     fell more than a point under the README's badge. Tests added in `a66ec07` (no change to
     any frozen input) brought it back within the point, and CI passes from there on. Nothing
     about the frozen inputs was wrong; `python -m opt_agent.resampling_freeze` verifies the tag.
+
+## Decisions made without the owner (session of 2026-11-22, the portfolio pass)
+- **The first screen's visual is `docs/headline.png`.** It's the one existing picture that fits
+  a laptop screen with the three headline bullets under it (2100x560); the demo screenshot
+  (1950x2210) would push them off it, so it stays below. The link keeps "Try the demo in your
+  browser", not "live demo": in this README, live mode means paid calls, which the static page
+  never makes (Limitations).
+- **No screenshot of the disagreement badge.** The sandbox can't launch Chromium (its Mach
+  port check-in is denied), and `scripts/screenshot.py`'s frame ends above the Flags card, so
+  the owner would run a capture with a frame that includes it, in their terminal.
+- **The third headline bullet** says "Exploratory", "blind labels" (Claude's, an LLM's, not a
+  person's) and "development problems only", as CLAUDE.md's rules ask; its 22 → 11 of all 88
+  keeps the owner's headline whole and gives the `EXPLORATORY` check its four numbers.
+- **Two lines outside the first screen changed:** "More detail" no longer calls the resampling
+  study "not yet run" (its pre-registration is linked in the bullet above it), and the Results
+  intro says where the exploratory bullets' numbers come from.
+- **Links:** every README link and every link the static demo makes (its saved responses, the
+  commit, the analysis, `#try-the-demo`) returned 200 over public HTTP, anchors included.

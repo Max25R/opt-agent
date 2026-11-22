@@ -1,5 +1,5 @@
-"""The README's first screen: a headline figure and a table of cost and latency, from numbers
-that are already recorded, so that nothing in either is typed by hand.
+"""The README's headline figure (on its first screen) and its table of cost and latency, from
+numbers that are already recorded, so that nothing in either is typed by hand.
 
 - **The figure** (docs/headline.png): NL4Opt's accuracy in each condition and the follow-up's
   two pre-registered differences, each with its 95% interval, read from results/eval.json and

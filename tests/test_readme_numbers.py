@@ -10,10 +10,11 @@ the "The rows" sections of Amendments 4 and 5 (docs/amendments/amendment-4.md,
 amendment-5.md), whose rows scripts/amendment4.py and amendment5.py generate into eval.json,
 docs/followup/RESULTS.md (scripts/followup_results.py) and docs/resampling/RESULTS.md
 (scripts/resampling_results.py), and the IE 2310 summary
-(docs/ie2310/summary.md) against both. Two README bullets are exploratory, not results
-(EXPLORATORY, owner's request, 2026-11-19): the disagreement detector's line and the
-explanation checker's, each checked against its own record in docs/analysis/ and left out
-of the rest; so is the cost and latency table at the top (TABLE, owner's request,
+(docs/ie2310/summary.md) against both. Three README bullets are exploratory, not results
+(EXPLORATORY): the disagreement detector's line and the explanation checker's (owner's
+request, 2026-11-19), and the first screen's headline on explanations (owner's request,
+2026-11-22), each checked against its own record in docs/analysis/ and left out of the
+rest; so is the cost and latency table near the top (TABLE, owner's request,
 2026-11-19), against results/headline.json, which scripts/headline.py computes from the
 committed test runs' logs.
 
@@ -59,13 +60,16 @@ RESAMPLING = ROOT / "results" / "resampling.json"
 RESAMPLING_RESULTS = ROOT / "docs" / "resampling" / "RESULTS.md"
 # Each exploratory README bullet, by the words it starts with, and the records it comes from
 # (the explanation checker's also gives ADR-0009's headline, 21 → 10, from limits_checker.json:
-# the owner's request, 2026-11-21, which replaced the rule's count from limits_claims.json).
+# the owner's request, 2026-11-21, which replaced the rule's count from limits_claims.json; the
+# first screen's third headline bullet gives it again: the owner's request, 2026-11-22).
 ANALYSIS = ROOT / "docs" / "analysis"
 EXPLORATORY = {
     "- **Exploratory: disagreement between attempts as a warning.**":
         (ANALYSIS / "disagreement_detector.json",),
     "- **Exploratory: the explanation checker, on dev.**":
         (ANALYSIS / "explanation_checker.json", ANALYSIS / "limits_checker.json"),
+    "- **Exploratory: explanations with a false claim, halved.**":
+        (ANALYSIS / "limits_checker.json",),
 }  # fmt: skip
 WRITE_UP = {"limits_checker": "limits_claims"}  # a record whose write-up has another name
 # The README's cost and latency table (owner's request, 2026-11-19): numbers per answer from

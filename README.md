@@ -4,20 +4,43 @@
 [![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FMax25R%2Fopt-agent%2Fmain%2Fdocs%2Fbadges%2Fcoverage.json)](https://github.com/Max25R/opt-agent/actions/workflows/ci.yml)
 [![types: mypy](https://img.shields.io/badge/types-mypy-blue)](pyproject.toml)
 
+An LLM agent that takes an operations problem in plain English (say, how many of each product
+to make), has Claude write it as a linear or integer program, solves it with a real solver,
+checks the answer with a second solver and plain arithmetic, and explains it with the solver's
+own numbers.
+
 **[Try the demo in your browser](https://max25r.github.io/opt-agent/)**: no install, no API
 key; a static copy of the examples page, solved by CI from Claude's committed replies.
 
-**Plain-English operations problems in, solver-verified plans out, and an honest count of
-how often they're still wrong.**
-
-- Claude writes a word problem as a linear or integer program; a solver (CBC) solves it, a
-  second solver (HiGHS) and plain arithmetic check it, and Claude explains it with the solver's
-  numbers.
-- On NL4Opt every condition scored 96.4%, even with no solver; on 121 harder problems,
-  solving Claude's model beat answering directly by +6.3 pp (95% CI 1.4–11.6).
-- In every condition most wrong answers are *silent*: every check passes, so nothing warns you.
-
 ![Two panels. Left, the NL4Opt test, 274 problems: the no-solver baseline, single-shot and self-correction each got 96.4% right (95% Wilson interval 93.4–98.0%). Right, the harder problems, 121, the two pre-registered tests: H2, single-shot minus the baseline, +6.3 pp (95% interval 1.4 to 11.6), detected; H1, checklist revision minus single-shot, +0.6 pp (-1.7 to 3.0), inconclusive](docs/headline.png)
+
+- **96.4% on the NL4Opt benchmark** (264 of 274 test problems), the same as Claude with no
+  solver at all: that benchmark is too easy to show what a solver adds
+  ([details](#nl4opt-saturated-and-every-failure-silent)).
+- **A pre-registered warning flag, confirmed.** Most wrong answers pass every check. On harder
+  problems, answers flagged because fresh attempts disagreed were wrong 52.6% of the time,
+  against a 24.4% base rate, and the flag caught 20 of the 29 wrong answers that passed every
+  check ([details](#resampling-the-disagreement-flag-confirmed)).
+- **Exploratory: explanations with a false claim, halved.** Once the explainer also got the
+  solver's own test of what limits an integer program's answer, integer-program explanations
+  with a false claim went 21 → 10 of 73 by blind labels (Claude's, an LLM's, not a person's;
+  22 → 11 of all 88; development problems only: [details](docs/analysis/limits_claims.md)).
+
+Most of the project is the evaluation: three studies, each pre-registered and frozen before
+its test run, asking whether a solver in the loop helps at all, how often a wrong answer gets
+through every check, and whether disagreement between samples can flag one (it can:
+[below](#resampling-the-disagreement-flag-confirmed)).
+
+| accuracy (Claude Haiku 5.5) | no-solver baseline | single-shot | self-correction | checklist revision |
+|---|---|---|---|---|
+| NL4Opt, 274 problems | 96.4% | 96.4% | 96.4% | not run |
+| harder problems, 121 (3 samples each) | 75.8% | 82.1% | 82.4% | 82.6% |
+
+On the harder problems, solving Claude's model beat answering directly by +6.3 pp (95% CI
+1.4–11.6; the pre-registered test, Holm p 0.0445), and revising on a formulation checklist
+adds nothing detectable. In every condition most wrong answers are *silent*: every check
+passes, so nothing warns you. Every reported number rebuilds from the committed runs with no
+API key, after fetching the follow-up's public benchmark data ([how](#reproduce-every-number)).
 
 <!-- cost and latency: results/headline.json -->
 | per answer | NL4Opt: cost | median | p90 | harder problems: cost | median | p90 |
@@ -33,20 +56,6 @@ without retry waits), over 274 answers per condition on NL4Opt and 384 on the ha
 (128 problems, 3 samples each).*
 <!-- end of cost and latency -->
 
-Most of the project is the evaluation: three studies, each pre-registered and frozen before
-its test run, asking whether a solver in the loop helps at all, how often a wrong answer gets
-through every check, and whether disagreement between samples can flag one (it can:
-[below](#resampling-the-disagreement-flag-confirmed)).
-
-| accuracy (Claude Haiku 5.5) | no-solver baseline | single-shot | self-correction | checklist revision |
-|---|---|---|---|---|
-| NL4Opt, 274 problems | 96.4% | 96.4% | 96.4% | not run |
-| harder problems, 121 (3 samples each) | 75.8% | 82.1% | 82.4% | 82.6% |
-
-The +6.3 pp is the pre-registered test (Holm p 0.0445), and revising on a formulation checklist
-adds nothing detectable. Every reported number rebuilds from the committed runs with no API
-key, after fetching the follow-up's public benchmark data ([how](#reproduce-every-number)).
-
 ![The demo after solving its paint example: the problem, the verified optimum (CBC and HiGHS agree, the arithmetic checks pass, and it matches the hand-checked answer), Claude's model, and Claude's explanation using the solver's numbers](docs/demo.png)
 
 *The demo in examples mode: no API key, and every Claude reply replayed from the committed
@@ -56,9 +65,10 @@ cache.*
 
 Every study used Claude Haiku 5.5. Every number in this README comes from
 [`results/eval.json`](results/eval.json), [`results/followup.json`](results/followup.json) or
-[`results/resampling.json`](results/resampling.json) (the cost and latency table at the top:
-[`results/headline.json`](results/headline.json), computed from the runs' logs), and a test
-checks it. A *silent* failure is a wrong answer that passed every check; a *loud*
+[`results/resampling.json`](results/resampling.json) (the cost and latency table:
+[`results/headline.json`](results/headline.json), computed from the runs' logs; each bullet
+marked exploratory: its own record in [`docs/analysis/`](docs/analysis/)), and a test checks
+it. A *silent* failure is a wrong answer that passed every check; a *loud*
 one is no answer at all. "pp" is percentage points; Holm adjusts a p-value for testing more
 than one hypothesis; the sign-flip and McNemar tests compare two conditions on the same
 problems.
@@ -330,9 +340,6 @@ anyone can rebuild without a key.
 - [`docs/audit/2026-11-review.md`](docs/audit/2026-11-review.md) and
   [`docs/audit/2026-11-final-review.md`](docs/audit/2026-11-final-review.md): two audits of
   the project, and what was fixed.
-- [`docs/RESAMPLING_PREREGISTRATION.md`](docs/RESAMPLING_PREREGISTRATION.md): a third study,
-  pre-registered and frozen but not yet run, that tests the disagreement detector on fresh
-  samples, one answer per problem.
 - [`docs/HISTORY.md`](docs/HISTORY.md): how the project got here, milestone by milestone.
 - [`DATA_NOTICE.md`](DATA_NOTICE.md): the benchmarks' licenses and attribution.
 

@@ -27,8 +27,10 @@ point is a trustworthy evaluation, not a demo.
   (the disagreement detector, the explanation checker), each checked against its own record
   in `docs/analysis/` (`tests/test_readme_numbers.py`, `EXPLORATORY`; the explanation
   checker's also against `limits_checker.json`, for ADR-0009's headline 21 → 10 and 22 → 11,
-  the owner's requests of 2026-11-21); and the cost and
-  latency table at the top, checked against `results/headline.json` (`TABLE`), which
+  the owner's requests of 2026-11-21); the first screen's third headline bullet, also labeled
+  "Exploratory", which gives that headline again, against `limits_checker.json` alone (the
+  owner's request, 2026-11-22); and the cost and
+  latency table near the top, checked against `results/headline.json` (`TABLE`), which
   `scripts/headline.py` computes from the committed test runs' logs after checking each
   condition's total cost and median latency against the results files.
 - **Results live in the results files**, and in the documents the README-number test
