@@ -13,9 +13,10 @@ numbers that are already recorded, so that nothing in either is typed by hand.
   method (numpy's linear percentile), and only after each condition's total and median come
   out equal to the results file's: the same answers, counted the same way. The second-model
   study's two Claude Sonnet 5.5 conditions (its single-shot stage and its no-solver stage)
-  are checked against results/second_model.json; its pre-registration wants every number of
-  the study in the README checked against that file, so the p90 is its deviation 2
-  (docs/second_model/DEVIATIONS.md).
+  are checked against results/second_model.json, and have no p90: its pre-registration wants
+  every number of the study in the README checked against that file, which has none (its
+  deviation 2 until the owner dropped Sonnet's p90 on 2026-11-23:
+  docs/second_model/DEVIATIONS.md).
 
 Both land in results/headline.json: tests/test_headline.py rebuilds it, and
 tests/test_readme_numbers.py checks the README's table against it. The PNG needs matplotlib
@@ -46,6 +47,7 @@ NL4OPT = ("baseline", "single-shot", "self-correction")
 HARDER = (*NL4OPT, "checklist-revision")
 SONNET = ("baseline", "single-shot")  # the second-model study's stages 2 and 1
 STUDIES = (("nl4opt", NL4OPT), ("harder", HARDER), ("sonnet", SONNET))
+WITHOUT_P90 = {"sonnet"}  # its report has no p90, and the README shows only the report's
 NAMES = {
     "baseline": "no-solver baseline", "single-shot": "single-shot",
     "self-correction": "self-correction", "checklist-revision": "checklist revision",
@@ -79,12 +81,15 @@ def answers(path: Path) -> dict[str, list[dict]]:
     return found
 
 
-def per_answer(items: list[dict]) -> dict:
+def per_answer(items: list[dict], p90: bool = True) -> dict:
     latency = [i["latency_s"] for i in items]
-    p50, p90 = np.percentile(latency, [50, 90])
-    return {"answers": len(items), "cost_usd": sum(i["cost_usd"] for i in items),
-            "cost_per_answer_usd": sum(i["cost_usd"] for i in items) / len(items),
-            "latency_p50_s": float(p50), "latency_p90_s": float(p90)}  # fmt: skip
+    p50, p90_s = np.percentile(latency, [50, 90])
+    row = {"answers": len(items), "cost_usd": sum(i["cost_usd"] for i in items),
+           "cost_per_answer_usd": sum(i["cost_usd"] for i in items) / len(items),
+           "latency_p50_s": float(p50)}  # fmt: skip
+    if p90:
+        row["latency_p90_s"] = float(p90_s)
+    return row
 
 
 def recorded(e: dict, f: dict, s: dict, study: str, condition: str) -> tuple[float, float]:
@@ -108,7 +113,8 @@ def cost_latency(e: dict, f: dict, s: dict) -> dict:
                         "samples": len({i.get("sample") for i in every}),
                         "conditions": {}}  # fmt: skip
         for c in conditions:
-            row = per_answer([i for i in found[c] if i["outcome"] == "done"])
+            row = per_answer([i for i in found[c] if i["outcome"] == "done"],
+                             p90=study not in WITHOUT_P90)  # fmt: skip
             cost, p50 = recorded(e, f, s, study, c)
             if not (math.isclose(row["cost_usd"], cost, rel_tol=1e-9)
                     and math.isclose(row["latency_p50_s"], p50, rel_tol=1e-12)):  # fmt: skip

@@ -1,5 +1,5 @@
 """docs/second_model/RESULTS.md: the second-model study's write-up, rendered from
-results/second_model.json alone.
+results/second_model.json and one post hoc count from the run's records.
 
 - **The numbers are the frozen analysis's.** results/second_model.json is what
   `python -m opt_agent.second_model_report` wrote from the owner's run (the analysis whose hash
@@ -10,20 +10,64 @@ results/second_model.json alone.
   sensitivity rows, the secondary results, stage 2, cost, the deviations and the limitations.
   The deviations' details, and the counts the frozen analysis doesn't make, are in
   docs/second_model/DEVIATIONS.md, written by hand from the run's records.
+- **One post hoc count** (the owner's request, 2026-11-23), under stage 2: Sonnet's no-solver
+  replies with no usable answer, counted from the run's own records
+  (runs/second-model/results.jsonl, committed), and what counting them all as right leaves of
+  stage 2's gap. It's computed here (no_answer) into its own record,
+  docs/second_model/no_answer.json, which the README-number test checks RESULTS.md against
+  too; it isn't pre-registered, and the sentence says so.
 
 A difference here is in percentage points: the JSON stores it as a share (Sonnet's accuracy
 minus Haiku's), so it's shown times 100. No API calls, no timestamps: the same JSON gives the
 same bytes.
 
-Run:  python scripts/second_model_results.py   # docs/second_model/RESULTS.md from the JSON
+Run:  python scripts/second_model_results.py   # docs/second_model/no_answer.json, RESULTS.md
 """
 
 import json
 from pathlib import Path
 
+from opt_agent import api
+
 ROOT = Path(__file__).resolve().parents[1]
 JSON = ROOT / "results" / "second_model.json"
+RUN = ROOT / "runs" / "second-model" / "results.jsonl"
+NO_ANSWER = ROOT / "docs" / "second_model" / "no_answer.json"
 RESULTS_MD = ROOT / "docs" / "second_model" / "RESULTS.md"
+CUT_OFF = api.UNFINISHED["max_tokens"]  # the reason a reply cut off at max_tokens records
+NO_VALUE = '"optimal" needs a finite objective'  # baseline.py's, for an optimum with no value
+
+
+def no_answer(run: Path, data: dict) -> dict:
+    """Post hoc, not pre-registered: Sonnet's no-solver replies (stage 2) with no usable
+    answer, from the run's records (the latest item per problem), by kind; and stage 2's gap
+    if every one of them had been right, from the report's own counts of right answers."""
+    latest = {}
+    for line in run.read_text().splitlines():
+        entry = json.loads(line)
+        if entry["kind"] == "item" and entry["condition"] == "baseline":
+            latest[entry["problem_id"]] = entry
+    none = [e for e in latest.values() if e["outcome"] == "done" and e["status"] is None]
+    cut_off = sum(e["reason"] == CUT_OFF for e in none)
+    no_value = sum(e["reason"].startswith(NO_VALUE) for e in none)
+    if cut_off + no_value != len(none) or len(latest) != data["problems"]:
+        raise SystemExit("the run's records don't match this count's two kinds: update it")
+    two = data["stage_2"]["sonnet"]
+    best = two["no_solver_right"] + len(none)  # every reply with no answer counted as right
+    return {
+        "label": "post hoc, not pre-registered: Claude's count from the run's records "
+                 "(scripts/second_model_results.py, no_answer), the owner's request of "
+                 "2026-11-23; the right answers are results/second_model.json's",
+        "run": str(run.relative_to(ROOT)),
+        "problems": len(latest),
+        "no_answer": len(none),
+        "cut_off": cut_off,
+        "optimal_without_value": no_value,
+        "single_shot_right": two["single_shot_right"],
+        "no_solver_right": two["no_solver_right"],
+        "no_solver_right_if_all_right": best,
+        "gap_pp": 100 * (two["single_shot_right"] - best) / len(latest),
+    }  # fmt: skip
 
 
 def pct(x: float) -> str:
@@ -77,7 +121,7 @@ def verdict_rule(s1: dict) -> str:
     return f"p is below alpha {s1['alpha']}, and {side} got more of those problems right"
 
 
-def stage_2(two: dict) -> list[str]:
+def stage_2(two: dict, extra: dict) -> list[str]:
     s, h = two["sonnet"], two["haiku"]
     head = [
         "## Stage 2 (Amendment 1, secondary, no verdict): with and without the solver",
@@ -114,6 +158,15 @@ def stage_2(two: dict) -> list[str]:
         "`max_tokens`, or an optimum claimed without its value), and those count as wrong; the",
         "frozen analysis doesn't count them for stage 2, so [`DEVIATIONS.md`](DEVIATIONS.md)",
         "does (its first deviation).",
+        "",
+        "**Post hoc** (Claude's count from the run's records, in "
+        "[`no_answer.json`](no_answer.json); not",
+        f"pre-registered): {extra['no_answer']} of Sonnet's no-solver replies gave no usable "
+        f"answer ({extra['cut_off']} cut off, {extra['optimal_without_value']}",
+        f"claimed an optimum without its value), and counting all {extra['no_answer']} as "
+        f"right still leaves a {extra['gap_pp']:.1f} pp gap",
+        f"({extra['single_shot_right']} vs {extra['no_solver_right_if_all_right']} of "
+        f"{extra['problems']}).",
         "",
     ]  # fmt: skip
 
@@ -153,7 +206,8 @@ def cost(data: dict) -> list[str]:
     ]  # fmt: skip
 
 
-def render(data: dict) -> str:
+def render(data: dict, extra: dict) -> str:
+    """RESULTS.md from the report (`data`) and the post hoc count (`extra`, no_answer's)."""
     s1, f, sens = data["s1"], data["failures"], data["sensitivity"]
     sonnet, haiku = f["sonnet"], f["haiku"]
     return "\n".join([
@@ -162,8 +216,10 @@ def render(data: dict) -> str:
         "Generated by `scripts/second_model_results.py` from `results/second_model.json`, the",
         "frozen analysis's report (`src/opt_agent/second_model_report.py`, by its hash in",
         "`docs/second_model/FREEZE-2.json`), which `scripts/reproduce.py` rebuilds byte for byte",
-        "from the tag; don't edit by hand. Every number here is in that file, and a test checks",
-        "it. The study: [the pre-registration](../SECOND_MODEL_PREREGISTRATION.md), with its",
+        "from the tag; don't edit by hand. Every number here is in that file, but for one post",
+        "hoc sentence under stage 2, whose numbers are in [`no_answer.json`](no_answer.json),",
+        "counted from the run's records; a test checks each against its file. The study:",
+        "[the pre-registration](../SECOND_MODEL_PREREGISTRATION.md), with its",
         "Amendment 1; the run: `runs/second-model`, the owner's, on 2026-11-22.",
         "",
         f"## Primary outcome: S1 is {s1['verdict']}",
@@ -240,18 +296,17 @@ def render(data: dict) -> str:
         "",
         "Most of each model's wrong answers are silent: every check passed, and nothing warned.",
         "",
-        *stage_2(data["stage_2"]),
+        *stage_2(data["stage_2"], extra),
         *cost(data),
         "## Deviations",
         "",
-        "Two, recorded in [`DEVIATIONS.md`](DEVIATIONS.md), with notes on the run; neither",
-        "changes a number in the report. First, Amendment 1 applies section 3's declared",
+        "One remains, recorded in [`DEVIATIONS.md`](DEVIATIONS.md) with notes on the run, and",
+        "it changes no number in the report: Amendment 1 applies section 3's declared",
         "differences to stage 2, so its cut-off replies are to be reported for each model, and",
-        "the frozen analysis doesn't count them for stage 2: they're counted there, from the",
-        "run's records. Second, the README's cost table gives Sonnet's p90 latency, which the",
-        "report doesn't have: `scripts/headline.py` computes it from the run's log, as it does",
-        "for Haiku's rows, and a test checks the README against that record, not against",
-        "`results/second_model.json` as section 7 says.",
+        "the frozen analysis doesn't count them for stage 2; they're counted there, from the",
+        "run's records. A second, Sonnet's p90 latency in the README's cost table, which the",
+        "report doesn't have and so wasn't checked against `results/second_model.json` as",
+        "section 7 says, was removed on 2026-11-23 by dropping that number.",
         "",
         "## Limitations",
         "",
@@ -285,8 +340,11 @@ def render(data: dict) -> str:
 
 
 def main() -> None:
-    RESULTS_MD.write_text(render(json.loads(JSON.read_text())))
-    print(f"wrote {RESULTS_MD.relative_to(ROOT)}")
+    data = json.loads(JSON.read_text())
+    extra = no_answer(RUN, data)
+    NO_ANSWER.write_text(json.dumps(extra, indent=1) + "\n")
+    RESULTS_MD.write_text(render(data, extra))
+    print(f"wrote {NO_ANSWER.relative_to(ROOT)} and {RESULTS_MD.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

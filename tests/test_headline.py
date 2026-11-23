@@ -2,7 +2,7 @@
 committed record (results/headline.json) is what the script computes now; the figure's numbers
 are the results files' own; each condition's total cost and median latency equal the results
 files' (so the cost per answer and the p90 come from the same answers), Claude Sonnet 5.5's
-rows results/second_model.json's; and the percentile is
+rows results/second_model.json's, with no p90; and the percentile is
 numpy's linear one, as in both reports. The PNG's bytes aren't checked; CI's pictures job draws
 it. No API calls, no matplotlib here."""
 
@@ -49,7 +49,10 @@ def test_each_condition_matches_its_results_files_total_and_median():
             assert row["cost_usd"] == pytest.approx(cost, rel=1e-9)
             assert row["latency_p50_s"] == pytest.approx(p50, rel=1e-12)
             assert row["cost_per_answer_usd"] == pytest.approx(row["cost_usd"] / row["answers"])
-            assert row["latency_p50_s"] <= row["latency_p90_s"]
+            if study in headline.WITHOUT_P90:
+                assert "latency_p90_s" not in row
+            else:
+                assert row["latency_p50_s"] <= row["latency_p90_s"]
     assert (table["nl4opt"]["problems"], table["nl4opt"]["samples"]) == (274, 1)
     assert (table["harder"]["problems"], table["harder"]["samples"]) == (128, 3)
     assert {r["answers"] for r in table["harder"]["conditions"].values()} == {128 * 3}
@@ -59,7 +62,8 @@ def test_each_condition_matches_its_results_files_total_and_median():
 def test_sonnets_rows_are_the_second_model_studys_answers():
     """Each stage's 121 answers, as the frozen analysis counted them: the same total cost,
     cost per answer and median latency as results/second_model.json (its single-shot stage,
-    then its no-solver stage), so only the p90 is computed here (its deviation 2)."""
+    then its no-solver stage), and no p90, which the report doesn't have (its deviation 2,
+    removed on 2026-11-23)."""
     rows = COMMITTED["cost_latency"]["sonnet"]["conditions"]
     for condition, spend in (("single-shot", SECOND_MODEL["spend"]["sonnet"]),
                              ("baseline", SECOND_MODEL["stage_2"]["spend"]["sonnet"])):  # fmt: skip
@@ -68,6 +72,7 @@ def test_sonnets_rows_are_the_second_model_studys_answers():
         assert row["cost_usd"] == pytest.approx(spend["cost_usd"], rel=1e-12)
         assert row["cost_per_answer_usd"] == pytest.approx(spend["cost_per_answer_usd"])
         assert row["latency_p50_s"] == spend["median_latency_s"]
+        assert set(row) == {"answers", "cost_usd", "cost_per_answer_usd", "latency_p50_s"}
 
 
 def test_the_percentiles_are_numpys_linear_ones():

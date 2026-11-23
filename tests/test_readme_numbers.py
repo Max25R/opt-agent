@@ -11,14 +11,18 @@ the "The rows" sections of Amendments 4 and 5 (docs/amendments/amendment-4.md,
 amendment-5.md), whose rows scripts/amendment4.py and amendment5.py generate into eval.json,
 docs/followup/RESULTS.md (scripts/followup_results.py), docs/resampling/RESULTS.md
 (scripts/resampling_results.py) and docs/second_model/RESULTS.md
-(scripts/second_model_results.py), and the IE 2310 summary
+(scripts/second_model_results.py; its one post hoc sentence's numbers come from
+docs/second_model/no_answer.json, which that script counts from the run's records), and the
+IE 2310 summary
 (docs/ie2310/summary.md) against both. Three README bullets are exploratory, not results
 (EXPLORATORY): the disagreement detector's line and the explanation checker's (owner's
 request, 2026-11-19), and the first screen's headline on explanations (owner's request,
 2026-11-22), each checked against its own record in docs/analysis/ and left out of the
 rest; so is the cost and latency table near the top (TABLE, owner's request,
 2026-11-19), against results/headline.json, which scripts/headline.py computes from the
-committed test runs' logs.
+committed test runs' logs. Its two Claude Sonnet 5.5 rows are checked against
+results/second_model.json too, as that study's section 7 says, and so have no p90 (owner,
+2026-11-23).
 
 How a number in the README is read:
 - `-123` in backticks is a problem id, and `complexlp:14` a follow-up label: some string in
@@ -66,6 +70,8 @@ RESAMPLING = ROOT / "results" / "resampling.json"
 RESAMPLING_RESULTS = ROOT / "docs" / "resampling" / "RESULTS.md"
 SECOND_MODEL = ROOT / "results" / "second_model.json"
 SECOND_MODEL_RESULTS = ROOT / "docs" / "second_model" / "RESULTS.md"
+# One post hoc sentence in RESULTS.md, under stage 2 (owner, 2026-11-23), from the run's records
+SECOND_MODEL_NO_ANSWER = ROOT / "docs" / "second_model" / "no_answer.json"
 # Each exploratory README bullet, by the words it starts with, and the records it comes from
 # (the explanation checker's also gives ADR-0009's headline, 21 → 10, from limits_checker.json:
 # the owner's request, 2026-11-21, which replaced the rule's count from limits_claims.json; the
@@ -101,7 +107,7 @@ CHECKED = [
     (AMENDMENT_5, "## The rows", (EVAL,), 2, 40),
     (FOLLOWUP_RESULTS, None, (FOLLOWUP,), 0, 40),
     (RESAMPLING_RESULTS, None, (RESAMPLING,), 0, 40),
-    (SECOND_MODEL_RESULTS, None, (SECOND_MODEL,), 0, 60),
+    (SECOND_MODEL_RESULTS, None, (SECOND_MODEL, SECOND_MODEL_NO_ANSWER), 0, 60),
     (IE2310_SUMMARY, None, (EVAL, FOLLOWUP), 0, 25),
 ]
 
@@ -263,6 +269,18 @@ def test_the_cost_and_latency_table_comes_from_its_own_record():
     assert unmatched(block, [json.loads(HEADLINE.read_text())]) == []
     assert len(NUMBER.findall(block)) >= 25  # it has numbers to check
     assert text.count(TABLE[0]) == 1 and TABLE[0] not in section(text, None)  # and only here
+
+
+def test_sonnets_rows_in_the_table_are_its_studys_report():
+    """The second-model study's section 7: each of its numbers in the README is checked against
+    results/second_model.json, so its rows in the cost and latency table are, and they have no
+    p90, which the report doesn't give (its deviation 2, removed on 2026-11-23)."""
+    rows = [line for line in table(README.read_text()).splitlines()
+            if line.startswith("|") and "Claude Sonnet 5.5" in line]  # fmt: skip
+    assert len(rows) == 2 and all(row.endswith("| — |") for row in rows)
+    text = re.sub(NOT_RESULTS[1], " ", "\n".join(rows))  # without the model's name
+    assert unmatched(text, [json.loads(SECOND_MODEL.read_text())]) == []
+    assert len(NUMBER.findall(text)) == 4  # a cost and a median per row
 
 
 def test_fenced_code_and_citations_arent_results():

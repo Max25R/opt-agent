@@ -29,7 +29,8 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
      `results/second_model.json` (the frozen analysis's report, which `scripts/reproduce.py`
      rebuilds byte for byte from `second-model-freeze-2`); the write-up is
      `docs/second_model/RESULTS.md` (rendered from it by `scripts/second_model_results.py`), with
-     two deviations that change no number in the report (`docs/second_model/DEVIATIONS.md`). The
+     one deviation that changes no number in the report (`docs/second_model/DEVIATIONS.md`; a
+     second, Sonnet's p90 in the README's cost table, was removed on 2026-11-23). The
      README has a Results subsection, two rows in the cost table and an updated "One model"
      limitation, all checked by tests; its first screen is unchanged and the owner's call (open
      item 22).
@@ -122,14 +123,18 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   reproduce job replays all 242 answers and rebuilds the report byte for byte. The write-up:
   `docs/second_model/RESULTS.md`, rendered from the report by `scripts/second_model_results.py`
   (`tests/test_second_model_results.py` checks it's current and that the verdicts follow section
-  4), and `docs/second_model/DEVIATIONS.md` (two deviations, neither changing a number in the
+  4), and `docs/second_model/DEVIATIONS.md` (one deviation, which changes no number in the
   report: the frozen analysis doesn't count stage 2's cut-off replies, so that file does, from
-  the run's records; and the README's cost table gives Sonnet's p90 latency, checked against
-  `results/headline.json`, not `results/second_model.json`; plus notes on the run). The README:
+  the run's records; a second, Sonnet's p90 latency in the README's cost table, checked against
+  `results/headline.json` rather than `results/second_model.json`, was removed on 2026-11-23 by
+  dropping that number; plus notes on the run). RESULTS.md has one post hoc sentence under
+  stage 2 (the owner's request, 2026-11-23): its numbers are counted from the run's records into
+  `docs/second_model/no_answer.json` by the same script, and tests check both. The README:
   a "Second model" Results subsection, checked against the report (`tests/test_readme_numbers.py`,
   which now also reads its paired differences in points, times 100), two Sonnet rows in the
   cost and latency table (`scripts/headline.py`, Sonnet's totals and medians checked against the
-  report), and the "One model" limitation. What was built before the run: the runner
+  report; with no p90 since 2026-11-23, and the two rows checked against the report directly
+  too), and the "One model" limitation. What was built before the run: the runner
   `src/opt_agent/second_model.py` (two stages; the cost guard: hard caps of $11.00 for stage 1
   and $13.50 for both, and each stage's 10-problem checkpoint), the gate
   `src/opt_agent/second_model_freeze.py` (`ready()`: the tag exists, holds the approval, and
@@ -834,3 +839,16 @@ Logged as the owner asked: the simplest reasonable option, where the request did
   interval and the pre-registered "no difference larger than X points" reading; the
   sensitivity rows are labeled "no claim" whatever their p-values, and the README doesn't call
   either model better (the numbers: `results/second_model.json`).
+
+## Decisions made without the owner (2026-11-23, the p90 and the post hoc count)
+- **Sonnet's p90 is gone from `results/headline.json` too,** not only from the README:
+  `scripts/headline.py` computes no p90 for Sonnet's rows (`WITHOUT_P90`), so the record holds
+  only what its report has, and a README test checks Sonnet's two rows against
+  `results/second_model.json` directly. The two cells show a dash and the caption says why; the
+  other rows and the figure are unchanged byte for byte.
+- **The post hoc count has its own record,** `docs/second_model/no_answer.json`, written by
+  `scripts/second_model_results.py` from `runs/second-model/results.jsonl` (the latest stage-2
+  item per problem; a reply of a kind other than the two it counts stops it), so the README
+  number test can check RESULTS.md's post hoc sentence, and a test recounts it from the
+  committed run. Its right-answer counts are the frozen report's; `results/second_model.json`
+  is untouched. The README doesn't repeat the sentence (the owner asked for it in RESULTS.md).

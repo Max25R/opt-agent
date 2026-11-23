@@ -35,7 +35,11 @@ point is a trustworthy evaluation, not a demo.
   latency table near the top, checked against `results/headline.json` (`TABLE`), which
   `scripts/headline.py` computes from the committed test runs' logs after checking each
   condition's total cost and median latency against the results files (its two Claude Sonnet
-  5.5 rows, against `results/second_model.json`; their p90 is that study's deviation 2).
+  5.5 rows, against `results/second_model.json` too, and with no p90, which that report
+  doesn't have: the owner dropped it on 2026-11-23, removing that study's deviation 2). And
+  `docs/second_model/RESULTS.md`'s one post hoc sentence under stage 2 (the owner's request,
+  2026-11-23), against `docs/second_model/no_answer.json`, which
+  `scripts/second_model_results.py` counts from the run's records.
 - **Results live in the results files**, and in the documents the README-number test
   checks against them. Elsewhere (this file, `docs/HANDOFF.md`) point to them; don't
   restate results by hand.
@@ -53,8 +57,9 @@ the code tour in `docs/DESIGN.md`, a README pass; and on 2026-11-19 the disagree
 the explanation checker's dev evaluation, the Agent Skill, the resampling study and the IP
 slack-claim check) are done too. **Where things stand: the second-model study is done (run by
 the owner on 2026-11-22, analyzed the same day): S1 is inconclusive
-(`results/second_model.json`, `docs/second_model/RESULTS.md`, two deviations that change no
-number in its report in `docs/second_model/DEVIATIONS.md`); the README's first screen doesn't
+(`results/second_model.json`, `docs/second_model/RESULTS.md`, one deviation that changes no
+number in its report in `docs/second_model/DEVIATIONS.md`, where a second, the README's Sonnet
+p90, is recorded as removed on 2026-11-23); the README's first screen doesn't
 mention it yet, which is the owner's call (`docs/HANDOFF.md`, open item 22).** The resampling
 study is done too (run by the owner on 2026-11-19, analyzed on 2026-11-20): R1 is supported
 (`results/resampling.json`, `docs/resampling/RESULTS.md`). ADR-0009 (2026-11-20): for an integer program the explainer

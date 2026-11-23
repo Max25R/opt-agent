@@ -5,7 +5,8 @@ anything that runs differently from what's written there, with its Amendment 1, 
 here, with what was planned, what happened and what it changes. The results:
 [`RESULTS.md`](RESULTS.md), from `results/second_model.json`. Claude (an LLM) checked the run
 and the report against the pre-registration on 2026-11-22, after the owner's run; these two are
-everything it found that differs, and neither changes a number in the report.
+everything it found that differs, and neither changes a number in the report. The second was
+removed on 2026-11-23 (the owner's call), by dropping the number it was about.
 
 ## 1. Stage 2's cut-off replies aren't in the report (2026-11-22, found checking it)
 
@@ -65,7 +66,7 @@ EOF
 Refusals: no reply in `runs/second-model/cache` has `stop_reason` "refusal" (230 ended with
 `end_turn`, 12 with `max_tokens`), and none in `runs/followup-test/cache` does either.
 
-## 2. A number of this study in the README is checked against another record (2026-11-22)
+## 2. A number of this study in the README was checked against another record (2026-11-22; removed 2026-11-23)
 
 **Planned.** Section 7: "any number of this study in the README is checked by a test against
 `results/second_model.json`".
@@ -74,7 +75,7 @@ Refusals: no reply in `runs/second-model/cache` has `stop_reason` "refusal" (230
 whose columns are the cost per answer, the median latency and the 90th percentile (p90). The
 report has the first two for each condition, but no p90.
 
-**What's done instead.** `scripts/headline.py` computes Sonnet's two rows from the run's log
+**What was done instead.** `scripts/headline.py` computed Sonnet's two rows from the run's log
 (`runs/second-model/results.jsonl`) the way it computes Haiku's: the cost per answer, and the
 median and p90 by numpy's linear percentile, and only after each condition's total cost and
 median latency come out equal to `results/second_model.json`'s, so the rows come from the same
@@ -83,9 +84,17 @@ answers, counted the same way. The README test checks the whole table against
 2026-11-19), and `tests/test_headline.py` checks Sonnet's totals and medians there against
 `results/second_model.json`.
 
-**What it changes.** No number in the report. Two numbers in the README, Sonnet's p90
-latencies, are checked against `results/headline.json` only; every other number of this
-study in the README is a value in `results/second_model.json`.
+**What it changed.** No number in the report. Two numbers in the README, Sonnet's p90
+latencies, were checked against `results/headline.json` only; every other number of this
+study in the README was a value in `results/second_model.json`.
+
+**Removed (2026-11-23, the owner's call).** The README's cost and latency table no longer
+shows Sonnet's p90 (its two cells are a dash, and the caption says why), and
+`scripts/headline.py` no longer computes one for Sonnet's rows (`WITHOUT_P90`), so every number
+of this study in the README is a value in `results/second_model.json`, as section 7 says.
+`tests/test_readme_numbers.py` checks Sonnet's two rows against that file directly
+(`test_sonnets_rows_in_the_table_are_its_studys_report`), besides the table's check against
+`results/headline.json`.
 
 ## Notes on the run (not deviations)
 

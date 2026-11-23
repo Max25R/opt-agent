@@ -49,15 +49,16 @@ API key, after fetching the follow-up's public benchmark data ([how](#reproduce-
 | single-shot | $0.00055 | 3.6 s | 5.7 s | $0.0021 | 11.8 s | 25.6 s |
 | self-correction | $0.00061 | 3.7 s | 6.9 s | $0.0021 | 11.9 s | 25.6 s |
 | checklist revision | not run | | | $0.0054 | 26.8 s | 70.2 s |
-| no-solver baseline, Claude Sonnet 5.5 | not run | | | $0.0273 | 8.1 s | 73.8 s |
-| single-shot, Claude Sonnet 5.5 | not run | | | $0.0200 | 5.4 s | 16.7 s |
+| no-solver baseline, Claude Sonnet 5.5 | not run | | | $0.0273 | 8.1 s | — |
+| single-shot, Claude Sonnet 5.5 | not run | | | $0.0200 | 5.4 s | — |
 
 *From the test runs' own logs ([`scripts/headline.py`](scripts/headline.py)): the cost of
 every call an answer used, at the model's own prices, and its latency (API plus solver time,
 without retry waits). Claude Haiku 5.5 in the first four rows, over 274 answers per condition
 on NL4Opt and 384 on the harder problems (128 problems, 3 samples each); Claude Sonnet 5.5 in
-the last two, over the 121 unexposed harder problems, one answer each
-([the second-model study](#second-model-claude-sonnet-55-inconclusive)).*
+the last two, over the 121 unexposed harder problems, one answer each, with no p90: their
+numbers are their study's report's ([the second-model
+study](#second-model-claude-sonnet-55-inconclusive)).*
 <!-- end of cost and latency -->
 
 ![The demo after solving its paint example: the problem, the verified optimum (CBC and HiGHS agree, the arithmetic checks pass, and it matches the hand-checked answer), Claude's model, and Claude's explanation using the solver's numbers](docs/demo.png)
@@ -167,7 +168,7 @@ the run; against Haiku's samples 1 and 2 instead (sensitivity rows, no claim), i
   without its value), and those count as wrong ([deviation 1](docs/second_model/DEVIATIONS.md)
   counts them).
 
-Full write-up, with its two deviations (neither changes a number in the report):
+Full write-up, with its one remaining deviation (it changes no number in the report):
 [`docs/second_model/RESULTS.md`](docs/second_model/RESULTS.md).
 
 ## Limitations
