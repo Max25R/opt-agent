@@ -330,7 +330,8 @@ anyone can rebuild without a key.
   (deviations in [`docs/followup/DEVIATIONS.md`](docs/followup/DEVIATIONS.md)) and the
   [resampling study](docs/RESAMPLING_PREREGISTRATION.md) (deviations in
   [`docs/resampling/DEVIATIONS.md`](docs/resampling/DEVIATIONS.md)); and the
-  [second-model study](docs/SECOND_MODEL_PREREGISTRATION.md), frozen, not yet run.
+  [second-model study](docs/SECOND_MODEL_PREREGISTRATION.md), frozen with its Amendment 1,
+  not yet run.
 - [`docs/DESIGN.md`](docs/DESIGN.md): a ten-minute tour of the code, the solver checks, the
   agent, the NL4Opt answer key, and the project structure.
 - [`docs/adr/`](docs/adr/README.md): why it's built this way: the options weighed and their costs.

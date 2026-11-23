@@ -1,9 +1,10 @@
-"""The second-model study's analysis (docs/SECOND_MODEL_PREREGISTRATION.md, section 4), on fake
-answers: pairs with Haiku's single-shot sample 0 only; anything but a right done answer is
-wrong; the exact McNemar test and the four verdicts; the effect by the follow-up's methods;
-silent failures and the rest of the wrong answers; cost and latency per correct answer; the
-sensitivity rows; and a report json can write. Then scripts/reproduce.py's step for this
-study, on a fake run of all 121 problems, where LLM4OR's data and the committed freeze are."""
+"""The second-model study's analysis (docs/SECOND_MODEL_PREREGISTRATION.md, section 4, and
+Amendment 1), on fake answers: pairs with Haiku's single-shot sample 0 only; anything but a
+right done answer is wrong; the exact McNemar test and the four verdicts; the effect by the
+follow-up's methods; silent failures and the rest of the wrong answers; cost and latency per
+correct answer; the sensitivity rows; stage 2's comparison and its status; and a report json
+can write. Then scripts/reproduce.py's step for this study, on a fake run of both stages on all
+121 problems, where LLM4OR's data and the committed freeze are."""
 
 import importlib.util
 import json
@@ -196,9 +197,9 @@ def test_reproduce_has_nothing_to_rebuild_before_the_run(tmp_path):
 
 
 def test_reproduce_rebuilds_a_fake_run_in_the_frozen_tree(tmp_path):
-    """The whole path the owner's run will take after December, on a fake run of all 121
+    """The whole path the owner's run will take, on a fake run of both stages on all 121
     problems (FakeClient, no API): scripts/reproduce.py extracts the study's tree (its tag's,
-    or HEAD's before the tag exists), replays the run there from its cache through
+    or HEAD's before the tag exists), replays both stages there from the run's cache through
     scripts/replay_run.py, and the frozen analysis's report there is this one, byte for byte."""
     from opt_agent import second_model_freeze
     from opt_agent.runs import git
@@ -206,21 +207,75 @@ def test_reproduce_rebuilds_a_fake_run_in_the_frozen_tree(tmp_path):
     if not all(p.exists() for p in followup_freeze.data_files()):
         pytest.skip("needs LLM4OR's data (python scripts/fetch_llm4or.py)")
     ref = second_model_freeze.FREEZE_TAG if second_model_freeze.tag_exists() else "HEAD"
-    committed = git("show", f"{ref}:docs/second_model/FREEZE.json")
+    committed = git("show", f"{ref}:docs/second_model/FREEZE-2.json")
     if committed is None:
-        pytest.skip("needs the freeze committed (docs/second_model/FREEZE.json)")
+        pytest.skip("needs Amendment 1's freeze committed (docs/second_model/FREEZE-2.json)")
     approval = second_model_freeze.SecondModelApproval.model_validate_json(committed)
     records = second_model_freeze.problems()
-    reply = json.dumps({
+    model = json.dumps({
         "variables": [{"name": "x", "lower": 0, "upper": None, "integer": False}],
         "objective": {"sense": "max", "terms": [{"var": "x", "coef": 1}]},
         "constraints": [{"name": "cap", "terms": [{"var": "x", "coef": 1}], "sense": "<=",
                          "rhs": 4}],
     })  # fmt: skip
-    run = tmp_path / "second-model"
-    second_model.run(FakeClient(*[reply] * len(records)), run, records,
-                     freeze.digest(approval.fingerprint))  # fmt: skip
+    direct = json.dumps({"status": "optimal", "objective": 4.0})
+    run, digest = tmp_path / "second-model", freeze.digest(approval.fingerprint)
+    for stage, reply in zip(second_model.STAGES, (model, direct), strict=True):
+        second_model.run(FakeClient(*[reply] * len(records)), run, records, digest, stage)
     files, differences = reproduce.second_model(tmp_path / "work", replay=True, run=run, tag=ref)
     assert differences == []
     expected = report.dumps(report.build(run, records))
     assert files == {"results/second_model.json": expected.encode()}
+    assert json.loads(expected)["stage_2"]["status"] == "complete"
+
+
+# ---- stage 2 (Amendment 1) ----------------------------------------------------------------
+
+
+def stage_2_case(tmp_path, sonnet_base: list[Item], extra=()) -> dict:
+    """Three problems: Sonnet single-shot right on p0 and p1; Haiku single-shot right on p0,
+    its no-solver answer on p1; Sonnet's no-solver answers as given."""
+    problems = [problem(f"p{i}") for i in range(3)]
+    sonnet = [item("p0"), item("p1"), item("p2", 5.0), *sonnet_base]
+    haikus = [haiku("p0"), haiku("p1", 5.0), haiku("p2", 5.0),
+              haiku("p0", 5.0, condition="baseline"), haiku("p1", condition="baseline"),
+              haiku("p2", 5.0, condition="baseline")]  # fmt: skip
+    return build(tmp_path, problems, sonnet, haikus, extra)["stage_2"]
+
+
+def base(problem_id: str, objective: float | None = 4.0, **more) -> Item:
+    return item(problem_id, objective, condition="baseline", cost=0.03, **more)
+
+
+def test_stage_2_compares_single_shot_with_no_solver_for_each_model(tmp_path):
+    two = stage_2_case(tmp_path, [base("p0", 5.0), base("p1", 5.0), base("p2")])
+    assert two["status"] == "complete" and two["settled"] == 3
+    s = two["sonnet"]
+    assert (s["single_shot_right"], s["no_solver_right"]) == (2, 1)
+    assert (s["only_single_shot_right"], s["only_no_solver_right"]) == (2, 1)
+    assert s["p_value"] == pytest.approx(stats.mcnemar_exact(2, 1))
+    assert s["difference"] == pytest.approx(1 / 3) and "verdict" not in s
+    h = two["haiku"]  # context, from Haiku's record: single-shot on p0, no-solver on p1
+    assert (h["only_single_shot_right"], h["only_no_solver_right"]) == (1, 1)
+    assert two["spend"]["sonnet"]["cost_usd"] == pytest.approx(0.09)
+
+
+def test_stage_2_cut_short_is_incomplete_and_leaves_s1_alone(tmp_path):
+    two = stage_2_case(tmp_path, [base("p0"), base("p1", None, outcome="errored")])
+    assert (two["status"], two["settled"], two["sonnet"]) == ("incomplete", 1, None)
+    assert two["haiku"]["no_solver_right"] == 1  # Haiku's context is there either way
+    assert two["spend"]["sonnet"]["answers"] == 2
+
+
+def test_stage_2_not_started_when_stage_1_was_not_complete(tmp_path):
+    problems = [problem("p0"), problem("p1")]
+    data = build(tmp_path, problems, [item("p0")], [haiku("p0"), haiku("p1")])
+    assert data["s1"]["verdict"] == "incomplete"
+    assert data["stage_2"]["status"] == "not started" and data["stage_2"]["sonnet"] is None
+
+
+def test_stage_2s_answers_never_count_as_stage_1s(tmp_path):
+    """The conditions are kept apart: a no-solver answer doesn't settle or answer stage 1."""
+    problems = [problem("p0")]
+    data = build(tmp_path, problems, [base("p0")], [haiku("p0")])
+    assert data["complete"] is False and data["s1"]["sonnet_right"] == 0

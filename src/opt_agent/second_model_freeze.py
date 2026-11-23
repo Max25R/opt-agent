@@ -1,31 +1,38 @@
-"""The second-model study's freeze (docs/SECOND_MODEL_PREREGISTRATION.md, section 6): its run
-starts only when the study's tag exists and holds exactly the approved inputs, and the inputs
-here are those.
+"""The second-model study's freeze (docs/SECOND_MODEL_PREREGISTRATION.md, section 6, and
+Amendment 1): its run starts only when the study's tag exists and holds exactly the approved
+inputs, and the inputs here are those.
+
+There are two approvals. The first (ORIGINAL_PATH, tag ORIGINAL_TAG, 2026-11-22) froze the
+study as registered; Amendment 1 changed it before any call (stage 1's cap; stage 2, the
+no-solver baseline), so the amended study has its own (FREEZE_PATH, tag FREEZE_TAG), and only
+that one gates the run. The first stays as it was committed, and its tag must still hold it
+(original_tag_problems).
 
 It works like the resampling study's (resampling_freeze.py) and reuses freeze.py's pieces:
 - **The fingerprint:** every source file in src/opt_agent/ (the runner, second_model.py, and
   the analysis, second_model_report.py, the analysis also by name with its own SHA-256),
-  requirements.lock (installed packages must match it), the pre-registration,
-  data/followup/split.json, Haiku's record (runs/followup-test/results.jsonl: committed, so
-  the tag holds it too) and both LLM4OR data files (git-ignored, so checked by hash); and by
-  name, what the comparison rests on: both models, max_tokens, thinking, effort, the
-  formulation prompt and schema, the cell, Haiku's sample, Sonnet's prices, the run order's
-  and the bootstrap's seeds, the scoring tolerance, alpha, the cap, the checkpoint and the
-  unexposed id list.
-- **Before the approval,** unfinished() checks section 3's promises from the files: for each
-  of the 121 problems, Sonnet's request is Haiku's sample-0 request with only the model
-  changed, and Haiku's, built by this code, is byte for byte the request its run sent (the
-  follow-up's cache); and approve() also replays Haiku's 121 sample-0 answers from that cache
-  through this code, with a client that can't send anything, and requires every recorded
-  field back (haiku_replay_differs): the solving and the checks are the same in effect.
+  requirements.lock (installed packages must match it), the pre-registration with its
+  amendment, data/followup/split.json, Haiku's record (runs/followup-test/results.jsonl:
+  committed, so the tag holds it too) and both LLM4OR data files (git-ignored, so checked by
+  hash); and by name, what the comparisons rest on: both models, max_tokens, thinking, effort,
+  the formulation and the no-solver prompts and schemas, the stages and their caps, Haiku's
+  sample, Sonnet's prices, the run order's and the bootstrap's seeds, the scoring tolerance,
+  alpha, the checkpoint and the unexposed id list.
+- **Before the approval,** unfinished() checks the promises of section 3 and Amendment 1
+  from the files, in both conditions: for each of the 121 problems, Sonnet's request is
+  Haiku's sample-0 request with only the model changed, and Haiku's, built by this code, is
+  byte for byte the request its run sent (the follow-up's cache); and approve() also replays
+  Haiku's sample-0 answers in both conditions from that cache through this code, with a
+  client that can't send anything, and requires every recorded field back
+  (haiku_replay_differs): the solving, the parsing and the checks are the same in effect.
 - **ready()** is the run's gate: the tag exists and holds exactly the approval (read from
   git's objects, freeze.approval_at_tag), and check() passes here. second_model.inputs calls
   it before a run reads a problem.
 
 `python -m opt_agent.second_model_freeze` says what's left and whether the run may start.
-`python -m opt_agent.second_model_freeze approve --by "..."` writes docs/second_model/FREEZE.json.
-For this study the owner asked Claude to write the freeze and tag it (2026-11-22, in chat);
-the approval records who and how. Then commit it, and tag that commit second-model-freeze.
+`python -m opt_agent.second_model_freeze approve --by "..."` writes FREEZE_PATH. For this
+study the owner asked Claude to write the freezes and create their tags (2026-11-22, in chat);
+each approval records who and how. Then commit it, and tag that commit FREEZE_TAG.
 """
 
 import argparse
@@ -37,6 +44,7 @@ from pathlib import Path
 
 from opt_agent import (
     api,
+    baseline,
     evaluate,
     followup,
     followup_freeze,
@@ -62,16 +70,23 @@ from opt_agent.freeze import (
 )
 from opt_agent.runs import REPO_ROOT, Run, Tags, git
 
-FREEZE_PATH = REPO_ROOT / "docs" / "second_model" / "FREEZE.json"
-FREEZE_TAG = "second-model-freeze"
+FREEZE_PATH = REPO_ROOT / "docs" / "second_model" / "FREEZE-2.json"  # Amendment 1's approval
+FREEZE_TAG = "second-model-freeze-2"
+ORIGINAL_PATH = REPO_ROOT / "docs" / "second_model" / "FREEZE.json"  # the first, superseded
+ORIGINAL_TAG = "second-model-freeze"
 PREREGISTRATION_PATH = REPO_ROOT / "docs" / "SECOND_MODEL_PREREGISTRATION.md"
 ANALYSIS_PATH = SOURCE_DIR / "second_model_report.py"
 HAIKU_CACHE = second_model.HAIKU_RECORD.parent / "cache"
 # Section 2: the record every Sonnet answer is paired with, by its SHA-256.
 HAIKU_RECORD_SHA256 = "cedc37164ab5497a62fd79c06154f9cb15f384fa6307174b46d949282c20c18e"
+CONDITIONS = (second_model.CONDITION, second_model.BASELINE)  # both stages'
 # What a replay can't repeat: time, and what was paid or replayed (as scripts/reproduce.py).
 NOT_REPLAYED = {"run_id", "latency_s", "retry_s", "wall_s", "cached_calls", "paid_usd",
                 "report_only_paid_usd"}  # fmt: skip
+# The one message reworded since followup-freeze (api.UNFINISHED["max_tokens"]): a cut-off
+# reply's reason. The words changed, not what it says, so a replay reads the old as the new.
+REWORDED = ("the reply was cut off at 16000 tokens",
+            "the reply was cut off at its max_tokens limit")  # fmt: skip
 
 
 class SecondModelApproval(Approval):
@@ -95,28 +110,29 @@ def fingerprint() -> dict[str, str]:
 
 
 def frozen_values() -> dict[str, object]:
-    """What sections 2 to 6 name. Each is also inside a source file's hash; naming them says
-    which one changed."""
+    """What sections 2 to 6 and Amendment 1 name. Each is also inside a source file's hash;
+    naming them says which one changed."""
     normal, long = pricing.PRICES[second_model.MODEL]
     return {
         "model": second_model.MODEL,
         "haiku.model": second_model.HAIKU_MODEL,
         "haiku.record": _relative(second_model.HAIKU_RECORD),
         "haiku.sample": second_model.HAIKU_SAMPLE,
-        "condition": second_model.CONDITION,
         "sample": second_model.SAMPLE,
+        "stages": [list(stage) for stage in second_model.STAGES],
         "api.MAX_TOKENS": api.MAX_TOKENS,
         "api.THINKING": api.THINKING,
         "api.EFFORT": api.EFFORT,
         "temperature": "not sent (the API default, 1)",
         "formulate.SYSTEM_PROMPT": formulate.SYSTEM_PROMPT,
         "formulate.LP_SCHEMA": formulate.LP_SCHEMA,
+        "baseline.SYSTEM_PROMPT": baseline.SYSTEM_PROMPT,
+        "baseline.ANSWER_SCHEMA": baseline.ANSWER_SCHEMA,
         "prices": [normal.model_dump(), long.model_dump()],
         "seed.order": followup.ORDER_SEED,
         "seed.bootstrap": followup_report.BOOTSTRAP_SEED,
         "tolerance": followup.TOLERANCE,
         "alpha": second_model_report.ALPHA,
-        "cap_usd": second_model.CAP_USD,
         "checkpoint": second_model.CHECKPOINT,
         "ids.unexposed": followup_freeze.id_list_sha256(unexposed_only=True),
     }
@@ -130,62 +146,67 @@ def problems() -> list[followup.Problem]:
     return second_model.select(followup.read_test())
 
 
-def recorded() -> dict[str, evaluate.Item]:
-    """Haiku's single-shot sample-0 items, the pairs (section 2)."""
+def recorded(condition: str = second_model.CONDITION) -> dict[str, evaluate.Item]:
+    """Haiku's sample-0 items in `condition`: the pairs (section 2, Amendment 1)."""
     return {i.problem_id: i for i in evaluate.latest_items(second_model.HAIKU_RECORD)
-            if i.condition == second_model.CONDITION
-            and i.sample == second_model.HAIKU_SAMPLE}  # fmt: skip
+            if i.condition == condition and i.sample == second_model.HAIKU_SAMPLE}  # fmt: skip
 
 
 def requests_differ(records: list[followup.Problem] | None = None) -> list[str]:
-    """Section 3: the problems whose Sonnet request isn't Haiku's sample-0 request with only
-    the model changed, or whose Haiku request, built here, isn't byte for byte the one its run
-    sent (stored with its reply in the follow-up's cache, under its cache key). Labels only:
-    the problem text is licensed data."""
+    """Section 3 and Amendment 1: the problems whose Sonnet request, in either condition, isn't
+    Haiku's sample-0 request with only the model changed, or whose Haiku request, built here,
+    isn't byte for byte the one its run sent (stored with its reply in the follow-up's cache,
+    under its cache key). Labels only: the problem text is licensed data."""
     found = []
     for record in records or problems():
-        haiku = formulate.build_request(record.document, second_model.HAIKU_MODEL)
-        sonnet = formulate.build_request(record.document, second_model.MODEL)
-        stored = HAIKU_CACHE / f"{api.cache_key(haiku)}.json"  # api.Cache's file name
-        sent = json.loads(stored.read_text())["request"] if stored.exists() else None
-        if sent is None:
-            found.append(f"{record.id}: Haiku's request isn't in its run's cache")
-        elif api.canonical_json(sent) != api.canonical_json(haiku):
-            found.append(f"{record.id}: Haiku's request isn't the one its run sent")
-        if sonnet != {**haiku, "model": second_model.MODEL}:
-            found.append(f"{record.id}: Sonnet's request differs from Haiku's in more than "
-                         "the model")  # fmt: skip
+        for module in (formulate, baseline):
+            haiku = module.build_request(record.document, second_model.HAIKU_MODEL)
+            sonnet = module.build_request(record.document, second_model.MODEL)
+            stored = HAIKU_CACHE / f"{api.cache_key(haiku)}.json"  # api.Cache's file name
+            sent = json.loads(stored.read_text())["request"] if stored.exists() else None
+            which = f"{record.id} ({module.__name__.rsplit('.', 1)[1]})"
+            if sent is None:
+                found.append(f"{which}: Haiku's request isn't in its run's cache")
+            elif api.canonical_json(sent) != api.canonical_json(haiku):
+                found.append(f"{which}: Haiku's request isn't the one its run sent")
+            if sonnet != {**haiku, "model": second_model.MODEL}:
+                found.append(f"{which}: Sonnet's request differs from Haiku's in more than "
+                             "the model")  # fmt: skip
     return found
 
 
 def haiku_replay_differs(records: list[followup.Problem] | None = None) -> list[str]:
-    """Section 3: Haiku's sample-0 answers, replayed from the follow-up's cache through this
-    code (api.ReplayOnlyClient: no key, and nothing can be sent), against the recorded items:
-    every field but time and payment. Empty if every answer comes back as recorded."""
-    found, recorded_items = [], recorded()
+    """Section 3 and Amendment 1: Haiku's sample-0 answers in both conditions, replayed from
+    the follow-up's cache through this code (api.ReplayOnlyClient: no key, and nothing can be
+    sent), against the recorded items: every field but time and payment. Empty if every
+    answer comes back as recorded."""
+    found = []
     with tempfile.TemporaryDirectory(prefix="second-model-replay-") as tmp:
         session = Run(log_path=Path(tmp) / "attempts.jsonl", cache=Cache(HAIKU_CACHE))
-        for record in records or problems():
-            tags = Tags(problem_id=record.id, split=followup.TEST_SPLIT,
-                        condition=second_model.CONDITION)  # fmt: skip
-            try:
-                item = evaluate.run_item(record, second_model.CONDITION, api.ReplayOnlyClient(),  # type: ignore[arg-type]  # it stands in for anthropic.Anthropic
-                                         session, tags, second_model.HAIKU_MODEL)  # fmt: skip
-            except api.NotCached:
-                found.append(f"{record.id}: a call isn't in Haiku's run's cache")
-                continue
-            before = recorded_items[record.id].model_dump(mode="json")
-            after = item.model_dump(mode="json")
-            found += [f"{record.id} {name}: recorded {before.get(name)!r}, replayed "
-                      f"{after.get(name)!r}"
-                      for name in sorted((before.keys() | after.keys()) - NOT_REPLAYED)
-                      if before.get(name) != after.get(name)]  # fmt: skip
+        for condition in CONDITIONS:
+            recorded_items = recorded(condition)
+            for record in records or problems():
+                tags = Tags(problem_id=record.id, split=followup.TEST_SPLIT, condition=condition)
+                try:
+                    item = evaluate.run_item(record, condition, api.ReplayOnlyClient(),  # type: ignore[arg-type]  # it stands in for anthropic.Anthropic
+                                             session, tags, second_model.HAIKU_MODEL)  # fmt: skip
+                except api.NotCached:
+                    found.append(f"{record.id} ({condition}): a call isn't in Haiku's cache")
+                    continue
+                before = recorded_items[record.id].model_dump(mode="json")
+                if isinstance(before.get("reason"), str):
+                    before["reason"] = before["reason"].replace(*REWORDED)
+                after = item.model_dump(mode="json")
+                found += [f"{record.id} ({condition}) {name}: recorded {before.get(name)!r}, "
+                          f"replayed {after.get(name)!r}"
+                          for name in sorted((before.keys() | after.keys()) - NOT_REPLAYED)
+                          if before.get(name) != after.get(name)]  # fmt: skip
     return found
 
 
 def unfinished(replay: bool = False) -> list[str]:
     """What's left before the approval, checked from the files; empty when nothing is. With
-    `replay`, also haiku_replay_differs (a minute or so: approve() runs it)."""
+    `replay`, also haiku_replay_differs (about 20 s: approve() runs it)."""
     todo = []
     if not PREREGISTRATION_PATH.exists():
         todo.append(f"{_relative(PREREGISTRATION_PATH)} is missing")
@@ -205,18 +226,20 @@ def unfinished(replay: bool = False) -> list[str]:
         todo.append("the 121 unexposed ids don't give the follow-up's id-list hash")
     if not all(path.exists() for path in data):
         return todo  # the checks below read the problems
-    records, pairs = problems(), recorded()
-    if unpaired := [r.id for r in records if r.id not in pairs]:
-        todo.append(f"Haiku's record has no sample-0 answer for {unpaired[:5]}")
+    records = problems()
+    for condition in CONDITIONS:
+        pairs = recorded(condition)
+        if unpaired := [r.id for r in records if r.id not in pairs]:
+            todo.append(f"Haiku's record has no sample-0 {condition} answer for {unpaired[:5]}")
     if differ := requests_differ(records):
-        todo.append(f"these requests aren't Haiku's but for the model (section 3): {differ[:5]}")
+        todo.append(f"these requests aren't Haiku's but for the model: {differ[:5]}")
     if replay and (differ := haiku_replay_differs(records)):
-        todo.append(f"Haiku's answers don't replay as recorded (section 3): {differ[:5]}")
+        todo.append(f"Haiku's answers don't replay as recorded: {differ[:5]}")
     return todo
 
 
 def approve(approved_by: str, today: str | None = None) -> SecondModelApproval:
-    """Writes docs/second_model/FREEZE.json with the current fingerprint."""
+    """Writes FREEZE_PATH with the current fingerprint."""
     todo = unfinished(replay=True)
     if git("status", "--porcelain"):
         todo.append("the working tree has uncommitted changes: commit first, so the approved "
@@ -264,24 +287,26 @@ def check() -> str:
     return digest(approval.fingerprint)
 
 
-def tag_problems(tag: str = FREEZE_TAG) -> list[str]:
-    """Does `tag` hold exactly the approved inputs? Empty if it does (everything read from
+def tag_problems(tag: str = FREEZE_TAG, path: Path = FREEZE_PATH) -> list[str]:
+    """Does `tag` hold exactly the approval in `path`? Empty if it does (everything read from
     git's objects). The LLM4OR data is git-ignored: a copy that's here must be the approved
     one."""
-    approval, problems = approval_at_tag(
-        tag, "docs/second_model/FREEZE.json", FREEZE_PATH, SecondModelApproval,
-        ("data/external/",),
-    )  # fmt: skip
+    approval, problems = approval_at_tag(tag, _relative(path), path, SecondModelApproval,
+                                         ("data/external/",))  # fmt: skip
     if approval is None:
         return problems
     if approval.fingerprint.get(_relative(ANALYSIS_PATH)) != approval.analysis_sha256:
-        problems.append(f"docs/second_model/FREEZE.json at {tag}: analysis_sha256 isn't the "
-                        "fingerprint's")  # fmt: skip
-    for path in followup_freeze.data_files():
-        name = _relative(path)
-        if path.exists() and _sha256(path.read_bytes()) != approval.fingerprint.get(name):
+        problems.append(f"{_relative(path)} at {tag}: analysis_sha256 isn't the fingerprint's")
+    for data in followup_freeze.data_files():
+        name = _relative(data)
+        if data.exists() and _sha256(data.read_bytes()) != approval.fingerprint.get(name):
             problems.append(f"{name}: here, but not the file approved at {tag}")
     return problems
+
+
+def original_tag_problems() -> list[str]:
+    """The first approval, superseded by Amendment 1, must still be what its tag holds."""
+    return tag_problems(ORIGINAL_TAG, ORIGINAL_PATH)
 
 
 def tag_exists(tag: str = FREEZE_TAG) -> bool:
@@ -310,7 +335,7 @@ def status() -> str:
     lines += [f"- {item}" for item in todo]
     approval = approved()
     if approval is None:
-        return "\n".join([*lines, "Not frozen yet (no docs/second_model/FREEZE.json)."])
+        return "\n".join([*lines, f"Not frozen yet (no {_relative(FREEZE_PATH)})."])
     try:
         ready()
     except FreezeError as error:

@@ -187,3 +187,60 @@ with what was planned, what happened and what it changes. Results are reported w
 show, in `results/second_model.json` (the analysis writes it); none goes into
 `results/eval.json`, `results/followup.json` or `results/resampling.json`, and any number of
 this study in the README is checked by a test against `results/second_model.json`.
+
+## Amendment 1 (before any paid call), 2026-11-22
+
+**Why.** The owner's API credit expires soon, so the run moves from December to now, and the
+owner can spend up to $13.50 of the $14.53 left. The owner decided both changes below in chat
+on 2026-11-22. No call of this study had been made and no Sonnet output had been seen:
+`runs/second-model` didn't exist, and no spend ledger in this project has an entry for
+`claude-sonnet-5-5`. Everything above stays as it was frozen; this section is added below it.
+The first freeze (`docs/second_model/FREEZE.json`, tag `second-model-freeze`) is kept as it
+was committed and still verifies, but no longer gates the run: the amended study is frozen by
+`docs/second_model/FREEZE-2.json`, tagged `second-model-freeze-2`, and the run refuses to start
+unless that tag holds it and the inputs here match.
+
+**Stage 1 is the study as registered, with one change: its hard cap is $11.00, not $7.00.**
+Its checkpoint after the first 10 problems compares the projected stage-1 total with $11.00.
+S1, the pairing (Haiku's sample 0), the sensitivity rows, the verdict rules and everything
+else in sections 1 to 7 are unchanged. The study's verdict rests only on S1.
+
+**Stage 2 (new, secondary): the no-solver baseline with Sonnet 5.5.**
+
+- **Calls:** one per problem, sample 0, on the same 121 problems in the same run order, with
+  the settings of Haiku's no-solver condition in the follow-up except the model: the prompt
+  and schema (`baseline.SYSTEM_PROMPT`, `baseline.ANSWER_SCHEMA`), `max_tokens` 16,000,
+  thinking and effort pinned as in section 3, temperature not sent, the same retries and the
+  same parsing and record (`evaluate.run_item`, condition `baseline`). Section 3's declared
+  differences apply to it too.
+- **It starts only if stage 1 settled all 121 problems.** Otherwise it's "not started".
+- **Its cost guard:** a hard cap of $13.50 of total spend across both stages (one ledger, so
+  stage 1's spend counts), and its own checkpoint after its first 10 problems: the projected
+  total is stage 1's cost plus the mean cost of stage 2's answers among those 10 times 121,
+  from token counts only, never from whether anything is right; over $13.50, it stops there.
+- **Its analysis, secondary, no verdict:** Sonnet single-shot (stage 1's answers) against
+  Sonnet no-solver (stage 2's), with the exact McNemar test, two-sided, and the paired
+  difference (single-shot minus no-solver) with the follow-up's bootstrap interval; and the
+  same comparison for Haiku (its sample 0 in each condition, from the same record), for
+  context. Sonnet's comparison is computed only if stage 2 settled all 121 problems;
+  otherwise stage 2 is reported as "incomplete" with how far it got and what it cost, and
+  stage 1's result stands. Each stage's cost and latency are reported too.
+- **Known before this amendment, and disclosed:** Haiku's own comparison on these problems,
+  sample 0: single-shot right on 95 and no-solver on 92 (11 problems right only single-shot,
+  8 only no-solver; p 0.65; a difference of +2.5 points, interval -4.1 to +9.9).
+- **Checks before the freeze,** as in section 3, now in both conditions, all passed: every
+  Sonnet no-solver request equals Haiku's sample-0 no-solver request but for the model, and
+  Haiku's is byte for byte the one its run sent; and Haiku's 121 sample-0 no-solver answers
+  replay through this code with every recorded field back, with one wording change counted as
+  the same: four of them were cut off at `max_tokens`, and that reason's message now reads
+  "the reply was cut off at its max_tokens limit" where the record says "the reply was cut off
+  at 16000 tokens" (section 3's declared difference 2, "messages").
+
+**Expected cost:** stage 1 about $5.18, as in section 6; stage 2 about $4.14 (Haiku's
+no-solver sample 0 cost $0.2069 for the 121, times 20); about $9.32 in all. The hard caps:
+stage 1 $11.00, both stages together $13.50. Uncapped worst cases, every reply at
+`max_tokens`: $20.95 for stage 1 and $20.59 for stage 2 (`--plan` prints them). Each call's
+reservation leaves up to $0.19 of a cap unspent, so stage 1 has room for about 2.1 times
+Haiku's tokens, and both stages together for about 1.4 times; past that, the total cap can
+stop stage 2 before the end. On Haiku's costs, stage 2's first 10 problems project 1.13 of its
+actual total.

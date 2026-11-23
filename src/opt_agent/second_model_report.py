@@ -1,22 +1,24 @@
-"""The second-model study's analysis (docs/SECOND_MODEL_PREREGISTRATION.md, section 4):
-everything that section computes, from the run's results.jsonl, Haiku's record and the
+"""The second-model study's analysis (docs/SECOND_MODEL_PREREGISTRATION.md, section 4, and
+Amendment 1): everything they compute, from the run's results.jsonl, Haiku's record and the
 follow-up's keys. It calls no API, and its hash is part of the freeze.
 
 - **Pairs:** each of the 121 problems, Sonnet's answer (the run's latest item for it) with
-  Haiku's single-shot sample 0 (the latest item for it in second_model.HAIKU_RECORD).
+  Haiku's sample 0 (the latest item for it in second_model.HAIKU_RECORD), in the same
+  condition.
 - **Right:** a done item whose answer is right by the follow-up's scoring
   (followup_report.is_right: followup.is_correct, 1e-4). Anything else is wrong: no answer (a
   loud failure), an errored item, a missing one.
-- **S1, the primary test:** exact McNemar, two-sided (stats.mcnemar_exact), alpha 0.05, on
-  the problems only one model got right. Supported: p < alpha and Sonnet got more of those
-  right; not supported: p < alpha and Haiku did; inconclusive: p >= alpha. A verdict needs a
-  complete run (every problem's call settled); otherwise it's "incomplete". Reported whatever
-  the verdict: each model's accuracy with a 95% Wilson interval, and the paired difference
-  (Sonnet minus Haiku) with the follow-up's 95% paired percentile bootstrap interval
-  (followup_report.bootstrap_ci: 10,000 resamples, seed 20261109) and the smallest whole X
-  with that interval inside +/-X points (followup_report.bound_pp).
-- **Secondary, no test:** each model's silent failures (a verified answer, a confirmed
-  optimum, that's wrong), of the problems and of its verified answers, with Wilson
+- **S1, the primary test (stage 1, single-shot):** exact McNemar, two-sided
+  (stats.mcnemar_exact), alpha 0.05, on the problems only one model got right. Supported:
+  p < alpha and Sonnet got more of those right; not supported: p < alpha and Haiku did;
+  inconclusive: p >= alpha. A verdict needs stage 1 complete (every problem's call settled);
+  otherwise it's "incomplete". Reported whatever the verdict: each model's accuracy with a 95%
+  Wilson interval, and the paired difference (Sonnet minus Haiku) with the follow-up's 95%
+  paired percentile bootstrap interval (followup_report.bootstrap_ci: 10,000 resamples, seed
+  20261109) and the smallest whole X with that interval inside +/-X points
+  (followup_report.bound_pp). The study's verdict is S1's alone.
+- **Secondary, no test:** each model's silent failures in stage 1 (a verified answer, a
+  confirmed optimum, that's wrong), of the problems and of its verified answers, with Wilson
   intervals; and the rest of its wrong answers: wrong confirmed verdicts (infeasible,
   unbounded) and loud failures (cut-off replies among them, counted).
 - **Descriptive only:** cost and latency per correct answer. Each model's total cost_usd
@@ -25,6 +27,11 @@ follow-up's keys. It calls no API, and its hash is part of the freeze.
 - **Sensitivity, no claim:** S1's counts and test again with Haiku's samples 1 and 2 in place
   of sample 0, which is Haiku's lowest-scoring sample on these problems (known before the
   study, section 2), and Haiku's accuracy averaged over samples 0 to 2.
+- **Stage 2, secondary (Amendment 1):** single-shot against the no-solver baseline, for Sonnet
+  (stage 1's answers against stage 2's) and, for context, for Haiku (sample 0 of each): the
+  same exact McNemar test and paired difference (single-shot minus no-solver), no verdict.
+  Sonnet's comparison only if stage 2 is complete; otherwise stage 2 is "incomplete" (or "not
+  started", if stage 1 wasn't complete), with how far it got and what it cost.
 
 Every value written is a Python bool, int, float, str, list or dict, so json writes it (the
 resampling study's main() couldn't, over a numpy bool: its deviation 1).
@@ -48,23 +55,25 @@ ALPHA = 0.05
 RESULTS = REPO_ROOT / "results" / "second_model.json"
 HAIKU_SAMPLES = (0, 1, 2)  # the follow-up's; 1 and 2 only in the sensitivity rows
 VERDICTS = ("supported", "not supported", "inconclusive", "incomplete")
+SINGLE_SHOT, NO_SOLVER = second_model.CONDITION, second_model.BASELINE
 
 
 # ---- reading ----------------------------------------------------------------------------
 
 
-def items_of(results: Path, sample: int) -> dict[str, Item]:
-    """The latest single-shot item of `sample` per problem."""
+def items_of(results: Path, sample: int, condition: str = SINGLE_SHOT) -> dict[str, Item]:
+    """The latest item of `condition` and `sample` per problem."""
     return {i.problem_id: i for i in latest_items(results)
-            if i.condition == second_model.CONDITION and i.sample == sample}  # fmt: skip
+            if i.condition == condition and i.sample == sample}  # fmt: skip
 
 
-def settled_problems(results: Path) -> set[str]:
-    """The problems whose Sonnet call needs nothing more (second_model.settled)."""
+def settled_problems(results: Path, condition: str = SINGLE_SHOT) -> set[str]:
+    """The problems whose Sonnet call in `condition` needs nothing more
+    (second_model.settled)."""
     entries: dict[str, list[dict]] = {}
     for line in results.read_text().splitlines() if results.exists() else []:
         entry = json.loads(line)
-        if entry["kind"] == "item":
+        if entry["kind"] == "item" and entry["condition"] == condition:
             entries.setdefault(entry["problem_id"], []).append(entry)
     return {pid for pid, found in entries.items() if second_model.settled(found)}
 
@@ -95,29 +104,38 @@ def verdict(only_sonnet: int, only_haiku: int, p_value: float, complete: bool) -
     return "supported" if only_sonnet > only_haiku else "not supported"
 
 
-def compare(problems: list[followup.Problem], sonnet: dict[str, Item], haiku: dict[str, Item],
-            complete: bool) -> dict:  # fmt: skip
-    """S1: right or wrong per problem for each model, the exact McNemar test on the problems
-    only one got right, the verdict, and the effect."""
-    s = np.array([right(p, sonnet.get(p.id)) for p in problems], dtype=float)
-    h = np.array([right(p, haiku.get(p.id)) for p in problems], dtype=float)
-    only_sonnet, only_haiku = int(((s == 1) & (h == 0)).sum()), int(((s == 0) & (h == 1)).sum())
-    p_value = float(stats.mcnemar_exact(only_sonnet, only_haiku))  # a numpy float when < 1
-    n, difference = len(problems), s - h
+def paired(problems: list[followup.Problem], first: dict[str, Item], second: dict[str, Item],
+           names: tuple[str, str]) -> dict:  # fmt: skip
+    """Right or wrong per problem for two answer sets, named `names`: the exact McNemar test
+    (two-sided) on the problems only one got right, each set's accuracy, and the paired
+    difference (first minus second) with its interval."""
+    a, b = names
+    x = np.array([right(p, first.get(p.id)) for p in problems], dtype=float)
+    y = np.array([right(p, second.get(p.id)) for p in problems], dtype=float)
+    only_x, only_y = int(((x == 1) & (y == 0)).sum()), int(((x == 0) & (y == 1)).sum())
+    n, difference = len(problems), x - y
     ci = bootstrap_ci(difference)
     return {
         "problems": n,
-        "sonnet_right": int(s.sum()), "haiku_right": int(h.sum()),
-        "only_sonnet_right": only_sonnet, "only_haiku_right": only_haiku,
-        "both_right": int(((s == 1) & (h == 1)).sum()),
-        "both_wrong": int(((s == 0) & (h == 0)).sum()),
-        "p_value": p_value, "alpha": ALPHA,
-        "verdict": verdict(only_sonnet, only_haiku, p_value, complete),
-        "sonnet_accuracy": rate(int(s.sum()), n), "haiku_accuracy": rate(int(h.sum()), n),
+        f"{a}_right": int(x.sum()), f"{b}_right": int(y.sum()),
+        f"only_{a}_right": only_x, f"only_{b}_right": only_y,
+        "both_right": int(((x == 1) & (y == 1)).sum()),
+        "both_wrong": int(((x == 0) & (y == 0)).sum()),
+        "p_value": float(stats.mcnemar_exact(only_x, only_y)),  # a numpy float when < 1
+        f"{a}_accuracy": rate(int(x.sum()), n), f"{b}_accuracy": rate(int(y.sum()), n),
         "difference": float(difference.mean()) if n else None,
         "difference_ci95": ci,
         "within_pp": bound_pp(ci),
     }  # fmt: skip
+
+
+def compare(problems: list[followup.Problem], sonnet: dict[str, Item], haiku: dict[str, Item],
+            complete: bool) -> dict:  # fmt: skip
+    """S1: Sonnet against Haiku, the exact McNemar test, the verdict, and the effect."""
+    found = paired(problems, sonnet, haiku, ("sonnet", "haiku"))
+    rule = verdict(found["only_sonnet_right"], found["only_haiku_right"], found["p_value"],
+                   complete)  # fmt: skip
+    return {**found, "alpha": ALPHA, "verdict": rule}
 
 
 def failures(problems: list[followup.Problem], items: dict[str, Item]) -> dict:
@@ -173,6 +191,28 @@ def sensitivity(problems: list[followup.Problem], sonnet: dict[str, Item], recor
     return rows
 
 
+def stage_2(problems: list[followup.Problem], results: Path, record: Path,
+            stage_1_complete: bool) -> dict:  # fmt: skip
+    """Amendment 1's secondary comparison: single-shot against the no-solver baseline."""
+    ids = {p.id for p in problems}
+    settled = ids & settled_problems(results, NO_SOLVER)
+    complete = stage_1_complete and settled == ids
+    status = "complete" if complete else "incomplete" if stage_1_complete else "not started"
+    names = ("single_shot", "no_solver")
+    sonnet_baseline = items_of(results, second_model.SAMPLE, NO_SOLVER)
+    haiku = paired(problems, items_of(record, second_model.HAIKU_SAMPLE),
+                   items_of(record, second_model.HAIKU_SAMPLE, NO_SOLVER), names)  # fmt: skip
+    sonnet = (paired(problems, items_of(results, second_model.SAMPLE), sonnet_baseline, names)
+              if complete else None)  # fmt: skip
+    return {
+        "status": status, "settled": len(settled),
+        "sonnet": sonnet, "haiku": haiku,
+        "spend": {"sonnet": spend(problems, sonnet_baseline),
+                  "haiku": spend(problems, items_of(record, second_model.HAIKU_SAMPLE,
+                                                    NO_SOLVER))},
+    }  # fmt: skip
+
+
 # ---- the report -------------------------------------------------------------------------
 
 
@@ -186,7 +226,8 @@ def build(run_dir: Path, problems: list[followup.Problem],
     complete = ids <= settled
     shown = record.relative_to(REPO_ROOT) if record.is_relative_to(REPO_ROOT) else record
     return {
-        "label": "the second-model study (docs/SECOND_MODEL_PREREGISTRATION.md); S1 primary",
+        "label": "the second-model study (docs/SECOND_MODEL_PREREGISTRATION.md, with its "
+                 "Amendment 1); S1 primary",
         "models": {"sonnet": second_model.MODEL, "haiku": second_model.HAIKU_MODEL},
         "haiku_record": {"path": str(shown), "sample": second_model.HAIKU_SAMPLE},
         "problems": len(problems),
@@ -197,6 +238,7 @@ def build(run_dir: Path, problems: list[followup.Problem],
         "failures": {"sonnet": failures(problems, sonnet), "haiku": failures(problems, haiku)},
         "spend": {"sonnet": spend(problems, sonnet), "haiku": spend(problems, haiku)},
         "sensitivity": sensitivity(problems, sonnet, record),
+        "stage_2": stage_2(problems, results, record, complete),
         "pairs": [{"problem": p.id,
                    "sonnet_right": right(p, sonnet.get(p.id)),
                    "haiku_right": right(p, haiku.get(p.id)),
@@ -217,9 +259,10 @@ def main(argv: list[str] | None = None) -> None:
     report = build(args.run_dir, problems)
     RESULTS.parent.mkdir(parents=True, exist_ok=True)
     RESULTS.write_text(dumps(report))
-    s1 = report["s1"]
+    s1, two = report["s1"], report["stage_2"]
     print(f"S1: {s1['sonnet_right']} vs {s1['haiku_right']} right of {s1['problems']}, "
-          f"p = {s1['p_value']:.3g}: {s1['verdict']}; -> {RESULTS}")  # fmt: skip
+          f"p = {s1['p_value']:.3g}: {s1['verdict']}. Stage 2: {two['status']}. "
+          f"-> {RESULTS}")  # fmt: skip
 
 
 if __name__ == "__main__":

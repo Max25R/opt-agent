@@ -103,9 +103,12 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
    single-shot on the same 121 problems, paired with Haiku's single-shot sample 0
    (`runs/followup-test/results.jsonl`); `docs/SECOND_MODEL_PREREGISTRATION.md`, runner
    `src/opt_agent/second_model.py`, analysis `src/opt_agent/second_model_report.py`, gate
-   `src/opt_agent/second_model_freeze.py`, frozen in `docs/second_model/FREEZE.json` at tag
-   `second-model-freeze`. **Not run: the paid run is the owner's, in December 2026**
-   (`docs/HANDOFF.md`, open item 21).
+   `src/opt_agent/second_model_freeze.py`, first frozen in `docs/second_model/FREEZE.json` at
+   tag `second-model-freeze`. **Amendment 1** (2026-11-22, before any call; the owner's credit
+   expires soon): stage 1 is the study as registered with a $11.00 cap; stage 2 adds Sonnet's
+   no-solver baseline (secondary), with $13.50 for both stages; frozen again in
+   `docs/second_model/FREEZE-2.json` at tag `second-model-freeze-2`, which gates the run.
+   **Not run: the paid run is the owner's, now** (`docs/HANDOFF.md`, open item 21).
 
 **Standing rules from the history** (the reasons are in `docs/HISTORY.md`):
 - **The resampling study is done and frozen at `resampling-freeze`.** Never edit
@@ -114,14 +117,17 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
   bool), so `scripts/resampling_results.py` writes it, from the frozen `build()` (deviation
   1). The owner asked Claude to write this study's freeze (2026-11-19); the two older
   studies' approvals stay the owner's steps only.
-- **The second-model study is frozen at `second-model-freeze`, not yet run** (2026-11-22; the
-  owner asked Claude to write its freeze and create that one tag). Never edit
-  `docs/SECOND_MODEL_PREREGISTRATION.md` or `docs/second_model/FREEZE.json`, and never move or
-  delete the tag; a change before the run is an amendment, dated and tagged before any call.
-  Its run refuses unless the tag holds the approval and the inputs here match
-  (`second_model_freeze.ready`), so until the owner's run, change nothing it fingerprints:
-  anything under `src/opt_agent/`, `requirements.lock`, `data/followup/split.json` or
-  `runs/followup-test/results.jsonl` (the owner's command switches to the tag first anyway).
+- **The second-model study is frozen at `second-model-freeze-2` (its Amendment 1), not yet
+  run** (2026-11-22; the owner asked Claude to write its freezes and create those two tags).
+  Never edit `docs/SECOND_MODEL_PREREGISTRATION.md` (its original text or Amendment 1),
+  `docs/second_model/FREEZE.json` or `FREEZE-2.json`, and never move or delete either tag; a
+  further change before the run is another amendment, dated and tagged before any call. The
+  first tag holds the study as first registered and must keep verifying
+  (`second_model_freeze.original_tag_problems`). The run refuses unless `second-model-freeze-2`
+  holds its approval and the inputs here match (`second_model_freeze.ready`), so until the
+  owner's run, change nothing it fingerprints: anything under `src/opt_agent/`,
+  `requirements.lock`, `data/followup/split.json` or `runs/followup-test/results.jsonl` (the
+  owner's commands switch to the tag first anyway).
 - `python -m opt_agent.freeze approve` and `python -m opt_agent.followup_freeze approve` are
   **the owner's steps only**, never Claude's. Never edit `docs/FREEZE.json` or
   `docs/followup/FREEZE.json`, and never rewrite git history (it would break the freeze tags).
@@ -241,9 +247,9 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
   (`scripts/paid_explain_limits.py`): cap $0.25, paid $0.0358 (owner's terminal, 2026-11-20;
   `runs/explain-dev-limits/spend.jsonl`). The demo's refresh (`scripts/cache_examples.py`):
   cap $0.15, paid $0.0136 (owner's terminal, 2026-11-21; `logs/spend/demo-examples.jsonl`).
-  The second-model study's run (the owner's, December 2026): hard cap $7.00, and a stop after
-  its first 10 problems if they project more (its pre-registration, section 6); expected
-  about $5.18 at Haiku's token counts.
+  The second-model study's run (the owner's, now; its Amendment 1): hard caps $11.00 for stage
+  1 and $13.50 for both stages, each stage with a stop after its first 10 problems if they
+  project more; expected about $9.32 at Haiku's token counts ($5.18 and $4.14).
   Spent so far: $5.47 of the $20 credit (2026-11-21; the ledger is in `docs/HANDOFF.md`).
 - `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
   paid run. An unlisted model raises instead of being guessed.

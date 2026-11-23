@@ -105,16 +105,19 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   the 88 labels; the numbers are in its JSON, and its doc says what it misses. No README claim
   changed. It ran while the owner's paid resampling run was going (started 2026-11-19 in this
   checkout, `runs/resampling`): nothing the resampling freeze checks was touched.
-- **The second-model study** (2026-11-22, the owner's seven decisions; open item 21): frozen,
-  not yet run. The runner `src/opt_agent/second_model.py` (the cost guard: a $7.00 hard cap
-  and the 10-problem checkpoint), the gate `src/opt_agent/second_model_freeze.py` (`ready()`:
-  the tag exists, holds the approval, and the inputs match), the analysis
+- **The second-model study** (2026-11-22, the owner's seven decisions, then Amendment 1; open
+  item 21): frozen at `second-model-freeze-2`, not yet run. The runner
+  `src/opt_agent/second_model.py` (two stages; the cost guard: hard caps of $11.00 for stage 1
+  and $13.50 for both, and each stage's 10-problem checkpoint), the gate
+  `src/opt_agent/second_model_freeze.py` (`ready()`: the tag exists, holds the approval, and
+  the inputs match; the first tag must still hold the first approval), the analysis
   `src/opt_agent/second_model_report.py` (tested on fake answers), the power
-  `docs/second_model/power.md` (`scripts/second_model_power.py`, exact), and
-  `scripts/reproduce.py`'s step, which rebuilds `results/second_model.json` in the tag's tree
-  once `runs/second-model` is committed (until then it says "not run yet"; a test runs the
-  whole path on a fake run of all 121 problems). Before the freeze, every Haiku request was
-  checked byte for byte against the one its run sent, and Haiku's 121 sample-0 answers
+  `docs/second_model/power.md` (`scripts/second_model_power.py`, exact, for S1), and
+  `scripts/reproduce.py`'s step, which replays both stages and rebuilds
+  `results/second_model.json` in the tag's tree once `runs/second-model` is committed (until
+  then it says "not run yet"; a test runs the whole path on a fake run of both stages on all
+  121 problems). Before each freeze, every Haiku request (both conditions, for the amendment)
+  was checked byte for byte against the one its run sent, and Haiku's sample-0 answers
   replayed through this code with every recorded field back. `pricing.PRICES` has Sonnet 5.5
   ($2 / $10 per million input / output tokens, checked 2026-11-22). No API call was made.
 - **The README's first screen** (2026-11-19, the owner's request): a 3-line summary, a
@@ -382,18 +385,21 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    these labels, the pairs (post hoc, the owner's requests) and Claude's reading of what the
    labeled false claims are: `review/explain_dev_limits/RESULTS.md` and ADR-0009's update,
    from the same record.
-21. **The second-model study's run, the owner's, in December 2026** (after the monthly credit
-   resets). Pre-registered and frozen on 2026-11-22 (`docs/SECOND_MODEL_PREREGISTRATION.md`,
-   tag `second-model-freeze`): Claude Sonnet 5.5 single-shot on the follow-up's 121 unexposed
-   problems, one sample each, paired with Haiku's single-shot sample 0 in
-   `runs/followup-test/results.jsonl`; exact McNemar, two-sided. Hard cap $7.00, and a stop
-   after the first 10 problems if they project more; expected about $5.18. **Until the run,
-   change nothing the freeze fingerprints** (anything under `src/opt_agent/`,
-   `requirements.lock`, the pre-registration, `data/followup/split.json`,
-   `runs/followup-test/results.jsonl`), or the run refuses at `main`; the owner's command
-   switches to the tag first, so it runs either way. After the run: commit `runs/second-model`
-   (`git add -f`), then `python -m opt_agent.second_model_report` writes
-   `results/second_model.json`; a write-up, the README's numbers and their test come then.
+21. **The second-model study's run, the owner's, now** (Amendment 1 moved it up from December:
+   the owner's credit expires soon). Pre-registered and frozen on 2026-11-22
+   (`docs/SECOND_MODEL_PREREGISTRATION.md`, tag `second-model-freeze`), then amended before any
+   call and frozen again (its Amendment 1, `docs/second_model/FREEZE-2.json`, tag
+   `second-model-freeze-2`, which gates the run). Stage 1: Claude Sonnet 5.5 single-shot on the
+   follow-up's 121 unexposed problems, one sample each, paired with Haiku's single-shot sample 0
+   in `runs/followup-test/results.jsonl`; exact McNemar, two-sided; hard cap $11.00. Stage 2
+   (secondary): Sonnet's no-solver baseline, only after stage 1 is complete; $13.50 for both
+   stages. Each stage stops after its first 10 problems if they project more than its cap.
+   Expected about $9.32. **Until the run, change nothing the freeze fingerprints** (anything
+   under `src/opt_agent/`, `requirements.lock`, the pre-registration,
+   `data/followup/split.json`, `runs/followup-test/results.jsonl`), or the run refuses at
+   `main`; the owner's commands switch to the tag first, so they run either way. After the run
+   the owner's last block writes `results/second_model.json` and commits it with
+   `runs/second-model`; a write-up, the README's numbers and their test come then.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all three studies ran and
@@ -752,3 +758,23 @@ Logged as the owner asked: the simplest reasonable option, where the request did
 - **reproduce.py replays a run its cost guard stopped** up to where it stopped
   (`second_model.run(..., limit=)`); a call still errored after Amendment 1's passes has no
   cached reply, so a replay of such a run would stop there and need handling then.
+
+## Decisions made without the owner (2026-11-22, the second-model study's Amendment 1)
+- **The amendment is a section appended to the pre-registration** (the owner's instruction),
+  and the text the first tag froze is byte for byte the start of the file (a test checks it).
+  The amended approval is a new file, `docs/second_model/FREEZE-2.json`, so the first
+  (`FREEZE.json`) stays as committed and its tag keeps verifying; only the new tag gates the
+  run.
+- **Stage 1's checkpoint compares with its new cap,** $11.00: the frozen rule was "stop if the
+  projection is over the cap", and the cap is what changed.
+- **Stage 2's checkpoint projects the total:** stage 1's actual cost (its items' `cost_usd`)
+  plus stage 2's mean so far times 121, against $13.50, so both stages' guard reads one way.
+- **Stage 2's analysis runs only when it settled all 121 problems;** otherwise it's
+  "incomplete" (or "not started" if stage 1 wasn't complete), with what it reached and cost,
+  and no partial test. Haiku's single-shot-against-no-solver context is reported either way.
+- **The replay check maps one rewording:** four of Haiku's no-solver answers were cut off, and
+  their recorded reason says "at 16000 tokens" where the current message says "at its
+  max_tokens limit" (`second_model_freeze.REWORDED`). Every other field replays as recorded.
+- **The run is one command for both stages:** stage 2 starts on its own once stage 1 has
+  settled every problem, and the command exits before stage 2 if a stage-1 call still has
+  resume passes left (running it again retries that call).

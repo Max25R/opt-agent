@@ -8,11 +8,12 @@ evaluate.scorable_records, evaluate.evaluate, and the manifest's split, problems
 model and samples. The resampling study's run (split "resampling", resampling-freeze) has its
 own runner, so it replays through that: resampling.run, which reads the problems only on the
 frozen inputs and runs every cell through evaluate.run_item. So does the second-model study's
-(split "second-model", second-model-freeze): second_model.run, on the approval alone (a tag's
-tree has no git), up to as many problems as the committed run reached, since its cost guard
-can end a run early. Either way the committed manifest goes into the new run directory first,
-so the runner refuses anything but the same experiment. A request that isn't in the cache
-raises NotInCache: nothing here can reach the API.
+(split "second-model", second-model-freeze-2): second_model.run, on the approval alone (a
+tag's tree has no git), stage by stage, each up to as many problems as the committed run
+reached in it, since its cost guard can end a stage early. Either way the committed manifest
+goes into the new run directory first, so the runner refuses anything but the same
+experiment. A request that isn't in the cache raises NotInCache: nothing here can reach the
+API.
 
 Run (inside a tag's tree):  python scripts/replay_run.py runs/test replay/test
 """
@@ -66,12 +67,16 @@ def replay(run: Path, out: Path) -> None:
 
 
 def run_second_model(run: Path, out: Path) -> None:
-    from opt_agent import second_model  # only second-model-freeze's tree has it
+    from opt_agent import second_model  # only the second-model study's trees have it
 
     entries = [json.loads(line) for line in (run / "results.jsonl").read_text().splitlines()]
-    reached = {e["problem_id"] for e in entries if e["kind"] == "item"}
     records, digest = second_model.inputs(tag=False)
-    second_model.run(RefusingClient(), out, records, digest, limit=len(reached))  # type: ignore[arg-type]
+    for stage in second_model.STAGES:
+        reached = {e["problem_id"] for e in entries
+                   if e["kind"] == "item" and e["condition"] == stage.condition}  # fmt: skip
+        if reached:  # stage 2 started only if stage 1 was complete
+            second_model.run(RefusingClient(), out, records, digest, stage,  # type: ignore[arg-type]
+                             limit=len(reached))  # fmt: skip
 
 
 def run_evaluate(manifest: dict, out: Path) -> None:

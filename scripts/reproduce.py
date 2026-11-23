@@ -20,10 +20,10 @@ changes can move a number, and nothing here writes into this checkout. Two check
      analysis's report (opt_agent.resampling_report.build), and docs/resampling/RESULTS.md,
      both by scripts/resampling_results.py, which writes the report because the frozen
      main() can't (deviation 1, docs/resampling/DEVIATIONS.md);
-   - the second-model study (second-model-freeze): results/second_model.json, by its frozen
-     analysis (python -m opt_agent.second_model_report). Its run is the owner's, planned for
-     December 2026; until runs/second-model is committed there's nothing to rebuild, and this
-     says so.
+   - the second-model study (second-model-freeze-2, its Amendment 1's freeze): both stages
+     replayed, and results/second_model.json rebuilt by its frozen analysis (python -m
+     opt_agent.second_model_report). Its run is the owner's; until runs/second-model is
+     committed there's nothing to rebuild, and this says so.
    The write-up scripts were written after the freezes, against the same package, so they're
    copied in from this checkout.
 
