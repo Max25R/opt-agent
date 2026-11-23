@@ -217,10 +217,16 @@ def test_the_new_samples_cost_is_reported_per_sample(tmp_path):
 # ---- the report ---------------------------------------------------------------------------
 
 
-def test_the_report_is_plain_json(tmp_path):
+def test_the_report_is_plain_json_and_doesnt_depend_on_where_the_run_is(tmp_path):
+    """No path of the run directory goes in: reproduce.py rebuilds the report from a copy of
+    the run in the tag's tree, and it must come out byte for byte the same."""
     problems, sonnet, haikus = scored([3, 2, 1, 0, 3], [2, 2, 2, 2, 2])
     data = build(tmp_path, problems, sonnet, haikus)
     assert json.loads(report.dumps(data)) == data
+    (tmp_path / "run").rename(tmp_path / "moved")
+    moved = report.build(tmp_path / "moved", problems, tmp_path / "sonnet-0.jsonl",
+                         tmp_path / "haiku.jsonl")  # fmt: skip
+    assert report.dumps(moved) == report.dumps(data)
 
 
 def test_the_command_writes_the_results_file(tmp_path, monkeypatch):

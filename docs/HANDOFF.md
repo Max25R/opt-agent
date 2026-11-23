@@ -910,3 +910,10 @@ Logged as the owner asked: the simplest reasonable option, where the request did
 - **The code commit and the freeze commit were pushed together,** as for Amendment 1: the
   fake-run reproduce test needs the freeze committed and skips before it, and CI's reproduce job
   fails on any skip. The tag went on the freeze commit only after CI passed on it.
+- **The first freeze commit (`5c87eb4`, on `276b52a`) was superseded before anything was pushed
+  or tagged.** Run once that freeze was committed, the fake-run reproduce test found that the
+  report recorded the run directory's path, so a rebuild from a copy of the run in the tag's
+  tree couldn't come out byte for byte. The fix (the report records no run path, and a test
+  moves a run to check it) changed the analysis, so the study was approved again on the fixed
+  commit, and the tag is on that second freeze commit. History isn't rewritten: both freeze
+  commits are in it, and only the tagged one counts.
