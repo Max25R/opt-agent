@@ -1,4 +1,4 @@
-# Handoff (2026-11-22)
+# Handoff (2026-11-23)
 
 Read CLAUDE.md first (rules, budget, gotchas), then this file: where things stand, every
 open item, and the environment. A new session needs nothing else; the full record of
@@ -34,6 +34,13 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
      README has a Results subsection, two rows in the cost table and an updated "One model"
      limitation, all checked by tests; its first screen is unchanged and the owner's call (open
      item 22).
+   - **The second-model samples study is frozen and waits for the owner's paid run**
+     (2026-11-23; open item 23): Claude Sonnet 5.5's single-shot samples 1 and 2 on the same
+     121 problems, so each model has three, compared by the follow-up's sign-flip test (S2).
+     Pre-registration `docs/second_model/SAMPLES_PREREGISTRATION.md`, freeze
+     `docs/second_model/SAMPLES_FREEZE.json`, tag `second-model-samples-freeze`; hard cap
+     $7.00. **Change nothing its freeze fingerprints until the run is committed** (CLAUDE.md's
+     standing rule): the run starts only where the inputs are the approved ones.
    - **The demo's disagreement badge** (2026-11-20; "Current state") has a fifth example
      chosen to show its warning ("Freight cars", from the resampling run, its own replies),
      and since the owner's refresh (2026-11-21, $0.0136) every example compares five samples
@@ -48,7 +55,8 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
 ## Current state
 - **Everything is committed and pushed** (`main`, 2026-11-22; tags `m6-freeze`,
   `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`, `resampling-freeze`,
-  `second-model-freeze`, `second-model-freeze-2`), and CI's jobs (test on 3.12 and 3.13, types,
+  `second-model-freeze`, `second-model-freeze-2`, `second-model-samples-freeze`), and CI's
+  jobs (test on 3.12 and 3.13, types,
   reproduce, demo-image, pictures, plugin, static-demo, deploy-pages) pass on the last commit.
   The only API calls since 2026-11-15 are the owner's paid runs: $0.0399 (2026-11-19, open item
   14), the resampling study's $1.4884 (2026-11-19), ADR-0009's $0.0358 (2026-11-20), the demo's
@@ -436,6 +444,28 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    "I'll decide that after seeing the numbers"). It's unchanged: its paragraph under the
    headline bullets still says "three studies", and neither the bullets nor the figure mention
    the second-model study. Everything below it is updated.
+23. **The second-model samples study's paid run: the owner's** (prepared and frozen
+   2026-11-23, the owner's design in chat). Claude Sonnet 5.5, single-shot, samples 1 and 2 on
+   the second-model study's 121 problems (242 calls), sent as the follow-up sent Haiku's samples
+   1 and 2: the same request as sample 0, the cache key salted by the sample, sample 1 then 2 for
+   each problem in the follow-up's run order. Into `runs/second-model-samples`; nothing writes
+   to `runs/second-model` or `results/second_model.json`. Primary, S2: Sonnet's three samples
+   against Haiku's, the follow-up's paired sign-flip test on per-problem scores
+   (`followup_report.contrast`), two-sided, alpha 0.05, no Holm; secondary: majority of three
+   (exact McNemar) and silent failures over the three samples. Cost guard: hard cap $7.00 and a
+   checkpoint after the first 10 problems (20 calls), projecting from token counts only;
+   expected about $4.83 from Sonnet's own single-shot costs. The pre-registration discloses
+   what was known (the sample-0 result, the sensitivity rows, Haiku's whole side), and
+   `tests/test_second_model_samples.py` checks those numbers against the records. Built: runner
+   `src/opt_agent/second_model_samples.py`, analysis `src/opt_agent/second_model_samples_report.py`
+   (tested on fake answers), gate `src/opt_agent/second_model_samples_freeze.py` (`ready()`;
+   before the approval, every request was checked against the ones the two earlier runs sent,
+   and all 484 existing answers replayed with every recorded field back), `scripts/reproduce.py`
+   and `scripts/replay_run.py`'s step (until the run is committed it says "not run yet"; a test
+   runs the whole path on a fake run of all 242 calls). After the run: the owner commits
+   `runs/second-model-samples` and `results/second_model_samples.json`; then the write-up, like
+   the second-model study's, and the README (its numbers checked against
+   `results/second_model_samples.json`, section 7). Claude made no API call.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all four studies ran and
@@ -852,3 +882,31 @@ Logged as the owner asked: the simplest reasonable option, where the request did
   number test can check RESULTS.md's post hoc sentence, and a test recounts it from the
   committed run. Its right-answer counts are the frozen report's; `results/second_model.json`
   is untouched. The README doesn't repeat the sentence (the owner asked for it in RESULTS.md).
+
+## Decisions made without the owner (2026-11-23, the second-model samples study)
+- **Its own name and files, next to the second-model study's:** S2 (the README test already
+  skips S1 and S2 as names), `docs/second_model/SAMPLES_PREREGISTRATION.md` and
+  `SAMPLES_FREEZE.json` (the owner asked for `docs/second_model/`), three new modules, and
+  `runs/second-model-samples` and `results/second_model_samples.json`. No existing module under
+  `src/opt_agent/` changed, so the pipeline is `second-model-freeze-2`'s (a test checks it at
+  the tag).
+- **"Exactly as Haiku's samples 1 and 2" means:** the same request as sample 0 (no field names
+  a sample), one session per sample with the cache key salted by the sample, one pass,
+  problem by problem, as `evaluate.evaluate` ran them. The gate checks each request against the
+  one the second-model run sent for Sonnet's sample 0 and against Haiku's sample-1 and
+  sample-2 requests in the follow-up's cache.
+- **The primary method is the follow-up's own function,** `followup_report.contrast` (Haiku as
+  "a", Sonnet as "b"), so it's its sign-flip test, bootstrap and majority McNemar, not a copy;
+  the verdict rule mirrors S1's (supported, not supported, inconclusive, incomplete), on the
+  sign-flip p and the sign of the mean-score difference. Silent failures add up
+  `second_model_report.failures` over the three samples, so each sample is counted as before.
+- **The checkpoint counts calls, not problems:** after the first 10 problems (20 calls) it
+  projects their mean cost times 242. A replay's limit counts calls too, since the cap can stop
+  the run between a problem's two samples.
+- **What was known is in the pre-registration, and a test checks it** against
+  `results/second_model.json` and, with the data, against the two records (Haiku's 298 of 363,
+  its per-problem counts, and the 211 of 242 Sonnet's new samples would need for a higher mean
+  score). No power analysis: section 5 cites the follow-up's `power.md` for scale only.
+- **The code commit and the freeze commit were pushed together,** as for Amendment 1: the
+  fake-run reproduce test needs the freeze committed and skips before it, and CI's reproduce job
+  fails on any skip. The tag went on the freeze commit only after CI passed on it.

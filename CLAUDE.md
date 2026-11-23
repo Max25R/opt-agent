@@ -60,7 +60,10 @@ the owner on 2026-11-22, analyzed the same day): S1 is inconclusive
 (`results/second_model.json`, `docs/second_model/RESULTS.md`, one deviation that changes no
 number in its report in `docs/second_model/DEVIATIONS.md`, where a second, the README's Sonnet
 p90, is recorded as removed on 2026-11-23); the README's first screen doesn't
-mention it yet, which is the owner's call (`docs/HANDOFF.md`, open item 22).** The resampling
+mention it yet, which is the owner's call (`docs/HANDOFF.md`, open item 22). Its follow-up,
+the second-model samples study (Sonnet's samples 1 and 2), is pre-registered and frozen
+(2026-11-23, tag `second-model-samples-freeze`) and waits for the owner's paid run (open item
+23).** The resampling
 study is done too (run by the owner on 2026-11-19, analyzed on 2026-11-20): R1 is supported
 (`results/resampling.json`, `docs/resampling/RESULTS.md`). ADR-0009 (2026-11-20): for an integer program the explainer
 also gets the solver's own test of what limits the answer (`src/opt_agent/limits.py`); the owner
@@ -124,6 +127,16 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
    day: `results/second_model.json` (written by the frozen analysis, committed with the run in
    `a78a2af`), written up in `docs/second_model/RESULTS.md` (`scripts/second_model_results.py`
    renders it from the JSON) and `docs/second_model/DEVIATIONS.md`.
+11. [ ] **The second-model samples study** (2026-11-23, the owner's design): Claude Sonnet 5.5
+   single-shot samples 1 and 2 on the same 121 problems, sent as Haiku's samples 1 and 2 were,
+   so each model has three samples; S2, the follow-up's sign-flip test on per-problem scores,
+   two-sided, no Holm. `docs/second_model/SAMPLES_PREREGISTRATION.md`, runner
+   `src/opt_agent/second_model_samples.py`, analysis
+   `src/opt_agent/second_model_samples_report.py`, gate
+   `src/opt_agent/second_model_samples_freeze.py`, frozen in
+   `docs/second_model/SAMPLES_FREEZE.json` at tag `second-model-samples-freeze`. **Not run:
+   the paid run is the owner's** (hard cap $7.00), into `runs/second-model-samples`; its frozen
+   analysis then writes `results/second_model_samples.json` (`docs/HANDOFF.md`, open item 23).
 
 **Standing rules from the history** (the reasons are in `docs/HISTORY.md`):
 - **The resampling study is done and frozen at `resampling-freeze`.** Never edit
@@ -140,13 +153,24 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
   study as first registered and must keep verifying
   (`second_model_freeze.original_tag_problems`). A new run on these problems (more Sonnet
   samples, say) is a new pre-registration, frozen and tagged before any call.
+- **The second-model samples study is frozen at `second-model-samples-freeze`** (2026-11-23;
+  the owner asked Claude to write its freeze and create the tag). Never edit
+  `docs/second_model/SAMPLES_PREREGISTRATION.md` or `SAMPLES_FREEZE.json`, and never move or
+  delete the tag. **Until the owner's run is committed, change nothing its freeze fingerprints**
+  (anything under `src/opt_agent/`, the lock, the pre-registration, `data/followup/split.json`,
+  `runs/followup-test/results.jsonl`, `runs/second-model/results.jsonl`): its gate refuses to
+  start the run unless the inputs at HEAD are the approved ones. Its run
+  (`runs/second-model-samples`) and `results/second_model_samples.json` are the owner's to make
+  and commit, and frozen once committed.
 - `python -m opt_agent.freeze approve` and `python -m opt_agent.followup_freeze approve` are
   **the owner's steps only**, never Claude's. Never edit `docs/FREEZE.json` or
   `docs/followup/FREEZE.json`, and never rewrite git history (it would break the freeze tags).
-- The four studies are done and frozen at their tags. Any change under `src/opt_agent/` or
+- The four studies are done and frozen at their tags, and a fifth (the samples study) is
+  frozen and waiting for its run. Any change under `src/opt_agent/` or
   to the lock makes each study's `check()` refuse at HEAD, as it should (it gates a new test
-  run); `python -m opt_agent.freeze`, `followup_freeze`, `resampling_freeze` and
-  `second_model_freeze` say so and report whether the tag verifies. The tag checks read git's objects (CI runs them), and `scripts/reproduce.py`
+  run); `python -m opt_agent.freeze`, `followup_freeze`, `resampling_freeze`,
+  `second_model_freeze` and `second_model_samples_freeze` say so and report whether the tag
+  verifies. The tag checks read git's objects (CI runs them), and `scripts/reproduce.py`
   rebuilds from each tag's own tree. Push tags with commits.
 - **Don't tune prompts to fix a single dev problem**, and tune on dev splits only. The
   follow-up's dev revision 2 is declared unused: only bug fixes, logged in
@@ -260,7 +284,9 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
   cap $0.15, paid $0.0136 (owner's terminal, 2026-11-21; `logs/spend/demo-examples.jsonl`).
   The second-model study's run (its Amendment 1): hard caps $11.00 for stage 1 and $13.50 for
   both stages, expected about $9.32; paid $5.7177 ($2.4154 and $3.3023; owner's terminal,
-  2026-11-22; `runs/second-model/spend.jsonl`).
+  2026-11-22; `runs/second-model/spend.jsonl`). The second-model samples study's run (not run
+  yet, the owner's): hard cap $7.00 with a checkpoint after its first 10 problems, expected
+  about $4.83 (`runs/second-model-samples/spend.jsonl`).
   Spent so far: $11.19 of the $20 credit (2026-11-22; the ledger is in `docs/HANDOFF.md`). The
   owner reported about $8.80 left, expiring soon; the run hit no monthly limit, so ask the
   owner what the limit is before relying on $10.
@@ -322,6 +348,9 @@ python -m opt_agent.second_model --plan        # its calls left and worst case, 
 python -m opt_agent.second_model_report        # results/second_model.json (at the tag; reproduce.py rebuilds it there)
 python scripts/second_model_results.py         # docs/second_model/RESULTS.md, rendered from results/second_model.json
 python scripts/second_model_power.py           # docs/second_model/power.md (exact)
+python -m opt_agent.second_model_samples_freeze   # the samples study: may its run start here?
+python -m opt_agent.second_model_samples --plan   # its calls left and worst case, no calls (the paid run is the owner's)
+python -m opt_agent.second_model_samples_report   # results/second_model_samples.json (at the tag; reproduce.py rebuilds it there)
 python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.json
 python -m opt_agent.report runs/P --original runs/NAME   # a perturbed run, paired
 python -m opt_agent.blind_grading runs/NAME [--size N]   # review/blind_grading/NAME/, first

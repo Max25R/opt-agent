@@ -10,7 +10,10 @@ own runner, so it replays through that: resampling.run, which reads the problems
 frozen inputs and runs every cell through evaluate.run_item. So does the second-model study's
 (split "second-model", second-model-freeze-2): second_model.run, on the approval alone (a
 tag's tree has no git), stage by stage, each up to as many problems as the committed run
-reached in it, since its cost guard can end a stage early. Either way the committed manifest
+reached in it, since its cost guard can end a stage early. And the second-model samples
+study's (split "second-model-samples", second-model-samples-freeze):
+second_model_samples.run, the same way, up to as many calls as the committed run reached (a
+stop can come between a problem's two samples). Either way the committed manifest
 goes into the new run directory first, so the runner refuses anything but the same
 experiment. A request that isn't in the cache raises NotInCache: nothing here can reach the
 API.
@@ -58,6 +61,8 @@ def replay(run: Path, out: Path) -> None:
             resampling.run(RefusingClient(), out)  # type: ignore[arg-type]
         elif manifest["split"] == "second-model":
             run_second_model(run, out)
+        elif manifest["split"] == "second-model-samples":
+            run_second_model_samples(run, out)
         else:
             run_evaluate(manifest, out)
     except NotInCache as miss:
@@ -77,6 +82,15 @@ def run_second_model(run: Path, out: Path) -> None:
         if reached:  # stage 2 started only if stage 1 was complete
             second_model.run(RefusingClient(), out, records, digest, stage,  # type: ignore[arg-type]
                              limit=len(reached))  # fmt: skip
+
+
+def run_second_model_samples(run: Path, out: Path) -> None:
+    from opt_agent import second_model_samples  # only that study's trees have it
+
+    entries = [json.loads(line) for line in (run / "results.jsonl").read_text().splitlines()]
+    reached = {(e["problem_id"], e["sample"]) for e in entries if e["kind"] == "item"}
+    records, digest = second_model_samples.inputs(tag=False)
+    second_model_samples.run(RefusingClient(), out, records, digest, limit=len(reached))  # type: ignore[arg-type]
 
 
 def run_evaluate(manifest: dict, out: Path) -> None:

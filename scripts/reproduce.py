@@ -22,8 +22,13 @@ changes can move a number, and nothing here writes into this checkout. Two check
      main() can't (deviation 1, docs/resampling/DEVIATIONS.md);
    - the second-model study (second-model-freeze-2, its Amendment 1's freeze): both stages
      replayed, and results/second_model.json rebuilt by its frozen analysis (python -m
-     opt_agent.second_model_report). Its run is the owner's; until runs/second-model is
-     committed there's nothing to rebuild, and this says so.
+     opt_agent.second_model_report);
+   - the second-model samples study (second-model-samples-freeze): Sonnet's samples 1 and 2
+     replayed, and results/second_model_samples.json rebuilt by its frozen analysis (python
+     -m opt_agent.second_model_samples_report), which also reads the two earlier runs' records
+     (committed, so in the tag's tree).
+   Each of the last two runs is the owner's; until its run directory is committed there's
+   nothing to rebuild, and this says so.
    The write-up scripts were written after the freezes, against the same package, so they're
    copied in from this checkout.
 
@@ -50,7 +55,12 @@ import tempfile
 import time
 from pathlib import Path
 
-from opt_agent import followup_freeze, resampling_freeze, second_model_freeze
+from opt_agent import (
+    followup_freeze,
+    resampling_freeze,
+    second_model_freeze,
+    second_model_samples_freeze,
+)
 from opt_agent.freeze import FREEZE_TAG as M6_TAG
 from opt_agent.frozen import FrozenError, Tree
 
@@ -67,6 +77,8 @@ RESAMPLING_RUN = "runs/resampling"
 RESAMPLING_OUTPUTS = ("results/resampling.json", "docs/resampling/RESULTS.md")
 SECOND_MODEL_RUN = "runs/second-model"
 SECOND_MODEL_OUTPUTS = ("results/second_model.json",)
+SAMPLES_RUN = "runs/second-model-samples"
+SAMPLES_OUTPUTS = ("results/second_model_samples.json",)
 # What a replay can't repeat: time, and what was paid or replayed (evaluate.Item).
 NOT_REPLAYED = {"run_id", "latency_s", "retry_s", "wall_s", "cached_calls", "paid_usd",
                 "report_only_paid_usd"}  # fmt: skip
@@ -134,11 +146,32 @@ def second_model(
     """The second-model study's results file, rebuilt in its tag's tree, and the replay's
     differences; nothing while the run isn't here. `run` and `tag` are for a test, which
     rebuilds a fake run in HEAD's tree before the tag exists."""
+    return owners_run(workdir, replay, run, tag, SECOND_MODEL_RUN, "opt_agent.second_model_report",
+                      SECOND_MODEL_OUTPUTS)  # fmt: skip
+
+
+def second_model_samples(
+    workdir: Path,
+    replay: bool,
+    run: Path = ROOT / SAMPLES_RUN,
+    tag: str = second_model_samples_freeze.FREEZE_TAG,
+) -> tuple[dict[str, bytes], list[str]]:
+    """The second-model samples study's results file, rebuilt in its tag's tree, and the
+    replay's differences; nothing while the run isn't here. `run` and `tag` are for a test."""
+    return owners_run(workdir, replay, run, tag, SAMPLES_RUN,
+                      "opt_agent.second_model_samples_report", SAMPLES_OUTPUTS)  # fmt: skip
+
+
+def owners_run(workdir: Path, replay: bool, run: Path, tag: str, where: str, analysis: str,
+               outputs: tuple[str, ...]) -> tuple[dict[str, bytes], list[str]]:  # fmt: skip
+    """A study whose run the owner commits after its tag: `run` copied to `where` in the tag's
+    tree, replayed there (scripts/replay_run.py), and its frozen `analysis` module run, which
+    writes `outputs`. Nothing while the run isn't here."""
     if not (run / "results.jsonl").exists():
         return {}, []
-    tree = Tree.extract(tag, workdir / "second-model")
+    tree = Tree.extract(tag, workdir / Path(where).name)
     tree.copy(LLM4OR)
-    target = tree.root / SECOND_MODEL_RUN
+    target = tree.root / where
     target.mkdir(parents=True, exist_ok=True)
     for name in RUN_FILES:  # a run the cap stopped early still has them all but the ledger
         if (run / name).exists():
@@ -147,12 +180,12 @@ def second_model(
     if replay:
         shutil.copytree(run / "cache", target / "cache", dirs_exist_ok=True)
         tree.copy("scripts/replay_run.py")
-        tree.python("scripts/replay_run.py", SECOND_MODEL_RUN, "replay/second-model")
-        differences = item_differences(run / "results.jsonl",
-                                       tree.root / "replay/second-model/results.jsonl",
-                                       SECOND_MODEL_RUN)  # fmt: skip
-    tree.python("-m", "opt_agent.second_model_report", SECOND_MODEL_RUN)
-    return {rel: tree.read(rel) for rel in SECOND_MODEL_OUTPUTS}, differences
+        out = f"replay/{Path(where).name}"
+        tree.python("scripts/replay_run.py", where, out)
+        differences = item_differences(run / "results.jsonl", tree.root / out / "results.jsonl",
+                                       where)  # fmt: skip
+    tree.python("-m", analysis, where)
+    return {rel: tree.read(rel) for rel in outputs}, differences
 
 
 # ---- the replay ---------------------------------------------------------------------------
@@ -227,14 +260,16 @@ def main(argv: list[str] | None = None) -> None:
     with tempfile.TemporaryDirectory(prefix="reproduce-") as workdir:
         try:
             require_data()
-            studies = (("M6", m6), ("follow-up", followup), ("resampling", resampling),
-                       ("second model", second_model))  # fmt: skip
-            for name, study in studies:
+            studies = (("M6", m6, None), ("follow-up", followup, None),
+                       ("resampling", resampling, None),
+                       ("second model", second_model, SECOND_MODEL_RUN),
+                       ("second model, samples 1 and 2", second_model_samples,
+                        SAMPLES_RUN))  # fmt: skip
+            for name, study, run in studies:
                 start = time.monotonic()
                 files, replay_differences = study(Path(workdir), replay)
                 if not files:
-                    print(f"{name}: not run yet ({SECOND_MODEL_RUN} isn't here), nothing to "
-                          "rebuild")  # fmt: skip
+                    print(f"{name}: not run yet ({run} isn't here), nothing to rebuild")
                     continue
                 rebuilt |= files
                 failures += replay_differences
