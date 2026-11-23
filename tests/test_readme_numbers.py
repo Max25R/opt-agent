@@ -1,15 +1,17 @@
 """Pre-registration section 7: every number in the README comes from a generated results
 file, at the precision the README shows it: results/eval.json (milestone 6),
-results/followup.json (the follow-up, its pre-registration's section 7) or
-results/resampling.json (the resampling study, its pre-registration's section 7). The whole
-README is checked against all three, without its fenced code blocks (commands and the
+results/followup.json (the follow-up, its pre-registration's section 7),
+results/resampling.json (the resampling study, its pre-registration's section 7) or
+results/second_model.json (the second-model study, its pre-registration's section 7). The
+whole README is checked against all four, without its fenced code blocks (commands and the
 diagram), and each results section against its own file. So is the full M6 write-up,
 docs/EVALUATION.md (the README's Evaluation section until the README was rewritten on
 2026-11-15), every number in
 the "The rows" sections of Amendments 4 and 5 (docs/amendments/amendment-4.md,
 amendment-5.md), whose rows scripts/amendment4.py and amendment5.py generate into eval.json,
-docs/followup/RESULTS.md (scripts/followup_results.py) and docs/resampling/RESULTS.md
-(scripts/resampling_results.py), and the IE 2310 summary
+docs/followup/RESULTS.md (scripts/followup_results.py), docs/resampling/RESULTS.md
+(scripts/resampling_results.py) and docs/second_model/RESULTS.md
+(scripts/second_model_results.py), and the IE 2310 summary
 (docs/ie2310/summary.md) against both. Three README bullets are exploratory, not results
 (EXPLORATORY): the disagreement detector's line and the explanation checker's (owner's
 request, 2026-11-19), and the first screen's headline on explanations (owner's request,
@@ -28,11 +30,15 @@ How a number in the README is read:
 - `$0.150` and `3.8` must equal some value rounded to the shown decimals, and `2.3e-6` some
   value at the shown significant digits.
 - A whole number such as `264` must equal some whole value exactly.
+- second_model.json stores each paired difference ("difference", "difference_ci95") as a
+  share, and the README gives it in percentage points, so each of those counts times 100 too:
+  `-5.8 pp` is a difference of -0.058.
 
 Not results, so skipped: model names ("Claude Haiku 5.5"), amendment numbers, percentile
-names ("p95"), link targets, dates, hypothesis names ("H1", "R2"), the benchmark's name
-("NL4Opt"), section, condition and sample numbers ("section 4", "5b", "conditions 2 to 4",
-"samples 3 to 7"), a significance level ("alpha 0.05") and an interval's ("95% Wilson"),
+names ("p95"), link targets, dates, hypothesis names ("H1", "R2", "S1"), the benchmark's name
+("NL4Opt"), section, condition, sample, stage and deviation numbers ("section 4", "5b",
+"conditions 2 to 4", "samples 3 to 7", "samples 1 and 2", "stage 2", "deviation 1"), a
+significance level ("alpha 0.05") and an interval's ("95% Wilson"),
 "SHA-256", a cited
 paper's venue and year ("ICML 2024"), license versions ("CC BY-SA 4.0"), course numbers
 ("IE 2310"), Python versions ("Python 3.12"), and fenced code blocks. Numbers written as
@@ -58,6 +64,8 @@ FOLLOWUP = ROOT / "results" / "followup.json"
 FOLLOWUP_RESULTS = ROOT / "docs" / "followup" / "RESULTS.md"
 RESAMPLING = ROOT / "results" / "resampling.json"
 RESAMPLING_RESULTS = ROOT / "docs" / "resampling" / "RESULTS.md"
+SECOND_MODEL = ROOT / "results" / "second_model.json"
+SECOND_MODEL_RESULTS = ROOT / "docs" / "second_model" / "RESULTS.md"
 # Each exploratory README bullet, by the words it starts with, and the records it comes from
 # (the explanation checker's also gives ADR-0009's headline, 21 → 10, from limits_checker.json:
 # the owner's request, 2026-11-21, which replaced the rule's count from limits_claims.json; the
@@ -83,15 +91,17 @@ IE2310_SUMMARY = ROOT / "docs" / "ie2310" / "summary.md"
 # cite at least, and how many numbers it must have at least (so a check can't pass by
 # finding nothing).
 CHECKED = [
-    (README, None, (EVAL, FOLLOWUP, RESAMPLING), 0, 60),
+    (README, None, (EVAL, FOLLOWUP, RESAMPLING, SECOND_MODEL), 0, 60),
     (README, "### NL4Opt", (EVAL,), 0, 25),
     (README, "### Harder problems", (FOLLOWUP,), 0, 30),
     (README, "### Resampling", (RESAMPLING,), 0, 12),
+    (README, "### Second model", (SECOND_MODEL,), 0, 30),
     (EVALUATION, None, (EVAL,), 2, 40),
     (AMENDMENT_4, "## The rows", (EVAL,), 2, 40),
     (AMENDMENT_5, "## The rows", (EVAL,), 2, 40),
     (FOLLOWUP_RESULTS, None, (FOLLOWUP,), 0, 40),
     (RESAMPLING_RESULTS, None, (RESAMPLING,), 0, 40),
+    (SECOND_MODEL_RESULTS, None, (SECOND_MODEL,), 0, 60),
     (IE2310_SUMMARY, None, (EVAL, FOLLOWUP), 0, 25),
 ]
 
@@ -102,11 +112,13 @@ NOT_RESULTS = [
     r"\bp\d\d\b",  # a percentile's name, as in "latency p50 / p95"
     r"\b\d{4}-\d{2}-\d{2}\b",  # a date
     r"SHA-256",  # a hash's name
-    r"\b[HR][12]\b",  # a hypothesis's name (the follow-up's H1, the resampling study's R1)
+    r"\b[HRS][12]\b",  # a hypothesis's name (the follow-up's H1, R1, the second model's S1)
     r"\b[Ss]ections? \d+\b",  # a section of a pre-registration
     r"\b5[abc]\b",  # a subsection of the follow-up's section 5
     r"\b[Cc]onditions? \d(?: to \d)?\b",  # a condition's number
-    r"\b[Ss]amples? \d(?: to \d)?\b",  # a sample's number, as in "samples 3 to 7"
+    r"\b[Ss]amples? \d(?: (?:to|and) \d)?\b",  # a sample's number, as in "samples 3 to 7"
+    r"\b[Ss]tages? \d\b",  # a stage of the second-model study
+    r"\b[Dd]eviations? \d\b",  # a recorded deviation, as in "deviation 1"
     r"\balpha 0\.05\b",  # a significance level
     r"\b95%(?= (?:Wilson|CI|bootstrap|interval|confidence))",  # an interval's level
     r"\b(?:ICML|ICLR|NeurIPS) \d{4}\b",  # a cited paper's venue and year
@@ -155,14 +167,23 @@ def section(text: str, heading: str | None) -> str:
     return text[start : min(ends) if ends else len(text)]
 
 
+POINTS = ("difference", "difference_ci95")  # second_model.json's shares, shown in points
+
+
 def leaves(data) -> tuple[list[float], set[str]]:
-    """Every number and every string in eval.json (booleans aren't numbers here)."""
+    """Every number and every string in eval.json (booleans aren't numbers here), and each
+    of second_model.json's paired differences in percentage points too."""
     numbers, strings = [], set()
     stack = [data]
     while stack:
         item = stack.pop()
         if isinstance(item, dict):
             stack += item.values()
+            for key in POINTS:
+                value = item.get(key)
+                for share in value if isinstance(value, list) else [value]:
+                    if isinstance(share, float):
+                        numbers.append(100 * share)
         elif isinstance(item, list):
             stack += item
         elif isinstance(item, str):
@@ -281,6 +302,16 @@ def test_resampling_forms_pass():
             "7, sample 3, alpha 0.05, 95% Wilson, R2, tolerance 1e-6")  # fmt: skip
     assert unmatched(text, data) == []
     assert unmatched("p = 2.4e-6, or 2.31e-6", data) == ["2.4e-6", "2.31e-6"]
+
+
+def test_second_model_forms_pass():
+    """A difference stored as a share passes in points; nothing else is scaled."""
+    data = {"s1": {"difference": -0.05785, "difference_ci95": [-0.13223, 0.00826],
+                   "p_value": 0.16707, "sonnet_right": 88}}  # fmt: skip
+    text = ("S1: 88, -5.8 pp (95% CI -13.2 to +0.8), p 0.17, stage 2, samples 1 and 2, "
+            "[deviation 1](x.md), Claude Sonnet 5.5")  # fmt: skip
+    assert unmatched(text, data) == []
+    assert unmatched("a gain of -5.9 pp, 16.7 pp, 8800", data) == ["-5.9", "16.7", "8800"]
 
 
 def test_follow_up_forms_pass():

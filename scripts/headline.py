@@ -5,13 +5,17 @@ numbers that are already recorded, so that nothing in either is typed by hand.
   two pre-registered differences, each with its 95% interval, read from results/eval.json and
   results/followup.json, the files scripts/reproduce.py rebuilds byte for byte from the tags.
 - **The table:** what an answer cost and how long it took (the median and the 90th
-  percentile), per condition, from the committed test runs' own logs (runs/test and
-  runs/followup-test, results.jsonl: each answer's cost_usd, every call it used at its
-  original token counts, and latency_s, API plus solver time without retry waits). The
-  results files report each condition's total cost and its p50 and p95, not a cost per answer
-  or a p90, so those are computed here with the reports' own method (numpy's linear
-  percentile), and only after each condition's total and median come out equal to the
-  results file's: the same answers, counted the same way.
+  percentile), per condition, from the committed test runs' own logs (runs/test,
+  runs/followup-test and runs/second-model, results.jsonl: each answer's cost_usd, every call
+  it used at its original token counts, and latency_s, API plus solver time without retry
+  waits). The results files report each condition's total cost and its median (and, for
+  M6 and the follow-up, its p95), not a p90, so the p90 is computed here with the reports' own
+  method (numpy's linear percentile), and only after each condition's total and median come
+  out equal to the results file's: the same answers, counted the same way. The second-model
+  study's two Claude Sonnet 5.5 conditions (its single-shot stage and its no-solver stage)
+  are checked against results/second_model.json; its pre-registration wants every number of
+  the study in the README checked against that file, so the p90 is its deviation 2
+  (docs/second_model/DEVIATIONS.md).
 
 Both land in results/headline.json: tests/test_headline.py rebuilds it, and
 tests/test_readme_numbers.py checks the README's table against it. The PNG needs matplotlib
@@ -32,12 +36,16 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 EVAL = ROOT / "results" / "eval.json"
 FOLLOWUP = ROOT / "results" / "followup.json"
+SECOND_MODEL = ROOT / "results" / "second_model.json"
 RUNS = {"nl4opt": ROOT / "runs" / "test" / "results.jsonl",
-        "harder": ROOT / "runs" / "followup-test" / "results.jsonl"}  # fmt: skip
+        "harder": ROOT / "runs" / "followup-test" / "results.jsonl",
+        "sonnet": ROOT / "runs" / "second-model" / "results.jsonl"}  # fmt: skip
 OUT = ROOT / "results" / "headline.json"
 PNG = ROOT / "docs" / "headline.png"
 NL4OPT = ("baseline", "single-shot", "self-correction")
 HARDER = (*NL4OPT, "checklist-revision")
+SONNET = ("baseline", "single-shot")  # the second-model study's stages 2 and 1
+STUDIES = (("nl4opt", NL4OPT), ("harder", HARDER), ("sonnet", SONNET))
 NAMES = {
     "baseline": "no-solver baseline", "single-shot": "single-shot",
     "self-correction": "self-correction", "checklist-revision": "checklist revision",
@@ -79,18 +87,21 @@ def per_answer(items: list[dict]) -> dict:
             "latency_p50_s": float(p50), "latency_p90_s": float(p90)}  # fmt: skip
 
 
-def recorded(e: dict, f: dict, study: str, condition: str) -> tuple[float, float]:
+def recorded(e: dict, f: dict, s: dict, study: str, condition: str) -> tuple[float, float]:
     """(total cost, median latency) as the results file reports them."""
     if study == "nl4opt":
         row = e["cost_latency"]["test"]["conditions"][condition]
         return row["cost_usd"], row["latency_s"]["p50"]
-    row = f["also_reported"]["spend"][condition]
-    return row["cost_usd"], row["latency_p50_s"]
+    if study == "harder":
+        row = f["also_reported"]["spend"][condition]
+        return row["cost_usd"], row["latency_p50_s"]
+    spend = s["spend"] if condition == "single-shot" else s["stage_2"]["spend"]
+    return spend["sonnet"]["cost_usd"], spend["sonnet"]["median_latency_s"]
 
 
-def cost_latency(e: dict, f: dict) -> dict:
+def cost_latency(e: dict, f: dict, s: dict) -> dict:
     table: dict[str, dict] = {}
-    for study, conditions in (("nl4opt", NL4OPT), ("harder", HARDER)):
+    for study, conditions in STUDIES:
         found = answers(RUNS[study])
         every = [i for c in conditions for i in found[c]]
         table[study] = {"problems": len({i["problem_id"] for i in every}),
@@ -98,7 +109,7 @@ def cost_latency(e: dict, f: dict) -> dict:
                         "conditions": {}}  # fmt: skip
         for c in conditions:
             row = per_answer([i for i in found[c] if i["outcome"] == "done"])
-            cost, p50 = recorded(e, f, study, c)
+            cost, p50 = recorded(e, f, s, study, c)
             if not (math.isclose(row["cost_usd"], cost, rel_tol=1e-9)
                     and math.isclose(row["latency_p50_s"], p50, rel_tol=1e-12)):  # fmt: skip
                 raise SystemExit(f"{study}, {c}: the run's answers don't give the results "
@@ -109,13 +120,14 @@ def cost_latency(e: dict, f: dict) -> dict:
 
 def compute() -> dict:
     e, f = json.loads(EVAL.read_text()), json.loads(FOLLOWUP.read_text())
+    s = json.loads(SECOND_MODEL.read_text())
     return {
         "label": "descriptive: the figure's numbers are copied from results/eval.json and "
                  "results/followup.json; cost and latency per answer are computed from the "
                  "committed test runs' logs, each condition's total cost and median latency "
                  "checked equal to its results file's (scripts/headline.py)",
         "figure": figure_numbers(e, f),
-        "cost_latency": cost_latency(e, f),
+        "cost_latency": cost_latency(e, f, s),
     }  # fmt: skip
 
 

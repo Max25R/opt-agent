@@ -49,11 +49,15 @@ API key, after fetching the follow-up's public benchmark data ([how](#reproduce-
 | single-shot | $0.00055 | 3.6 s | 5.7 s | $0.0021 | 11.8 s | 25.6 s |
 | self-correction | $0.00061 | 3.7 s | 6.9 s | $0.0021 | 11.9 s | 25.6 s |
 | checklist revision | not run | | | $0.0054 | 26.8 s | 70.2 s |
+| no-solver baseline, Claude Sonnet 5.5 | not run | | | $0.0273 | 8.1 s | 73.8 s |
+| single-shot, Claude Sonnet 5.5 | not run | | | $0.0200 | 5.4 s | 16.7 s |
 
 *From the test runs' own logs ([`scripts/headline.py`](scripts/headline.py)): the cost of
-every call an answer used, at Claude Haiku 5.5's prices, and its latency (API plus solver time,
-without retry waits), over 274 answers per condition on NL4Opt and 384 on the harder problems
-(128 problems, 3 samples each).*
+every call an answer used, at the model's own prices, and its latency (API plus solver time,
+without retry waits). Claude Haiku 5.5 in the first four rows, over 274 answers per condition
+on NL4Opt and 384 on the harder problems (128 problems, 3 samples each); Claude Sonnet 5.5 in
+the last two, over the 121 unexposed harder problems, one answer each
+([the second-model study](#second-model-claude-sonnet-55-inconclusive)).*
 <!-- end of cost and latency -->
 
 ![The demo after solving its paint example: the problem, the verified optimum (CBC and HiGHS agree, the arithmetic checks pass, and it matches the hand-checked answer), Claude's model, and Claude's explanation using the solver's numbers](docs/demo.png)
@@ -63,9 +67,11 @@ cache.*
 
 ## Results
 
-Every study used Claude Haiku 5.5. Every number in this README comes from
-[`results/eval.json`](results/eval.json), [`results/followup.json`](results/followup.json) or
-[`results/resampling.json`](results/resampling.json) (the cost and latency table:
+The first three studies used Claude Haiku 5.5; the fourth compares it with Claude Sonnet 5.5.
+Every number in this README comes from [`results/eval.json`](results/eval.json),
+[`results/followup.json`](results/followup.json),
+[`results/resampling.json`](results/resampling.json) or
+[`results/second_model.json`](results/second_model.json) (the cost and latency table:
 [`results/headline.json`](results/headline.json), computed from the runs' logs; each bullet
 marked exploratory: its own record in [`docs/analysis/`](docs/analysis/)), and a test checks
 it. A *silent* failure is a wrong answer that passed every check; a *loud*
@@ -137,6 +143,33 @@ against 90; secondary, exact McNemar p 0.001).
 Full write-up, with its one deviation (it changes no number):
 [`docs/resampling/RESULTS.md`](docs/resampling/RESULTS.md).
 
+### Second model: Claude Sonnet 5.5, inconclusive
+
+A fourth pre-registered study ([pre-registration](docs/SECOND_MODEL_PREREGISTRATION.md), with
+its Amendment 1) ran Claude Sonnet 5.5 single-shot on the 121 unexposed harder problems, with
+every setting but the model as in Haiku's run, and paired each answer with Haiku's sample 0.
+**S1, that Sonnet is right more often, is inconclusive** (exact McNemar p 0.17): Sonnet was
+right on 88 of 121 (72.7%, 95% Wilson 64.2–79.9%) and Haiku on 95 (78.5%, 70.4–84.9%), with 6
+problems only Sonnet got right and 13 only Haiku. The paired difference is -5.8 pp (95% CI
+-13.2 to +0.8). Sample 0 is Haiku's weakest sample, which favors Sonnet, as disclosed before
+the run; against Haiku's samples 1 and 2 instead (sensitivity rows, no claim), it's -11.6 pp
+(p 0.0043) and -10.7 pp (p 0.0072).
+
+- **Silent failures:** 29 of Sonnet's 117 verified answers were wrong (24.8%), and 25 of
+  Haiku's 120 (20.8%).
+- **Cost and speed:** $0.0274 per right answer for Sonnet against $0.0027 for Haiku. Sonnet's
+  median answer took 5.4 s against 12.5 s, and it wrote fewer output tokens (187695 against
+  463944).
+- **Without the solver** (stage 2, secondary, no verdict): Sonnet answering directly was right
+  on 50 of 121 (41.3%), so the solver added +31.4 pp for Sonnet (95% CI +21.5 to +41.3, exact
+  McNemar p 7.0e-8), against +2.5 pp for Haiku (-4.1 to +9.9). Some of Sonnet's direct replies
+  gave no answer, more of them than Haiku's (cut off at max_tokens, or an optimum claimed
+  without its value), and those count as wrong ([deviation 1](docs/second_model/DEVIATIONS.md)
+  counts them).
+
+Full write-up, with its two deviations (neither changes a number in the report):
+[`docs/second_model/RESULTS.md`](docs/second_model/RESULTS.md).
+
 ## Limitations
 
 - **Verification can't see a wrong model.** It checks the solution of Claude's formulation
@@ -173,10 +206,13 @@ Full write-up, with its one deviation (it changes no number):
   21 → 10 of 73 by the explanation checker's own blind labels (22 → 11 of all 88; exploratory,
   dev only, Claude's labels: [details](docs/analysis/limits_claims.md),
   [the ADR's update](docs/adr/0009-what-limits-an-integer-program.md#update-2026-11-21-blind-relabeling)).
-- **One model.** Every number is Claude Haiku 5.5's, and H2 rests on the primary test
-  alone (its caveats are under Results). A pre-registered comparison with Claude Sonnet 5.5 on
-  the harder problems is frozen and waits for its run
-  ([pre-registration](docs/SECOND_MODEL_PREREGISTRATION.md)).
+- **One model, but for one comparison.** Every number but the second-model study's is
+  Claude Haiku 5.5's, and H2 rests on the primary test alone (its caveats are under Results).
+  The one comparison with a larger model was inconclusive: Claude Sonnet 5.5, single-shot, was
+  right on fewer of the 121 harder problems than Haiku (88 against 95; exact McNemar p 0.17),
+  with one answer per problem from each model, at the same effort label, on prompts tuned
+  only with Haiku ([Results](#second-model-claude-sonnet-55-inconclusive)). So nothing here
+  shows that a larger model helps this pipeline.
 - **The answer keys aren't perfect, and their errors cut both ways.** On NL4Opt, two LLM
   judges flagged 6 of the 8 shared failures as answer-key errors, not verified by a person
   (exploratory, post hoc). A bug in that key's integrality rule read some countable products
@@ -250,10 +286,10 @@ python scripts/reproduce.py      # no API key; a few minutes
 ```
 
 `reproduce.py` runs each study's frozen code from its git tag (`m6-freeze`,
-`followup-freeze`, `resampling-freeze`), not the current code. It replays every committed
-answer from the run's cached replies, with a client that refuses any request, and checks it
-against the committed results; then it rebuilds the reports and the three results files and
-checks them byte for byte.
+`followup-freeze`, `resampling-freeze`, `second-model-freeze-2`), not the current code. It
+replays every committed answer from the run's cached replies, with a client that refuses any
+request, and checks it against the committed results; then it rebuilds the reports and the
+results files and checks them byte for byte.
 CI runs it on every push, on macOS arm64 like the original runs (on Linux, CBC picks another
 optimal solution for one follow-up model, which changes one pair's revision path but not its
 answer). Two things can't be replayed: the LLM judges' labels came from chat sessions and are
@@ -323,15 +359,16 @@ anyone can rebuild without a key.
 
 ## More detail
 
-- [`docs/EVALUATION.md`](docs/EVALUATION.md), [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md)
-  and [`docs/resampling/RESULTS.md`](docs/resampling/RESULTS.md): the three studies in full.
+- [`docs/EVALUATION.md`](docs/EVALUATION.md), [`docs/followup/RESULTS.md`](docs/followup/RESULTS.md),
+  [`docs/resampling/RESULTS.md`](docs/resampling/RESULTS.md) and
+  [`docs/second_model/RESULTS.md`](docs/second_model/RESULTS.md): the four studies in full.
 - Pre-registrations: [NL4Opt](docs/PREREGISTRATION.md) (amendments in
   [`docs/amendments/`](docs/amendments/)), the [follow-up](docs/FOLLOWUP_PREREGISTRATION.md)
   (deviations in [`docs/followup/DEVIATIONS.md`](docs/followup/DEVIATIONS.md)) and the
   [resampling study](docs/RESAMPLING_PREREGISTRATION.md) (deviations in
   [`docs/resampling/DEVIATIONS.md`](docs/resampling/DEVIATIONS.md)); and the
-  [second-model study](docs/SECOND_MODEL_PREREGISTRATION.md), frozen with its Amendment 1,
-  not yet run.
+  [second-model study](docs/SECOND_MODEL_PREREGISTRATION.md), with its Amendment 1
+  (deviations in [`docs/second_model/DEVIATIONS.md`](docs/second_model/DEVIATIONS.md)).
 - [`docs/DESIGN.md`](docs/DESIGN.md): a ten-minute tour of the code, the solver checks, the
   agent, the NL4Opt answer key, and the project structure.
 - [`docs/adr/`](docs/adr/README.md): why it's built this way: the options weighed and their costs.

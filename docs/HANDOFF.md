@@ -1,4 +1,4 @@
-# Handoff (2026-11-20)
+# Handoff (2026-11-22)
 
 Read CLAUDE.md first (rules, budget, gotchas), then this file: where things stand, every
 open item, and the environment. A new session needs nothing else; the full record of
@@ -24,6 +24,15 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
      the owner's call of 2026-11-21: the integer programs' explanations with a false claim of
      any kind went 21 → 10 by the explanation checker's blind labels (ADR-0009's update; the
      rule's count, the headline before, doesn't measure the regenerated text).
+   - **The second-model study is done; S1 is inconclusive** (run by the owner on 2026-11-22,
+     both stages, $5.7177; analyzed the same day). The numbers are in
+     `results/second_model.json` (the frozen analysis's report, which `scripts/reproduce.py`
+     rebuilds byte for byte from `second-model-freeze-2`); the write-up is
+     `docs/second_model/RESULTS.md` (rendered from it by `scripts/second_model_results.py`), with
+     two deviations that change no number in the report (`docs/second_model/DEVIATIONS.md`). The
+     README has a Results subsection, two rows in the cost table and an updated "One model"
+     limitation, all checked by tests; its first screen is unchanged and the owner's call (open
+     item 22).
    - **The demo's disagreement badge** (2026-11-20; "Current state") has a fifth example
      chosen to show its warning ("Freight cars", from the resampling run, its own replies),
      and since the owner's refresh (2026-11-21, $0.0136) every example compares five samples
@@ -33,15 +42,16 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    `HYPOTHESIS_PROFILE=ci python -m pytest` (about 3 minutes; with all the data here, nothing
    skips). After a change under `src/opt_agent/`, `python scripts/reproduce.py` (about 5
    minutes, no key; it once took 39 on a busy machine) must still say every answer replays
-   and all 8 files match.
+   and all 9 files match.
 
 ## Current state
-- **Everything is committed and pushed** (`main`, 2026-11-20; tags `m6-freeze`,
-  `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`, `resampling-freeze`), and
-  CI's jobs (test on 3.12 and 3.13, types, reproduce, demo-image, pictures, plugin,
-  static-demo, deploy-pages) pass on the last commit. The only API calls since 2026-11-15 are
-  the owner's two paid runs of 2026-11-19: $0.0399 (open item 14) and the resampling study's,
-  $1.4884.
+- **Everything is committed and pushed** (`main`, 2026-11-22; tags `m6-freeze`,
+  `amendment-3`, `amendment-4`, `amendment-5`, `followup-freeze`, `resampling-freeze`,
+  `second-model-freeze`, `second-model-freeze-2`), and CI's jobs (test on 3.12 and 3.13, types,
+  reproduce, demo-image, pictures, plugin, static-demo, deploy-pages) pass on the last commit.
+  The only API calls since 2026-11-15 are the owner's paid runs: $0.0399 (2026-11-19, open item
+  14), the resampling study's $1.4884 (2026-11-19), ADR-0009's $0.0358 (2026-11-20), the demo's
+  refresh, $0.0136 (2026-11-21), and the second-model study's $5.7177 (2026-11-22).
 - **The resampling study: done, R1 supported** (run 2026-11-19, analyzed 2026-11-20; "Start
   here", step 2). The pre-registration is `docs/RESAMPLING_PREREGISTRATION.md` (approved by
   the owner with three edits), the runner `src/opt_agent/resampling.py`, the analysis
@@ -105,8 +115,21 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   the 88 labels; the numbers are in its JSON, and its doc says what it misses. No README claim
   changed. It ran while the owner's paid resampling run was going (started 2026-11-19 in this
   checkout, `runs/resampling`): nothing the resampling freeze checks was touched.
-- **The second-model study** (2026-11-22, the owner's seven decisions, then Amendment 1; open
-  item 21): frozen at `second-model-freeze-2`, not yet run. The runner
+- **The second-model study: done, S1 inconclusive** (the owner's seven decisions and
+  Amendment 1, 2026-11-22; run by the owner the same evening, $5.7177 for both stages; open
+  item 21). The run (`runs/second-model`, its cache included) and the frozen analysis's report
+  (`results/second_model.json`) were committed together by the owner (`a78a2af`); CI's
+  reproduce job replays all 242 answers and rebuilds the report byte for byte. The write-up:
+  `docs/second_model/RESULTS.md`, rendered from the report by `scripts/second_model_results.py`
+  (`tests/test_second_model_results.py` checks it's current and that the verdicts follow section
+  4), and `docs/second_model/DEVIATIONS.md` (two deviations, neither changing a number in the
+  report: the frozen analysis doesn't count stage 2's cut-off replies, so that file does, from
+  the run's records; and the README's cost table gives Sonnet's p90 latency, checked against
+  `results/headline.json`, not `results/second_model.json`; plus notes on the run). The README:
+  a "Second model" Results subsection, checked against the report (`tests/test_readme_numbers.py`,
+  which now also reads its paired differences in points, times 100), two Sonnet rows in the
+  cost and latency table (`scripts/headline.py`, Sonnet's totals and medians checked against the
+  report), and the "One model" limitation. What was built before the run: the runner
   `src/opt_agent/second_model.py` (two stages; the cost guard: hard caps of $11.00 for stage 1
   and $13.50 for both, and each stage's 10-problem checkpoint), the gate
   `src/opt_agent/second_model_freeze.py` (`ready()`: the tag exists, holds the approval, and
@@ -119,7 +142,7 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   121 problems). Before each freeze, every Haiku request (both conditions, for the amendment)
   was checked byte for byte against the one its run sent, and Haiku's sample-0 answers
   replayed through this code with every recorded field back. `pricing.PRICES` has Sonnet 5.5
-  ($2 / $10 per million input / output tokens, checked 2026-11-22). No API call was made.
+  ($2 / $10 per million input / output tokens, checked 2026-11-22). Claude made no API call.
 - **The README's first screen** (2026-11-19, the owner's request): a 3-line summary, a
   headline figure (`docs/headline.png`: NL4Opt's accuracy per condition and the follow-up's two
   pre-registered differences, with 95% intervals) and a cost and latency table (per answer:
@@ -135,7 +158,9 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   ADR-0009's 21 → 10, the last labeled "Exploratory" and checked against
   `limits_checker.json` as a third `EXPLORATORY` bullet). The accuracy table, the +6.3 pp,
   the cost and latency table and the demo screenshot follow, so CBC, Holm and McNemar are off
-  the first screen.
+  the first screen. Since 2026-11-22 the cost table has two Claude Sonnet 5.5 rows (the
+  second-model study's two stages), below the first screen, which says nothing of that study
+  yet (open item 22).
 - **The polish list of 2026-11-18** (the owner's; each item its own commit, CI green each
   time, no API calls; decisions at the end of this file):
   - **The static demo** (item 1): `scripts/static_demo.py` builds the examples page as a
@@ -259,8 +284,11 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   `logs/spend/paid-2026-11-19.jsonl`, and $1.4884 for the resampling study's run, ledger
   `runs/resampling/spend.jsonl`, and $0.0358 for ADR-0009's dev regeneration, ledger
   `runs/explain-dev-limits/spend.jsonl`, and $0.0136 for the demo's refresh, ledger
-  `logs/spend/demo-examples.jsonl`). About $4.80 of November's $10 limit is left; it resets
-  on December 1.
+  `logs/spend/demo-examples.jsonl`), and since then $5.7177 for the second-model study's run
+  (2026-11-22, ledger `runs/second-model/spend.jsonl`): $11.19 in all. The owner reported about
+  $8.80 left, expiring soon. This file had said about $4.80 of November's $10 limit was left
+  before that run, and the run hit no limit, so ask the owner what the limit is now before
+  relying on it.
 
 ## Open items
 1. ~~M7 demo~~ and ~~M8's README and reproduce script~~: done 2026-11-15.
@@ -345,8 +373,8 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    4. The explanation checker evaluated on dev: **done, exploratory**
       (`docs/analysis/explanation_checker.md`; the finding is under "Current state"; open
       item 16 follows from it).
-   5. A second model under its own pre-registration and cap (ADR-0006's ladder): **open**, 2-3
-      days plus a paid run sized by `evaluate --plan`; the budget is the owner's call.
+   5. A second model under its own pre-registration and cap (ADR-0006's ladder): **done** as
+      the second-model study (item 21).
 15. ~~The resampling study~~: run (the owner's, 2026-11-19) and analyzed (2026-11-20); R1
    is supported ("Current state").
 16. **The explanation checker's blind spot** (from item 14.4; ADR-0004, action item 3): false
@@ -385,8 +413,10 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    these labels, the pairs (post hoc, the owner's requests) and Claude's reading of what the
    labeled false claims are: `review/explain_dev_limits/RESULTS.md` and ADR-0009's update,
    from the same record.
-21. **The second-model study's run, the owner's, now** (Amendment 1 moved it up from December:
-   the owner's credit expires soon). Pre-registered and frozen on 2026-11-22
+21. ~~The second-model study~~: run (the owner's, 2026-11-22, both stages, $5.7177 against the
+   $13.50 cap) and analyzed (2026-11-22); S1 is inconclusive ("Current state"). What follows is
+   how it was set up. Its run moved up from December (Amendment 1: the owner's credit expires
+   soon). Pre-registered and frozen on 2026-11-22
    (`docs/SECOND_MODEL_PREREGISTRATION.md`, tag `second-model-freeze`), then amended before any
    call and frozen again (its Amendment 1, `docs/second_model/FREEZE-2.json`, tag
    `second-model-freeze-2`, which gates the run). Stage 1: Claude Sonnet 5.5 single-shot on the
@@ -394,15 +424,16 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    in `runs/followup-test/results.jsonl`; exact McNemar, two-sided; hard cap $11.00. Stage 2
    (secondary): Sonnet's no-solver baseline, only after stage 1 is complete; $13.50 for both
    stages. Each stage stops after its first 10 problems if they project more than its cap.
-   Expected about $9.32. **Until the run, change nothing the freeze fingerprints** (anything
-   under `src/opt_agent/`, `requirements.lock`, the pre-registration,
-   `data/followup/split.json`, `runs/followup-test/results.jsonl`), or the run refuses at
-   `main`; the owner's commands switch to the tag first, so they run either way. After the run
-   the owner's last block writes `results/second_model.json` and commits it with
-   `runs/second-model`; a write-up, the README's numbers and their test come then.
+   Expected about $9.32. Now that it has run, a change under `src/opt_agent/` makes its
+   `check()` refuse at HEAD, as for the other studies; `python -m opt_agent.second_model_freeze`
+   still verifies both tags, and `scripts/reproduce.py` rebuilds from `second-model-freeze-2`.
+22. **The README's first screen after the second-model study: the owner's call** (2026-11-22,
+   "I'll decide that after seeing the numbers"). It's unchanged: its paragraph under the
+   headline bullets still says "three studies", and neither the bullets nor the figure mention
+   the second-model study. Everything below it is updated.
 
 ## Environment (read before running anything)
-- **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all three studies ran and
+- **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all four studies ran and
   where CI's `reproduce` job runs (`macos-15`); CBC comes from `cbcbox` 2.929 because later
   builds crash there (CLAUDE.md).
 - **No `gh`.** Read CI from the public GitHub API with `curl` and `jq`:
@@ -439,7 +470,7 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
 - **mypy:** new code must keep `python -m mypy` clean; a `type: ignore` needs its code and a
   reason on the line. The coverage badge moves only when `scripts/coverage_badge.py` is
   rerun after a full suite with all the data, and CI fails if it's more than a point off.
-- **All three studies are frozen at their tags, not at HEAD.** Any change under
+- **All four studies are frozen at their tags, not at HEAD.** Any change under
   `src/opt_agent/` (and to the frozen docs, the lock, `split.json` or the LLM4OR files) makes
   `python -m opt_agent.freeze`, `followup_freeze` and `resampling_freeze` report a mismatch
   (and `resampling.problems`, so `scripts/resampling_results.py`'s build, refuse at HEAD).
@@ -778,3 +809,28 @@ Logged as the owner asked: the simplest reasonable option, where the request did
 - **The run is one command for both stages:** stage 2 starts on its own once stage 1 has
   settled every problem, and the command exits before stage 2 if a stage-1 call still has
   resume passes left (running it again retries that call).
+
+## Decisions made without the owner (2026-11-22, the second-model study's analysis)
+- **The write-up is in `docs/second_model/`,** not `docs/second-model/` as the request said:
+  the pre-registration names `docs/second_model/DEVIATIONS.md` (section 7), and both freezes
+  and the power analysis already live there.
+- **RESULTS.md is rendered, DEVIATIONS.md is written.** As for the resampling study, a script
+  (`scripts/second_model_results.py`) lays out `results/second_model.json`'s values in the
+  owner's order (the pre-registered result, the sensitivity rows, the secondary results, stage
+  2, cost, the deviations, the limitations), so every number in it is the report's and a test
+  checks it; the deviations and the counts the frozen analysis doesn't make are written by hand
+  from the run's records, with the command that counts them. `scripts/reproduce.py` is
+  unchanged: it rebuilds the JSON byte for byte, and a test checks RESULTS.md against the JSON.
+- **Two deviations, both found by checking the report against the pre-registration:** stage
+  2's cut-off replies (planned through Amendment 1, not computed by the frozen analysis), and
+  Sonnet's p90 latency in the README's cost table, checked against `results/headline.json`
+  rather than `results/second_model.json` as section 7 says. The p90 was kept so Sonnet's rows
+  read like Haiku's; dropping it would remove the deviation.
+- **The README test reads a difference in points:** `results/second_model.json` stores each
+  paired difference as a share, so the test counts each `difference` and `difference_ci95` value
+  times 100 too (no other results file has those keys), and it skips stage, deviation and
+  "samples 1 and 2" numbers and the hypothesis name S1, as it skipped R1 and H1.
+- **No spin, as asked:** the verdict is stated as the rule gives it (inconclusive), with the
+  interval and the pre-registered "no difference larger than X points" reading; the
+  sensitivity rows are labeled "no claim" whatever their p-values, and the README doesn't call
+  either model better (the numbers: `results/second_model.json`).

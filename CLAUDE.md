@@ -22,8 +22,10 @@ point is a trustworthy evaluation, not a demo.
   (milestone 6 adds a test that enforces this), or, in its "Harder problems" results
   subsection, from `results/followup.json` (`scripts/followup_results.py`; the same test),
   or, in its "Resampling" results subsection, from `results/resampling.json`
-  (`scripts/resampling_results.py`; the same test).
-  The exceptions, the owner's (2026-11-19): the Limitations bullets labeled "Exploratory"
+  (`scripts/resampling_results.py`; the same test), or, in its "Second model" results
+  subsection and the "One model" limitation, from `results/second_model.json` (the frozen
+  analysis's report; the same test, which reads its paired differences, stored as shares, in
+  points too). The exceptions, the owner's (2026-11-19): the Limitations bullets labeled "Exploratory"
   (the disagreement detector, the explanation checker), each checked against its own record
   in `docs/analysis/` (`tests/test_readme_numbers.py`, `EXPLORATORY`; the explanation
   checker's also against `limits_checker.json`, for ADR-0009's headline 21 → 10 and 22 → 11,
@@ -32,7 +34,8 @@ point is a trustworthy evaluation, not a demo.
   owner's request, 2026-11-22); and the cost and
   latency table near the top, checked against `results/headline.json` (`TABLE`), which
   `scripts/headline.py` computes from the committed test runs' logs after checking each
-  condition's total cost and median latency against the results files.
+  condition's total cost and median latency against the results files (its two Claude Sonnet
+  5.5 rows, against `results/second_model.json`; their p90 is that study's deviation 2).
 - **Results live in the results files**, and in the documents the README-number test
   checks against them. Elsewhere (this file, `docs/HANDOFF.md`) point to them; don't
   restate results by hand.
@@ -48,9 +51,13 @@ CI hardening, mypy and coverage, the post hoc analyses in `docs/analysis/`, the 
 `docs/adr/`, the two bugs mypy found; then the polish list: the static demo on GitHub Pages,
 the code tour in `docs/DESIGN.md`, a README pass; and on 2026-11-19 the disagreement detector,
 the explanation checker's dev evaluation, the Agent Skill, the resampling study and the IP
-slack-claim check) are done too. **Where things stand: the resampling study is done (run by
-the owner on 2026-11-19, analyzed on 2026-11-20): R1 is supported (`results/resampling.json`,
-`docs/resampling/RESULTS.md`).** ADR-0009 (2026-11-20): for an integer program the explainer
+slack-claim check) are done too. **Where things stand: the second-model study is done (run by
+the owner on 2026-11-22, analyzed the same day): S1 is inconclusive
+(`results/second_model.json`, `docs/second_model/RESULTS.md`, two deviations that change no
+number in its report in `docs/second_model/DEVIATIONS.md`); the README's first screen doesn't
+mention it yet, which is the owner's call (`docs/HANDOFF.md`, open item 22).** The resampling
+study is done too (run by the owner on 2026-11-19, analyzed on 2026-11-20): R1 is supported
+(`results/resampling.json`, `docs/resampling/RESULTS.md`). ADR-0009 (2026-11-20): for an integer program the explainer
 also gets the solver's own test of what limits the answer (`src/opt_agent/limits.py`); the owner
 regenerated the dev explanations with it (`runs/explain-dev-limits`), compared in
 `docs/analysis/limits_claims.md` (exploratory, dev only). The headline, by the explanation
@@ -99,7 +106,7 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
    up in `docs/resampling/RESULTS.md`.
    Its hypothesis comes from the exploratory disagreement detector
    (`docs/analysis/disagreement_detector.md`).
-10. [ ] **The second-model study** (2026-11-22, the owner's seven decisions): Claude Sonnet 5.5
+10. [x] **The second-model study** (2026-11-22, the owner's seven decisions): Claude Sonnet 5.5
    single-shot on the same 121 problems, paired with Haiku's single-shot sample 0
    (`runs/followup-test/results.jsonl`); `docs/SECOND_MODEL_PREREGISTRATION.md`, runner
    `src/opt_agent/second_model.py`, analysis `src/opt_agent/second_model_report.py`, gate
@@ -107,8 +114,11 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
    tag `second-model-freeze`. **Amendment 1** (2026-11-22, before any call; the owner's credit
    expires soon): stage 1 is the study as registered with a $11.00 cap; stage 2 adds Sonnet's
    no-solver baseline (secondary), with $13.50 for both stages; frozen again in
-   `docs/second_model/FREEZE-2.json` at tag `second-model-freeze-2`, which gates the run.
-   **Not run: the paid run is the owner's, now** (`docs/HANDOFF.md`, open item 21).
+   `docs/second_model/FREEZE-2.json` at tag `second-model-freeze-2`, which gated the run. Run
+   by the owner on 2026-11-22 (`runs/second-model`, both stages complete) and analyzed the same
+   day: `results/second_model.json` (written by the frozen analysis, committed with the run in
+   `a78a2af`), written up in `docs/second_model/RESULTS.md` (`scripts/second_model_results.py`
+   renders it from the JSON) and `docs/second_model/DEVIATIONS.md`.
 
 **Standing rules from the history** (the reasons are in `docs/HISTORY.md`):
 - **The resampling study is done and frozen at `resampling-freeze`.** Never edit
@@ -117,25 +127,21 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
   bool), so `scripts/resampling_results.py` writes it, from the frozen `build()` (deviation
   1). The owner asked Claude to write this study's freeze (2026-11-19); the two older
   studies' approvals stay the owner's steps only.
-- **The second-model study is frozen at `second-model-freeze-2` (its Amendment 1), not yet
-  run** (2026-11-22; the owner asked Claude to write its freezes and create those two tags).
-  Never edit `docs/SECOND_MODEL_PREREGISTRATION.md` (its original text or Amendment 1),
-  `docs/second_model/FREEZE.json` or `FREEZE-2.json`, and never move or delete either tag; a
-  further change before the run is another amendment, dated and tagged before any call. The
-  first tag holds the study as first registered and must keep verifying
-  (`second_model_freeze.original_tag_problems`). The run refuses unless `second-model-freeze-2`
-  holds its approval and the inputs here match (`second_model_freeze.ready`), so until the
-  owner's run, change nothing it fingerprints: anything under `src/opt_agent/`,
-  `requirements.lock`, `data/followup/split.json` or `runs/followup-test/results.jsonl` (the
-  owner's commands switch to the tag first anyway).
+- **The second-model study is done and frozen at `second-model-freeze-2` (its Amendment 1)**
+  (2026-11-22; the owner asked Claude to write its freezes and create those two tags). Never
+  edit `docs/SECOND_MODEL_PREREGISTRATION.md` (its original text or Amendment 1),
+  `docs/second_model/FREEZE.json` or `FREEZE-2.json`, the run (`runs/second-model`) or
+  `results/second_model.json`, and never move or delete either tag. The first tag holds the
+  study as first registered and must keep verifying
+  (`second_model_freeze.original_tag_problems`). A new run on these problems (more Sonnet
+  samples, say) is a new pre-registration, frozen and tagged before any call.
 - `python -m opt_agent.freeze approve` and `python -m opt_agent.followup_freeze approve` are
   **the owner's steps only**, never Claude's. Never edit `docs/FREEZE.json` or
   `docs/followup/FREEZE.json`, and never rewrite git history (it would break the freeze tags).
-- The three run studies are done and frozen at their tags (the second-model study is frozen,
-  not run: above). Any change under `src/opt_agent/` or
+- The four studies are done and frozen at their tags. Any change under `src/opt_agent/` or
   to the lock makes each study's `check()` refuse at HEAD, as it should (it gates a new test
-  run); `python -m opt_agent.freeze`, `followup_freeze` and `resampling_freeze` say so and
-  report whether the tag verifies. The tag checks read git's objects (CI runs them), and `scripts/reproduce.py`
+  run); `python -m opt_agent.freeze`, `followup_freeze`, `resampling_freeze` and
+  `second_model_freeze` say so and report whether the tag verifies. The tag checks read git's objects (CI runs them), and `scripts/reproduce.py`
   rebuilds from each tag's own tree. Push tags with commits.
 - **Don't tune prompts to fix a single dev problem**, and tune on dev splits only. The
   follow-up's dev revision 2 is declared unused: only bug fixes, logged in
@@ -247,10 +253,12 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
   (`scripts/paid_explain_limits.py`): cap $0.25, paid $0.0358 (owner's terminal, 2026-11-20;
   `runs/explain-dev-limits/spend.jsonl`). The demo's refresh (`scripts/cache_examples.py`):
   cap $0.15, paid $0.0136 (owner's terminal, 2026-11-21; `logs/spend/demo-examples.jsonl`).
-  The second-model study's run (the owner's, now; its Amendment 1): hard caps $11.00 for stage
-  1 and $13.50 for both stages, each stage with a stop after its first 10 problems if they
-  project more; expected about $9.32 at Haiku's token counts ($5.18 and $4.14).
-  Spent so far: $5.47 of the $20 credit (2026-11-21; the ledger is in `docs/HANDOFF.md`).
+  The second-model study's run (its Amendment 1): hard caps $11.00 for stage 1 and $13.50 for
+  both stages, expected about $9.32; paid $5.7177 ($2.4154 and $3.3023; owner's terminal,
+  2026-11-22; `runs/second-model/spend.jsonl`).
+  Spent so far: $11.19 of the $20 credit (2026-11-22; the ledger is in `docs/HANDOFF.md`). The
+  owner reported about $8.80 left, expiring soon; the run hit no monthly limit, so ask the
+  owner what the limit is before relying on $10.
 - `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
   paid run. An unlisted model raises instead of being guessed.
 - Budget stops, spend-limit errors (`api.SpendLimitReached`: a 429 with
@@ -306,7 +314,8 @@ python scripts/resampling_results.py           # results/resampling.json (the fr
 python scripts/resampling_power.py             # docs/resampling/power.md (seeded)
 python -m opt_agent.second_model_freeze        # the second-model study: may its run start here?
 python -m opt_agent.second_model --plan        # its calls left and worst case, no calls (the paid run is the owner's)
-python -m opt_agent.second_model_report        # results/second_model.json, after the run is committed
+python -m opt_agent.second_model_report        # results/second_model.json (at the tag; reproduce.py rebuilds it there)
+python scripts/second_model_results.py         # docs/second_model/RESULTS.md, rendered from results/second_model.json
 python scripts/second_model_power.py           # docs/second_model/power.md (exact)
 python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.json
 python -m opt_agent.report runs/P --original runs/NAME   # a perturbed run, paired
