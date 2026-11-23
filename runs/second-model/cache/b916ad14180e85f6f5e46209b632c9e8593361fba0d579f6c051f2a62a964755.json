@@ -1,0 +1,228 @@
+{
+ "request": {
+  "model": "claude-sonnet-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "A factory produces three products, I, II, and III. Each product goes through two processing procedures, A and B. The factory has two types of equipment, A1 and A2, to complete procedure A, and three types of equipment, B1, B2, and B3, to complete procedure B. Product I can be processed on either type of A equipment or any type of B equipment. Product II can be processed on any type of A equipment, but when completing procedure B, it can only be processed on B1 equipment. Product III can only be processed on A2 and B2 equipment. Given the processing time, raw material cost, product selling price, available equipment operating time, and equipment cost at full load for each type of equipment, as shown in Table 1-4, determine the optimal production plan to maximize profit.\n\nTable 1-4\n\\begin{tabular}{|c|c|c|c|c|c|}\n\\hline \\multirow{2}{*}{ Equipment } & \\multicolumn{3}{|c|}{ Product } & \\multirow{2}{*}{ Available Equipment Operating Time } & \\multirow{2}{*}{ Equipment Cost at Full Load (in yuan) } \\\\\n\\cline { 2 - 4 } & I & II & III & & \\\\\n\\hline$A_1$ & 5 & 10 & & 6000 & 300 \\\\\n\\hline$A_2$ & 7 & 9 & 12 & 10000 & 321 \\\\\n\\hline$B_1$ & 6 & 8 & & 4000 & 250 \\\\\n\\hline$B_2$ & 4 & & 11 & 7000 & 783 \\\\\n\\hline$B_3$ & 7 & & & 4000 & 200 \\\\\n\\hline Raw Material Cost (in yuan per unit) & 0.25 & 0.35 & 0.50 & & \\\\\n\\hline Unit Price (in yuan per unit) & 1.25 & 2.00 & 2.80 & & \\\\\n\\hline\n\\end{tabular}"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChK8fnm69iuHn5bWQ8zx4",
+  "container": null,
+  "content": [
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"I_A1\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"I_A2\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"I_B1\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"I_B2\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"I_B3\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"II_A1\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"II_A2\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"II_B1\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"III_A2\",\"lower\":0,\"upper\":null,\"integer\":false},{\"name\":\"III_B2\",\"lower\":0,\"upper\":null,\"integer\":false}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"I_A1\",\"coef\":1.0},{\"var\":\"I_A2\",\"coef\":1.0},{\"var\":\"II_A1\",\"coef\":1.65},{\"var\":\"II_A2\",\"coef\":1.65},{\"var\":\"III_A2\",\"coef\":2.3},{\"var\":\"I_A1\",\"coef\":-0.0},{\"var\":\"I_A1\",\"coef\":-0.3},{\"var\":\"I_A2\",\"coef\":-0.3210},{\"var\":\"II_A1\",\"coef\":0.0}]},\"constraints\":[{\"name\":\"A1_time\",\"terms\":[{\"var\":\"I_A1\",\"coef\":5},{\"var\":\"II_A1\",\"coef\":10}],\"sense\":\"<=\",\"rhs\":6000},{\"name\":\"A2_time\",\"terms\":[{\"var\":\"I_A2\",\"coef\":7},{\"var\":\"II_A2\",\"coef\":9},{\"var\":\"III_A2\",\"coef\":12}],\"sense\":\"<=\",\"rhs\":10000},{\"name\":\"B1_time\",\"terms\":[{\"var\":\"I_B1\",\"coef\":6},{\"var\":\"II_B1\",\"coef\":8}],\"sense\":\"<=\",\"rhs\":4000},{\"name\":\"B2_time\",\"terms\":[{\"var\":\"I_B2\",\"coef\":4},{\"var\":\"III_B2\",\"coef\":11}],\"sense\":\"<=\",\"rhs\":7000},{\"name\":\"B3_time\",\"terms\":[{\"var\":\"I_B3\",\"coef\":7}],\"sense\":\"<=\",\"rhs\":4000},{\"name\":\"I_balance\",\"terms\":[{\"var\":\"I_A1\",\"coef\":1},{\"var\":\"I_A2\",\"coef\":1},{\"var\":\"I_B1\",\"coef\":-1},{\"var\":\"I_B2\",\"coef\":-1},{\"var\":\"I_B3\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"II_balance\",\"terms\":[{\"var\":\"II_A1\",\"coef\":1},{\"var\":\"II_A2\",\"coef\":1},{\"var\":\"II_B1\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"III_balance\",\"terms\":[{\"var\":\"III_A2\",\"coef\":1},{\"var\":\"III_B2\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-sonnet-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2191,
+   "output_tokens": 1001,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "213613ec12e295fd79c88902914357da1257606460e7764e41bf3e096091bd7d",
+  "tries": 1,
+  "latency_s": 5.4225443749455735,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

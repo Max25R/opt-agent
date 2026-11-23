@@ -1,0 +1,228 @@
+{
+ "request": {
+  "model": "claude-sonnet-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine you are coordinating a logistics effort to redistribute essential supplies among seven regional distribution centers. Each center starts with a specific quantity of supplies but has different needs to ensure smooth operations across the regions.\n\nHere's the initial setup:\n\n- Distribution Center 1 has 97 units but needs 119 units.\n- Distribution Center 2 has 458 units but needs 275 units.\n- Distribution Center 3 has 473 units but needs only 36 units.\n- Distribution Center 4 has 380 units but needs 459 units.\n- Distribution Center 5 has 34 units but needs 17 units.\n- Distribution Center 6 has 399 units but needs 128 units.\n- Distribution Center 7 has 163 units but needs 425 units.\n\nTo move supplies between these centers, there is a cost associated with each transfer, which varies depending on the route. Here's the cost matrix showing the cost to transfer supplies from one center to another:\n\n- From/To Center 1: To 2 costs 41, to 3 costs 42, to 4 costs 31, to 5 costs 39, to 6 costs 2, to 7 costs 18.\n- From/To Center 2: To 1 costs 48, to 3 costs 9, to 4 costs 22, to 5 costs 47, to 6 costs 29, to 7 costs 39.\n- From/To Center 3: To 1 costs 36, to 2 costs 22, to 4 costs 29, to 5 costs 45, to 6 costs 33, to 7 costs 45.\n- From/To Center 4: To 1 costs 19, to 2 costs 5, to 3 costs 10, to 5 costs 3, to 6 costs 42, to 7 costs 20.\n- From/To Center 5: To 1 costs 13, to 2 costs 10, to 3 costs 21, to 4 costs 7, to 6 costs 35, to 7 costs 11.\n- From/To Center 6: To 1 costs 5, to 2 costs 35, to 3 costs 29, to 4 costs 16, to 5 costs 40, to 7 costs 9.\n- From/To Center 7: To 1 costs 7, to 2 costs 24, to 3 costs 26, to 4 costs 38, to 5 costs 33, to 6 costs 13.\n\nYour task is to ensure each distribution center has the supplies it needs while minimizing the total cost of redistribution. What would be the minimum cost to achieve this?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChK7U43tBV4qczZ1cuGtn",
+  "container": null,
+  "content": [
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"x12\",\"lower\":0},{\"name\":\"x13\",\"lower\":0},{\"name\":\"x14\",\"lower\":0},{\"name\":\"x15\",\"lower\":0},{\"name\":\"x16\",\"lower\":0},{\"name\":\"x17\",\"lower\":0},{\"name\":\"x21\",\"lower\":0},{\"name\":\"x23\",\"lower\":0},{\"name\":\"x24\",\"lower\":0},{\"name\":\"x25\",\"lower\":0},{\"name\":\"x26\",\"lower\":0},{\"name\":\"x27\",\"lower\":0},{\"name\":\"x31\",\"lower\":0},{\"name\":\"x32\",\"lower\":0},{\"name\":\"x34\",\"lower\":0},{\"name\":\"x35\",\"lower\":0},{\"name\":\"x36\",\"lower\":0},{\"name\":\"x37\",\"lower\":0},{\"name\":\"x41\",\"lower\":0},{\"name\":\"x42\",\"lower\":0},{\"name\":\"x43\",\"lower\":0},{\"name\":\"x45\",\"lower\":0},{\"name\":\"x46\",\"lower\":0},{\"name\":\"x47\",\"lower\":0},{\"name\":\"x51\",\"lower\":0},{\"name\":\"x52\",\"lower\":0},{\"name\":\"x53\",\"lower\":0},{\"name\":\"x54\",\"lower\":0},{\"name\":\"x56\",\"lower\":0},{\"name\":\"x57\",\"lower\":0},{\"name\":\"x61\",\"lower\":0},{\"name\":\"x62\",\"lower\":0},{\"name\":\"x63\",\"lower\":0},{\"name\":\"x64\",\"lower\":0},{\"name\":\"x65\",\"lower\":0},{\"name\":\"x67\",\"lower\":0},{\"name\":\"x71\",\"lower\":0},{\"name\":\"x72\",\"lower\":0},{\"name\":\"x73\",\"lower\":0},{\"name\":\"x74\",\"lower\":0},{\"name\":\"x75\",\"lower\":0},{\"name\":\"x76\",\"lower\":0}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"x12\",\"coef\":41},{\"var\":\"x13\",\"coef\":42},{\"var\":\"x14\",\"coef\":31},{\"var\":\"x15\",\"coef\":39},{\"var\":\"x16\",\"coef\":2},{\"var\":\"x17\",\"coef\":18},{\"var\":\"x21\",\"coef\":48},{\"var\":\"x23\",\"coef\":9},{\"var\":\"x24\",\"coef\":22},{\"var\":\"x25\",\"coef\":47},{\"var\":\"x26\",\"coef\":29},{\"var\":\"x27\",\"coef\":39},{\"var\":\"x31\",\"coef\":36},{\"var\":\"x32\",\"coef\":22},{\"var\":\"x34\",\"coef\":29},{\"var\":\"x35\",\"coef\":45},{\"var\":\"x36\",\"coef\":33},{\"var\":\"x37\",\"coef\":45},{\"var\":\"x41\",\"coef\":19},{\"var\":\"x42\",\"coef\":5},{\"var\":\"x43\",\"coef\":10},{\"var\":\"x45\",\"coef\":3},{\"var\":\"x46\",\"coef\":42},{\"var\":\"x47\",\"coef\":20},{\"var\":\"x51\",\"coef\":13},{\"var\":\"x52\",\"coef\":10},{\"var\":\"x53\",\"coef\":21},{\"var\":\"x54\",\"coef\":7},{\"var\":\"x56\",\"coef\":35},{\"var\":\"x57\",\"coef\":11},{\"var\":\"x61\",\"coef\":5},{\"var\":\"x62\",\"coef\":35},{\"var\":\"x63\",\"coef\":29},{\"var\":\"x64\",\"coef\":16},{\"var\":\"x65\",\"coef\":40},{\"var\":\"x67\",\"coef\":9},{\"var\":\"x71\",\"coef\":7},{\"var\":\"x72\",\"coef\":24},{\"var\":\"x73\",\"coef\":26},{\"var\":\"x74\",\"coef\":38},{\"var\":\"x75\",\"coef\":33},{\"var\":\"x76\",\"coef\":13}]},\"constraints\":[{\"name\":\"balance1\",\"terms\":[{\"var\":\"x12\",\"coef\":1},{\"var\":\"x13\",\"coef\":1},{\"var\":\"x14\",\"coef\":1},{\"var\":\"x15\",\"coef\":1},{\"var\":\"x16\",\"coef\":1},{\"var\":\"x17\",\"coef\":1},{\"var\":\"x21\",\"coef\":-1},{\"var\":\"x31\",\"coef\":-1},{\"var\":\"x41\",\"coef\":-1},{\"var\":\"x51\",\"coef\":-1},{\"var\":\"x61\",\"coef\":-1},{\"var\":\"x71\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":-22},{\"name\":\"balance2\",\"terms\":[{\"var\":\"x21\",\"coef\":1},{\"var\":\"x23\",\"coef\":1},{\"var\":\"x24\",\"coef\":1},{\"var\":\"x25\",\"coef\":1},{\"var\":\"x26\",\"coef\":1},{\"var\":\"x27\",\"coef\":1},{\"var\":\"x12\",\"coef\":-1},{\"var\":\"x32\",\"coef\":-1},{\"var\":\"x42\",\"coef\":-1},{\"var\":\"x52\",\"coef\":-1},{\"var\":\"x62\",\"coef\":-1},{\"var\":\"x72\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":183},{\"name\":\"balance3\",\"terms\":[{\"var\":\"x31\",\"coef\":1},{\"var\":\"x32\",\"coef\":1},{\"var\":\"x34\",\"coef\":1},{\"var\":\"x35\",\"coef\":1},{\"var\":\"x36\",\"coef\":1},{\"var\":\"x37\",\"coef\":1},{\"var\":\"x13\",\"coef\":-1},{\"var\":\"x23\",\"coef\":-1},{\"var\":\"x43\",\"coef\":-1},{\"var\":\"x53\",\"coef\":-1},{\"var\":\"x63\",\"coef\":-1},{\"var\":\"x73\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":437},{\"name\":\"balance4\",\"terms\":[{\"var\":\"x41\",\"coef\":1},{\"var\":\"x42\",\"coef\":1},{\"var\":\"x43\",\"coef\":1},{\"var\":\"x45\",\"coef\":1},{\"var\":\"x46\",\"coef\":1},{\"var\":\"x47\",\"coef\":1},{\"var\":\"x14\",\"coef\":-1},{\"var\":\"x24\",\"coef\":-1},{\"var\":\"x34\",\"coef\":-1},{\"var\":\"x54\",\"coef\":-1},{\"var\":\"x64\",\"coef\":-1},{\"var\":\"x74\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":-79},{\"name\":\"balance5\",\"terms\":[{\"var\":\"x51\",\"coef\":1},{\"var\":\"x52\",\"coef\":1},{\"var\":\"x53\",\"coef\":1},{\"var\":\"x54\",\"coef\":1},{\"var\":\"x56\",\"coef\":1},{\"var\":\"x57\",\"coef\":1},{\"var\":\"x15\",\"coef\":-1},{\"var\":\"x25\",\"coef\":-1},{\"var\":\"x35\",\"coef\":-1},{\"var\":\"x45\",\"coef\":-1},{\"var\":\"x65\",\"coef\":-1},{\"var\":\"x75\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":17},{\"name\":\"balance6\",\"terms\":[{\"var\":\"x61\",\"coef\":1},{\"var\":\"x62\",\"coef\":1},{\"var\":\"x63\",\"coef\":1},{\"var\":\"x64\",\"coef\":1},{\"var\":\"x65\",\"coef\":1},{\"var\":\"x67\",\"coef\":1},{\"var\":\"x16\",\"coef\":-1},{\"var\":\"x26\",\"coef\":-1},{\"var\":\"x36\",\"coef\":-1},{\"var\":\"x46\",\"coef\":-1},{\"var\":\"x56\",\"coef\":-1},{\"var\":\"x76\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":271},{\"name\":\"balance7\",\"terms\":[{\"var\":\"x71\",\"coef\":1},{\"var\":\"x72\",\"coef\":1},{\"var\":\"x73\",\"coef\":1},{\"var\":\"x74\",\"coef\":1},{\"var\":\"x75\",\"coef\":1},{\"var\":\"x76\",\"coef\":1},{\"var\":\"x17\",\"coef\":-1},{\"var\":\"x27\",\"coef\":-1},{\"var\":\"x37\",\"coef\":-1},{\"var\":\"x47\",\"coef\":-1},{\"var\":\"x57\",\"coef\":-1},{\"var\":\"x67\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":-262}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-sonnet-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2366,
+   "output_tokens": 2453,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "9597c2aadc1bac8ee5effe1ebb75d9ba210a05705aae2cc2aaf539bef160c198",
+  "tries": 1,
+  "latency_s": 11.460857541998848,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

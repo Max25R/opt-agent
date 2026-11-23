@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-sonnet-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "In the heart of a bustling metropolis, there lies an intricate network of digital information pipelines connecting 8 crucial data centers. These centers, from the main server hub to the final relay station, are vital for processing and distributing vast amounts of data across the city. The connections between these data centers have specific bandwidth capacities that dictate the maximum flow of data (measured in terabytes per hour) that can be transmitted from one center to another.\n\nHere's a breakdown of the network's layout and its capacities:\n\n- From Data Center 0 (Source): Data can be sent to Center 1 (6 TB/h), Center 2 (16 TB/h), Center 3 (5 TB/h), Center 4 (6 TB/h), Center 5 (11 TB/h), Center 6 (6 TB/h), and Center 7 (4 TB/h).\n- From Data Center 1: Data can be transmitted to Center 2 (8 TB/h), Center 3 (10 TB/h), Center 4 (6 TB/h), Center 5 (3 TB/h), Center 6 (6 TB/h), and Center 7 (14 TB/h).\n- From Data Center 2: Can send data to Center 1 (6 TB/h), Center 3 (20 TB/h), Center 4 (7 TB/h), Center 5 (16 TB/h), Center 6 (13 TB/h), and Center 7 (14 TB/h).\n- From Data Center 3: Has capacities to Center 1 (11 TB/h), Center 2 (19 TB/h), Center 4 (18 TB/h), Center 5 (5 TB/h), and Center 7 (8 TB/h).\n- From Data Center 4: Can route data to Center 1 (1 TB/h), Center 2 (14 TB/h), Center 3 (18 TB/h), Center 5 (12 TB/h), Center 6 (4 TB/h), and Center 7 (7 TB/h).\n- From Data Center 5: Can dispatch data to Center 1 (16 TB/h), Center 2 (3 TB/h), Center 3 (20 TB/h), Center 4 (7 TB/h), Center 6 (15 TB/h), and Center 7 (6 TB/h).\n- From Data Center 6: Capable of sending to Center 1 (11 TB/h), Center 2 (4 TB/h), Center 3 (19 TB/h), Center 4 (7 TB/h), Center 5 (6 TB/h), and Center 7 (17 TB/h).\n- From Data Center 7 (Destination): Can receive return data flow from Center 1 (5 TB/h), Center 2 (8 TB/h), Center 3 (17 TB/h), Center 4 (2 TB/h), Center 5 (5 TB/h), and Center 6 (4 TB/h).\n\nIn this network, a capacity of \"0\" signifies an absence of direct data transmission capability between any two given data centers.\n\nThe challenge is to determine the maximum amount of data that can be efficiently transmitted from Data Center 0 (the main server hub) to Data Center 7 (the final relay station) per hour, without exceeding the bandwidth capacities of the connections between the centers. What is the optimal value of data flow (in terabytes per hour) that can be achieved from the source to the destination?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChK7f5w3wC83oo2BJE6Di",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"x01\",\"upper\":6},{\"name\":\"x02\",\"upper\":16},{\"name\":\"x03\",\"upper\":5},{\"name\":\"x04\",\"upper\":6},{\"name\":\"x05\",\"upper\":11},{\"name\":\"x06\",\"upper\":6},{\"name\":\"x07\",\"upper\":4},{\"name\":\"x12\",\"upper\":8},{\"name\":\"x13\",\"upper\":10},{\"name\":\"x14\",\"upper\":6},{\"name\":\"x15\",\"upper\":3},{\"name\":\"x16\",\"upper\":6},{\"name\":\"x17\",\"upper\":14},{\"name\":\"x21\",\"upper\":6},{\"name\":\"x23\",\"upper\":20},{\"name\":\"x24\",\"upper\":7},{\"name\":\"x25\",\"upper\":16},{\"name\":\"x26\",\"upper\":13},{\"name\":\"x27\",\"upper\":14},{\"name\":\"x31\",\"upper\":11},{\"name\":\"x32\",\"upper\":19},{\"name\":\"x34\",\"upper\":18},{\"name\":\"x35\",\"upper\":5},{\"name\":\"x37\",\"upper\":8},{\"name\":\"x41\",\"upper\":1},{\"name\":\"x42\",\"upper\":14},{\"name\":\"x43\",\"upper\":18},{\"name\":\"x45\",\"upper\":12},{\"name\":\"x46\",\"upper\":4},{\"name\":\"x47\",\"upper\":7},{\"name\":\"x51\",\"upper\":16},{\"name\":\"x52\",\"upper\":3},{\"name\":\"x53\",\"upper\":20},{\"name\":\"x54\",\"upper\":7},{\"name\":\"x56\",\"upper\":15},{\"name\":\"x57\",\"upper\":6},{\"name\":\"x61\",\"upper\":11},{\"name\":\"x62\",\"upper\":4},{\"name\":\"x63\",\"upper\":19},{\"name\":\"x64\",\"upper\":7},{\"name\":\"x65\",\"upper\":6},{\"name\":\"x67\",\"upper\":17}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"x07\",\"coef\":1},{\"var\":\"x17\",\"coef\":1},{\"var\":\"x27\",\"coef\":1},{\"var\":\"x37\",\"coef\":1},{\"var\":\"x47\",\"coef\":1},{\"var\":\"x57\",\"coef\":1},{\"var\":\"x67\",\"coef\":1}]},\"constraints\":[{\"name\":\"balance_node1\",\"terms\":[{\"var\":\"x01\",\"coef\":1},{\"var\":\"x21\",\"coef\":1},{\"var\":\"x31\",\"coef\":1},{\"var\":\"x41\",\"coef\":1},{\"var\":\"x51\",\"coef\":1},{\"var\":\"x61\",\"coef\":1},{\"var\":\"x12\",\"coef\":-1},{\"var\":\"x13\",\"coef\":-1},{\"var\":\"x14\",\"coef\":-1},{\"var\":\"x15\",\"coef\":-1},{\"var\":\"x16\",\"coef\":-1},{\"var\":\"x17\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance_node2\",\"terms\":[{\"var\":\"x02\",\"coef\":1},{\"var\":\"x12\",\"coef\":1},{\"var\":\"x32\",\"coef\":1},{\"var\":\"x42\",\"coef\":1},{\"var\":\"x52\",\"coef\":1},{\"var\":\"x62\",\"coef\":1},{\"var\":\"x21\",\"coef\":-1},{\"var\":\"x23\",\"coef\":-1},{\"var\":\"x24\",\"coef\":-1},{\"var\":\"x25\",\"coef\":-1},{\"var\":\"x26\",\"coef\":-1},{\"var\":\"x27\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance_node3\",\"terms\":[{\"var\":\"x03\",\"coef\":1},{\"var\":\"x13\",\"coef\":1},{\"var\":\"x23\",\"coef\":1},{\"var\":\"x43\",\"coef\":1},{\"var\":\"x53\",\"coef\":1},{\"var\":\"x63\",\"coef\":1},{\"var\":\"x31\",\"coef\":-1},{\"var\":\"x32\",\"coef\":-1},{\"var\":\"x34\",\"coef\":-1},{\"var\":\"x35\",\"coef\":-1},{\"var\":\"x37\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance_node4\",\"terms\":[{\"var\":\"x04\",\"coef\":1},{\"var\":\"x14\",\"coef\":1},{\"var\":\"x24\",\"coef\":1},{\"var\":\"x34\",\"coef\":1},{\"var\":\"x54\",\"coef\":1},{\"var\":\"x64\",\"coef\":1},{\"var\":\"x41\",\"coef\":-1},{\"var\":\"x42\",\"coef\":-1},{\"var\":\"x43\",\"coef\":-1},{\"var\":\"x45\",\"coef\":-1},{\"var\":\"x46\",\"coef\":-1},{\"var\":\"x47\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance_node5\",\"terms\":[{\"var\":\"x05\",\"coef\":1},{\"var\":\"x15\",\"coef\":1},{\"var\":\"x25\",\"coef\":1},{\"var\":\"x35\",\"coef\":1},{\"var\":\"x45\",\"coef\":1},{\"var\":\"x65\",\"coef\":1},{\"var\":\"x51\",\"coef\":-1},{\"var\":\"x52\",\"coef\":-1},{\"var\":\"x53\",\"coef\":-1},{\"var\":\"x54\",\"coef\":-1},{\"var\":\"x56\",\"coef\":-1},{\"var\":\"x57\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance_node6\",\"terms\":[{\"var\":\"x06\",\"coef\":1},{\"var\":\"x16\",\"coef\":1},{\"var\":\"x26\",\"coef\":1},{\"var\":\"x46\",\"coef\":1},{\"var\":\"x56\",\"coef\":1},{\"var\":\"x61\",\"coef\":-1},{\"var\":\"x62\",\"coef\":-1},{\"var\":\"x63\",\"coef\":-1},{\"var\":\"x64\",\"coef\":-1},{\"var\":\"x65\",\"coef\":-1},{\"var\":\"x67\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-sonnet-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2646,
+   "output_tokens": 2686,
+   "output_tokens_details": {
+    "thinking_tokens": 895
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "1989e1fc4cce9e824c43ae3d68554252bf1c114e34434fc0b7921522de982c54",
+  "tries": 1,
+  "latency_s": 14.048239875002764,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

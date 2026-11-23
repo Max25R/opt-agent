@@ -1,0 +1,228 @@
+{
+ "request": {
+  "model": "claude-sonnet-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine you're a dietitian crafting a meal plan for someone with specific nutritional goals. The challenge is not just to meet these nutritional needs but to do so in the most cost-effective way possible. The individual requires a precise amount of protein, carbohydrates, and calories each day, but the budget is tight, making it crucial to minimize the cost of the meal plan.\n\nYou have a list of eight food items to choose from, each with distinct nutritional content and associated cost:\n\n- Food_1: A modest source of protein and carbs with 1 gram of protein, 4 grams of carbohydrates, and 93 calories at a cost of $6.\n- Food_2: Rich in protein with 18 grams of protein, 2 grams of carbohydrates, and 219 calories, priced at $4.\n- Food_3: A balanced choice providing 19 grams of protein, 26 grams of carbs, and 155 calories for $4.\n- Food_4: High in protein with 19 grams of protein, 10 grams of carbs, and 105 calories, costing $3.\n- Food_5: Carb-heavy with 3 grams of protein, 24 grams of carbohydrates, and 255 calories at just $2.\n- Food_6: A good mix with 8 grams of protein, 26 grams of carbs, and 182 calories for $7.\n- Food_7: Impressive protein and carb content with 15 grams of protein, 27 grams of carbohydrates, and 173 calories, all for $3.\n- Food_8: Carb-rich with 3 grams of protein, 30 grams of carbohydrates, and 191 calories, also at $3.\n\nThe daily dietary requirements for the individual are:\n\n- Protein: At least 98 grams\n- Carbohydrates: At least 113 grams\n- Calories: At least 1768\n\nWith these food options and nutritional needs in mind, what is the minimum cost required to meet the daily protein, carbohydrate, and calorie requirements?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChK7rH2MsXdVyXHjdFvGf",
+  "container": null,
+  "content": [
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"Food_1\",\"integer\":true},{\"name\":\"Food_2\",\"integer\":true},{\"name\":\"Food_3\",\"integer\":true},{\"name\":\"Food_4\",\"integer\":true},{\"name\":\"Food_5\",\"integer\":true},{\"name\":\"Food_6\",\"integer\":true},{\"name\":\"Food_7\",\"integer\":true},{\"name\":\"Food_8\",\"integer\":true}],\"objective\":{\"sense\":\"min\",\"terms\":[{\"var\":\"Food_1\",\"coef\":6},{\"var\":\"Food_2\",\"coef\":4},{\"var\":\"Food_3\",\"coef\":4},{\"var\":\"Food_4\",\"coef\":3},{\"var\":\"Food_5\",\"coef\":2},{\"var\":\"Food_6\",\"coef\":7},{\"var\":\"Food_7\",\"coef\":3},{\"var\":\"Food_8\",\"coef\":3}]},\"constraints\":[{\"name\":\"protein\",\"terms\":[{\"var\":\"Food_1\",\"coef\":1},{\"var\":\"Food_2\",\"coef\":18},{\"var\":\"Food_3\",\"coef\":19},{\"var\":\"Food_4\",\"coef\":19},{\"var\":\"Food_5\",\"coef\":3},{\"var\":\"Food_6\",\"coef\":8},{\"var\":\"Food_7\",\"coef\":15},{\"var\":\"Food_8\",\"coef\":3}],\"sense\":\">=\",\"rhs\":98},{\"name\":\"carbohydrates\",\"terms\":[{\"var\":\"Food_1\",\"coef\":4},{\"var\":\"Food_2\",\"coef\":2},{\"var\":\"Food_3\",\"coef\":26},{\"var\":\"Food_4\",\"coef\":10},{\"var\":\"Food_5\",\"coef\":24},{\"var\":\"Food_6\",\"coef\":26},{\"var\":\"Food_7\",\"coef\":27},{\"var\":\"Food_8\",\"coef\":30}],\"sense\":\">=\",\"rhs\":113},{\"name\":\"calories\",\"terms\":[{\"var\":\"Food_1\",\"coef\":93},{\"var\":\"Food_2\",\"coef\":219},{\"var\":\"Food_3\",\"coef\":155},{\"var\":\"Food_4\",\"coef\":105},{\"var\":\"Food_5\",\"coef\":255},{\"var\":\"Food_6\",\"coef\":182},{\"var\":\"Food_7\",\"coef\":173},{\"var\":\"Food_8\",\"coef\":191}],\"sense\":\">=\",\"rhs\":1768}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-sonnet-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2191,
+   "output_tokens": 718,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "f6bce43cfdff0eb15647603e57da1fa63aa096c812609424442147a04f3c8490",
+  "tries": 1,
+  "latency_s": 4.404264042037539,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

@@ -1,0 +1,228 @@
+{
+ "request": {
+  "model": "claude-sonnet-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine a bustling city where seven primary communication stations are in operation. These stations, ranging from a central source (Station 0) to the main endpoint (Station 6), are interconnected by a network of telecommunication lines with varying transfer capacities.\n\nHere are the capacities of each connection, representing the maximum amount of data (in terabytes) that can be transferred from one station to another:\n\n- From Station 0 (Source): Can send data to Station 1 (17TB), Station 2 (3TB), Station 3 (20TB), Station 4 (11TB), Station 5 (11TB), and Station 6 (3TB).\n- From Station 1: Can send data to Station 0 (11TB), Station 2 (12TB), Station 3 (18TB), Station 4 (5TB), Station 5 (6TB), and Station 6 (4TB).\n- From Station 2: Can send data to Station 0 (7TB), Station 1 (2TB), Station 3 (15TB), Station 4 (13TB), Station 5 (20TB), and Station 6 (18TB).\n- From Station 3: Can send data to Station 0 (7TB), Station 1 (4TB), Station 2 (2TB), Station 4 (2TB), Station 5 (15TB), and Station 6 (3TB).\n- From Station 4: Can send data to Station 0 (19TB), Station 1 (12TB), Station 2 (16TB), Station 3 (4TB), Station 5 (19TB), and Station 6 (4TB).\n- From Station 5: Can send data to Station 0 (13TB), Station 1 (20TB), Station 2 (10TB), Station 3 (14TB), Station 4 (15TB), and Station 6 (1TB).\n- From Station 6 (Endpoint): Can send data back to Station 0 (3TB), Station 1 (3TB), Station 2 (6TB), Station 3 (20TB), Station 4 (9TB), and Station 5 (10TB).\n\nIn this scenario, a capacity of \"0\" indicates there is no direct telecommunication link between the two respective stations.\n\nYour challenge is to determine the maximum amount of data that can be transferred from Station 0 (the source) to Station 6 (the endpoint) per hour, while ensuring the data flow along each telecommunication line does not exceed its set capacity. What is the maximum amount of data, in terabytes, that can be transferred from the source to the endpoint within one hour?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChK7e6TH2g7h9sTd1dW6U",
+  "container": null,
+  "content": [
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"f01\",\"upper\":17},{\"name\":\"f02\",\"upper\":3},{\"name\":\"f03\",\"upper\":20},{\"name\":\"f04\",\"upper\":11},{\"name\":\"f05\",\"upper\":11},{\"name\":\"f06\",\"upper\":3},{\"name\":\"f10\",\"upper\":11},{\"name\":\"f12\",\"upper\":12},{\"name\":\"f13\",\"upper\":18},{\"name\":\"f14\",\"upper\":5},{\"name\":\"f15\",\"upper\":6},{\"name\":\"f16\",\"upper\":4},{\"name\":\"f20\",\"upper\":7},{\"name\":\"f21\",\"upper\":2},{\"name\":\"f23\",\"upper\":15},{\"name\":\"f24\",\"upper\":13},{\"name\":\"f25\",\"upper\":20},{\"name\":\"f26\",\"upper\":18},{\"name\":\"f30\",\"upper\":7},{\"name\":\"f31\",\"upper\":4},{\"name\":\"f32\",\"upper\":2},{\"name\":\"f34\",\"upper\":2},{\"name\":\"f35\",\"upper\":15},{\"name\":\"f36\",\"upper\":3},{\"name\":\"f40\",\"upper\":19},{\"name\":\"f41\",\"upper\":12},{\"name\":\"f42\",\"upper\":16},{\"name\":\"f43\",\"upper\":4},{\"name\":\"f45\",\"upper\":19},{\"name\":\"f46\",\"upper\":4},{\"name\":\"f50\",\"upper\":13},{\"name\":\"f51\",\"upper\":20},{\"name\":\"f52\",\"upper\":10},{\"name\":\"f53\",\"upper\":14},{\"name\":\"f54\",\"upper\":15},{\"name\":\"f56\",\"upper\":1}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"f06\",\"coef\":1},{\"var\":\"f16\",\"coef\":1},{\"var\":\"f26\",\"coef\":1},{\"var\":\"f36\",\"coef\":1},{\"var\":\"f46\",\"coef\":1},{\"var\":\"f56\",\"coef\":1},{\"var\":\"f60\",\"coef\":0}]},\"constraints\":[{\"name\":\"balance1\",\"terms\":[{\"var\":\"f01\",\"coef\":1},{\"var\":\"f21\",\"coef\":1},{\"var\":\"f31\",\"coef\":1},{\"var\":\"f41\",\"coef\":1},{\"var\":\"f51\",\"coef\":1},{\"var\":\"f10\",\"coef\":-1},{\"var\":\"f12\",\"coef\":-1},{\"var\":\"f13\",\"coef\":-1},{\"var\":\"f14\",\"coef\":-1},{\"var\":\"f15\",\"coef\":-1},{\"var\":\"f16\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance2\",\"terms\":[{\"var\":\"f02\",\"coef\":1},{\"var\":\"f12\",\"coef\":1},{\"var\":\"f32\",\"coef\":1},{\"var\":\"f42\",\"coef\":1},{\"var\":\"f52\",\"coef\":1},{\"var\":\"f20\",\"coef\":-1},{\"var\":\"f21\",\"coef\":-1},{\"var\":\"f23\",\"coef\":-1},{\"var\":\"f24\",\"coef\":-1},{\"var\":\"f25\",\"coef\":-1},{\"var\":\"f26\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance3\",\"terms\":[{\"var\":\"f03\",\"coef\":1},{\"var\":\"f13\",\"coef\":1},{\"var\":\"f23\",\"coef\":1},{\"var\":\"f43\",\"coef\":1},{\"var\":\"f53\",\"coef\":1},{\"var\":\"f30\",\"coef\":-1},{\"var\":\"f31\",\"coef\":-1},{\"var\":\"f32\",\"coef\":-1},{\"var\":\"f34\",\"coef\":-1},{\"var\":\"f35\",\"coef\":-1},{\"var\":\"f36\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance4\",\"terms\":[{\"var\":\"f04\",\"coef\":1},{\"var\":\"f14\",\"coef\":1},{\"var\":\"f24\",\"coef\":1},{\"var\":\"f34\",\"coef\":1},{\"var\":\"f54\",\"coef\":1},{\"var\":\"f40\",\"coef\":-1},{\"var\":\"f41\",\"coef\":-1},{\"var\":\"f42\",\"coef\":-1},{\"var\":\"f43\",\"coef\":-1},{\"var\":\"f45\",\"coef\":-1},{\"var\":\"f46\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance5\",\"terms\":[{\"var\":\"f05\",\"coef\":1},{\"var\":\"f15\",\"coef\":1},{\"var\":\"f25\",\"coef\":1},{\"var\":\"f35\",\"coef\":1},{\"var\":\"f45\",\"coef\":1},{\"var\":\"f50\",\"coef\":-1},{\"var\":\"f51\",\"coef\":-1},{\"var\":\"f52\",\"coef\":-1},{\"var\":\"f53\",\"coef\":-1},{\"var\":\"f54\",\"coef\":-1},{\"var\":\"f56\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-sonnet-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2359,
+   "output_tokens": 1474,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "aa0da9c911b4630f8f6ab72579c81439aee016cae11f63157f93b6b23dbc8418",
+  "tries": 1,
+  "latency_s": 8.273661290993914,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

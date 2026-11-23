@@ -1,0 +1,233 @@
+{
+ "request": {
+  "model": "claude-sonnet-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine a futuristic transportation network connecting 9 major hubs across a sprawling metropolis, each designed to swiftly move resources from the main distribution center to a critical operations base. This network is meticulously engineered with roads of varying capacities, ensuring the smooth flow of essential supplies.\n\nThe city's network is as follows, with each road's capacity measured in thousands of units of resources that can be transported per hour:\n\n- From Hub 0 (Source): Roads lead to Hub 1 (4 units), Hub 2 (7 units), Hub 3 (15 units), Hub 4 (4 units), Hub 5 (7 units), Hub 6 (2 units), Hub 7 (10 units), and Hub 8 (12 units).\n- From Hub 1: Roads lead to Hub 2 (17 units), Hub 3 (2 units), Hub 4 (5 units), Hub 5 (1 unit), Hub 6 (10 units), Hub 7 (14 units), and Hub 8 (5 units).\n- From Hub 2: Roads lead to Hub 1 (7 units), Hub 3 (17 units), Hub 4 (9 units), Hub 5 (13 units), Hub 6 (10 units), Hub 7 (7 units), and Hub 8 (5 units).\n- From Hub 3: Roads lead to Hub 1 (16 units), Hub 2 (4 units), Hub 4 (11 units), Hub 5 (9 units), Hub 6 (12 units), Hub 7 (18 units), and Hub 8 (12 units).\n- From Hub 4: Roads lead to Hub 1 (3 units), Hub 2 (0 units), Hub 3 (18 units), Hub 5 (5 units), Hub 6 (2 units), and Hub 8 (19 units).\n- From Hub 5: Roads lead to Hub 1 (15 units), Hub 2 (7 units), Hub 3 (20 units), Hub 4 (20 units), Hub 6 (20 units), Hub 7 (12 units), and Hub 8 (9 units).\n- From Hub 6: Roads lead to Hub 1 (8 units), Hub 2 (14 units), Hub 3 (13 units), Hub 4 (1 unit), Hub 5 (17 units), Hub 7 (10 units), and Hub 8 (19 units).\n- From Hub 7: Roads lead to Hub 1 (5 units), Hub 2 (5 units), Hub 3 (16 units), Hub 4 (5 units), Hub 5 (7 units), Hub 6 (3 units), and Hub 8 (19 units).\n- From Hub 8 (Destination): Roads lead back to Hub 1 (19 units), Hub 2 (18 units), Hub 3 (0 units), Hub 4 (4 units), Hub 5 (7 units), Hub 6 (1 unit), and Hub 7 (20 units).\n\nA capacity of \"0\" indicates that there is no direct road connecting those two hubs.\n\nThis complex system has been designed with an aim to maximize the resources transported from Hub 0, the primary distribution center, to Hub 8, the critical operations base, without exceeding the capacity of the roads connecting these hubs.\n\nThe challenge: What is the maximum amount of resources, in thousands of units, that can be transported from the primary distribution center (Hub 0) to the critical operations base (Hub 8) per hour?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChK85BXKYZ4yBZmD4ZR19",
+  "container": null,
+  "content": [
+   {
+    "signature": "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",
+    "thinking": "",
+    "type": "thinking"
+   },
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"x01\",\"upper\":4},{\"name\":\"x02\",\"upper\":7},{\"name\":\"x03\",\"upper\":15},{\"name\":\"x04\",\"upper\":4},{\"name\":\"x05\",\"upper\":7},{\"name\":\"x06\",\"upper\":2},{\"name\":\"x07\",\"upper\":10},{\"name\":\"x08\",\"upper\":12},{\"name\":\"x12\",\"upper\":17},{\"name\":\"x13\",\"upper\":2},{\"name\":\"x14\",\"upper\":5},{\"name\":\"x15\",\"upper\":1},{\"name\":\"x16\",\"upper\":10},{\"name\":\"x17\",\"upper\":14},{\"name\":\"x18\",\"upper\":5},{\"name\":\"x21\",\"upper\":7},{\"name\":\"x23\",\"upper\":17},{\"name\":\"x24\",\"upper\":9},{\"name\":\"x25\",\"upper\":13},{\"name\":\"x26\",\"upper\":10},{\"name\":\"x27\",\"upper\":7},{\"name\":\"x28\",\"upper\":5},{\"name\":\"x31\",\"upper\":16},{\"name\":\"x32\",\"upper\":4},{\"name\":\"x34\",\"upper\":11},{\"name\":\"x35\",\"upper\":9},{\"name\":\"x36\",\"upper\":12},{\"name\":\"x37\",\"upper\":18},{\"name\":\"x38\",\"upper\":12},{\"name\":\"x41\",\"upper\":3},{\"name\":\"x43\",\"upper\":18},{\"name\":\"x45\",\"upper\":5},{\"name\":\"x46\",\"upper\":2},{\"name\":\"x48\",\"upper\":19},{\"name\":\"x51\",\"upper\":15},{\"name\":\"x52\",\"upper\":7},{\"name\":\"x53\",\"upper\":20},{\"name\":\"x54\",\"upper\":20},{\"name\":\"x56\",\"upper\":20},{\"name\":\"x57\",\"upper\":12},{\"name\":\"x58\",\"upper\":9},{\"name\":\"x61\",\"upper\":8},{\"name\":\"x62\",\"upper\":14},{\"name\":\"x63\",\"upper\":13},{\"name\":\"x64\",\"upper\":1},{\"name\":\"x65\",\"upper\":17},{\"name\":\"x67\",\"upper\":10},{\"name\":\"x68\",\"upper\":19},{\"name\":\"x71\",\"upper\":5},{\"name\":\"x72\",\"upper\":5},{\"name\":\"x73\",\"upper\":16},{\"name\":\"x74\",\"upper\":5},{\"name\":\"x75\",\"upper\":7},{\"name\":\"x76\",\"upper\":3},{\"name\":\"x78\",\"upper\":19}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"x01\",\"coef\":1},{\"var\":\"x02\",\"coef\":1},{\"var\":\"x03\",\"coef\":1},{\"var\":\"x04\",\"coef\":1},{\"var\":\"x05\",\"coef\":1},{\"var\":\"x06\",\"coef\":1},{\"var\":\"x07\",\"coef\":1},{\"var\":\"x08\",\"coef\":1}]},\"constraints\":[{\"name\":\"balance1\",\"terms\":[{\"var\":\"x01\",\"coef\":1},{\"var\":\"x21\",\"coef\":1},{\"var\":\"x31\",\"coef\":1},{\"var\":\"x41\",\"coef\":1},{\"var\":\"x51\",\"coef\":1},{\"var\":\"x61\",\"coef\":1},{\"var\":\"x71\",\"coef\":1},{\"var\":\"x12\",\"coef\":-1},{\"var\":\"x13\",\"coef\":-1},{\"var\":\"x14\",\"coef\":-1},{\"var\":\"x15\",\"coef\":-1},{\"var\":\"x16\",\"coef\":-1},{\"var\":\"x17\",\"coef\":-1},{\"var\":\"x18\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance2\",\"terms\":[{\"var\":\"x02\",\"coef\":1},{\"var\":\"x12\",\"coef\":1},{\"var\":\"x32\",\"coef\":1},{\"var\":\"x52\",\"coef\":1},{\"var\":\"x62\",\"coef\":1},{\"var\":\"x72\",\"coef\":1},{\"var\":\"x21\",\"coef\":-1},{\"var\":\"x23\",\"coef\":-1},{\"var\":\"x24\",\"coef\":-1},{\"var\":\"x25\",\"coef\":-1},{\"var\":\"x26\",\"coef\":-1},{\"var\":\"x27\",\"coef\":-1},{\"var\":\"x28\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance3\",\"terms\":[{\"var\":\"x03\",\"coef\":1},{\"var\":\"x13\",\"coef\":1},{\"var\":\"x23\",\"coef\":1},{\"var\":\"x43\",\"coef\":1},{\"var\":\"x53\",\"coef\":1},{\"var\":\"x63\",\"coef\":1},{\"var\":\"x73\",\"coef\":1},{\"var\":\"x31\",\"coef\":-1},{\"var\":\"x32\",\"coef\":-1},{\"var\":\"x34\",\"coef\":-1},{\"var\":\"x35\",\"coef\":-1},{\"var\":\"x36\",\"coef\":-1},{\"var\":\"x37\",\"coef\":-1},{\"var\":\"x38\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance4\",\"terms\":[{\"var\":\"x04\",\"coef\":1},{\"var\":\"x14\",\"coef\":1},{\"var\":\"x24\",\"coef\":1},{\"var\":\"x34\",\"coef\":1},{\"var\":\"x54\",\"coef\":1},{\"var\":\"x64\",\"coef\":1},{\"var\":\"x74\",\"coef\":1},{\"var\":\"x41\",\"coef\":-1},{\"var\":\"x43\",\"coef\":-1},{\"var\":\"x45\",\"coef\":-1},{\"var\":\"x46\",\"coef\":-1},{\"var\":\"x48\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance5\",\"terms\":[{\"var\":\"x05\",\"coef\":1},{\"var\":\"x15\",\"coef\":1},{\"var\":\"x25\",\"coef\":1},{\"var\":\"x35\",\"coef\":1},{\"var\":\"x45\",\"coef\":1},{\"var\":\"x65\",\"coef\":1},{\"var\":\"x75\",\"coef\":1},{\"var\":\"x51\",\"coef\":-1},{\"var\":\"x52\",\"coef\":-1},{\"var\":\"x53\",\"coef\":-1},{\"var\":\"x54\",\"coef\":-1},{\"var\":\"x56\",\"coef\":-1},{\"var\":\"x57\",\"coef\":-1},{\"var\":\"x58\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance6\",\"terms\":[{\"var\":\"x06\",\"coef\":1},{\"var\":\"x16\",\"coef\":1},{\"var\":\"x26\",\"coef\":1},{\"var\":\"x36\",\"coef\":1},{\"var\":\"x46\",\"coef\":1},{\"var\":\"x56\",\"coef\":1},{\"var\":\"x76\",\"coef\":1},{\"var\":\"x61\",\"coef\":-1},{\"var\":\"x62\",\"coef\":-1},{\"var\":\"x63\",\"coef\":-1},{\"var\":\"x64\",\"coef\":-1},{\"var\":\"x65\",\"coef\":-1},{\"var\":\"x67\",\"coef\":-1},{\"var\":\"x68\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance7\",\"terms\":[{\"var\":\"x07\",\"coef\":1},{\"var\":\"x17\",\"coef\":1},{\"var\":\"x27\",\"coef\":1},{\"var\":\"x37\",\"coef\":1},{\"var\":\"x57\",\"coef\":1},{\"var\":\"x67\",\"coef\":1},{\"var\":\"x71\",\"coef\":-1},{\"var\":\"x72\",\"coef\":-1},{\"var\":\"x73\",\"coef\":-1},{\"var\":\"x74\",\"coef\":-1},{\"var\":\"x75\",\"coef\":-1},{\"var\":\"x76\",\"coef\":-1},{\"var\":\"x78\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-sonnet-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2702,
+   "output_tokens": 3418,
+   "output_tokens_details": {
+    "thinking_tokens": 1106
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "1903b458d7b98bbc2cbf8be0946a049c82b300674a47c295cbf37805b9fee95c",
+  "tries": 1,
+  "latency_s": 18.935404999996535,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

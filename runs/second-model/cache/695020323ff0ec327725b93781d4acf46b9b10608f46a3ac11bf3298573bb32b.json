@@ -1,0 +1,228 @@
+{
+ "request": {
+  "model": "claude-sonnet-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Let's consider a complex transportation network comprised of 6 major cargo hubs, stretching from a main dispatch center to a primary delivery destination. These hubs are interconnected by roads, each with its own weight limit for cargo transportation.\n\nHere's how the weight limits of each road are distributed, reflecting the maximum amount of cargo (in tons) that can be transported from one hub to another:\n\n- From Hub 0 (Dispatch Center): Can send cargo to Hub 1 (7 tons), Hub 2 (8 tons), Hub 3 (1 ton), Hub 4 (2 tons), and Hub 5 (4 tons).\n- From Hub 1: Can send cargo to Hub 0 (15 tons), Hub 2 (16 tons), Hub 4 (9 tons), and Hub 5 (13 tons).\n- From Hub 2: Can send cargo to Hub 0 (9 tons), Hub 1 (1 ton), Hub 3 (9 tons), Hub 4 (13 tons), and Hub 5 (13 tons).\n- From Hub 3: Can send cargo to Hub 0 (10 tons), Hub 1 (11 tons), Hub 2 (19 tons), Hub 4 (1 ton), and Hub 5 (12 tons).\n- From Hub 4: Can send cargo to Hub 0 (15 tons), Hub 1 (16 tons), Hub 2 (7 tons), Hub 3 (11 tons), and Hub 5 (19 tons).\n- From Hub 5 (Destination): Can send cargo back to Hub 0 (10 tons), Hub 1 (12 tons), Hub 2 (12 tons), Hub 3 (12 tons), and Hub 4 (20 tons).\n\nIn this model, a capacity of \"0\" indicates there is no direct road connection between those two hubs.\n\nThe challenge is to determine the maximum amount of cargo that can be transported from Hub 0 (the dispatch center) to Hub 5 (the destination) per day, in a manner that the cargo on each road does not surpass its listed weight limit. What is the maximum amount of cargo that can be delivered from the dispatch center to the destination in tons per day? Please note that the answer should provide only the optimal value under the maximum flow scenario, and all the data in the problem details should be included in the created question."
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChK89f5sw7bJvUPYjdT3S",
+  "container": null,
+  "content": [
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"f01\",\"lower\":0},{\"name\":\"f02\",\"lower\":0},{\"name\":\"f03\",\"lower\":0},{\"name\":\"f04\",\"lower\":0},{\"name\":\"f05\",\"lower\":0},{\"name\":\"f10\",\"lower\":0},{\"name\":\"f12\",\"lower\":0},{\"name\":\"f14\",\"lower\":0},{\"name\":\"f15\",\"lower\":0},{\"name\":\"f20\",\"lower\":0},{\"name\":\"f21\",\"lower\":0},{\"name\":\"f23\",\"lower\":0},{\"name\":\"f24\",\"lower\":0},{\"name\":\"f25\",\"lower\":0},{\"name\":\"f30\",\"lower\":0},{\"name\":\"f31\",\"lower\":0},{\"name\":\"f32\",\"lower\":0},{\"name\":\"f34\",\"lower\":0},{\"name\":\"f35\",\"lower\":0},{\"name\":\"f40\",\"lower\":0},{\"name\":\"f41\",\"lower\":0},{\"name\":\"f42\",\"lower\":0},{\"name\":\"f43\",\"lower\":0},{\"name\":\"f45\",\"lower\":0}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"f05\",\"coef\":1},{\"var\":\"f15\",\"coef\":1},{\"var\":\"f25\",\"coef\":1},{\"var\":\"f35\",\"coef\":1},{\"var\":\"f45\",\"coef\":1}]},\"constraints\":[{\"name\":\"cap01\",\"terms\":[{\"var\":\"f01\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":7},{\"name\":\"cap02\",\"terms\":[{\"var\":\"f02\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":8},{\"name\":\"cap03\",\"terms\":[{\"var\":\"f03\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":1},{\"name\":\"cap04\",\"terms\":[{\"var\":\"f04\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":2},{\"name\":\"cap05\",\"terms\":[{\"var\":\"f05\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":4},{\"name\":\"cap10\",\"terms\":[{\"var\":\"f10\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":15},{\"name\":\"cap12\",\"terms\":[{\"var\":\"f12\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":16},{\"name\":\"cap14\",\"terms\":[{\"var\":\"f14\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":9},{\"name\":\"cap15\",\"terms\":[{\"var\":\"f15\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":13},{\"name\":\"cap20\",\"terms\":[{\"var\":\"f20\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":9},{\"name\":\"cap21\",\"terms\":[{\"var\":\"f21\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":1},{\"name\":\"cap23\",\"terms\":[{\"var\":\"f23\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":9},{\"name\":\"cap24\",\"terms\":[{\"var\":\"f24\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":13},{\"name\":\"cap25\",\"terms\":[{\"var\":\"f25\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":13},{\"name\":\"cap30\",\"terms\":[{\"var\":\"f30\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":10},{\"name\":\"cap31\",\"terms\":[{\"var\":\"f31\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":11},{\"name\":\"cap32\",\"terms\":[{\"var\":\"f32\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":19},{\"name\":\"cap34\",\"terms\":[{\"var\":\"f34\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":1},{\"name\":\"cap35\",\"terms\":[{\"var\":\"f35\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":12},{\"name\":\"cap40\",\"terms\":[{\"var\":\"f40\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":15},{\"name\":\"cap41\",\"terms\":[{\"var\":\"f41\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":16},{\"name\":\"cap42\",\"terms\":[{\"var\":\"f42\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":7},{\"name\":\"cap43\",\"terms\":[{\"var\":\"f43\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":11},{\"name\":\"cap45\",\"terms\":[{\"var\":\"f45\",\"coef\":1}],\"sense\":\"<=\",\"rhs\":19},{\"name\":\"balance1\",\"terms\":[{\"var\":\"f01\",\"coef\":1},{\"var\":\"f21\",\"coef\":1},{\"var\":\"f31\",\"coef\":1},{\"var\":\"f41\",\"coef\":1},{\"var\":\"f10\",\"coef\":-1},{\"var\":\"f12\",\"coef\":-1},{\"var\":\"f14\",\"coef\":-1},{\"var\":\"f15\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance2\",\"terms\":[{\"var\":\"f02\",\"coef\":1},{\"var\":\"f12\",\"coef\":1},{\"var\":\"f32\",\"coef\":1},{\"var\":\"f42\",\"coef\":1},{\"var\":\"f20\",\"coef\":-1},{\"var\":\"f21\",\"coef\":-1},{\"var\":\"f23\",\"coef\":-1},{\"var\":\"f24\",\"coef\":-1},{\"var\":\"f25\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance3\",\"terms\":[{\"var\":\"f03\",\"coef\":1},{\"var\":\"f23\",\"coef\":1},{\"var\":\"f43\",\"coef\":1},{\"var\":\"f30\",\"coef\":-1},{\"var\":\"f31\",\"coef\":-1},{\"var\":\"f32\",\"coef\":-1},{\"var\":\"f34\",\"coef\":-1},{\"var\":\"f35\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance4\",\"terms\":[{\"var\":\"f04\",\"coef\":1},{\"var\":\"f14\",\"coef\":1},{\"var\":\"f24\",\"coef\":1},{\"var\":\"f34\",\"coef\":1},{\"var\":\"f40\",\"coef\":-1},{\"var\":\"f41\",\"coef\":-1},{\"var\":\"f42\",\"coef\":-1},{\"var\":\"f43\",\"coef\":-1},{\"var\":\"f45\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-sonnet-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2335,
+   "output_tokens": 1965,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "c57715ee81157f6f6dbea8c6cc8e53e42ae5721c33784b8824b5e624ba4401a5",
+  "tries": 1,
+  "latency_s": 9.691374292015098,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}

@@ -1,0 +1,228 @@
+{
+ "request": {
+  "model": "claude-sonnet-5-5",
+  "max_tokens": 16000,
+  "system": "You are an operations research analyst. Turn the user's word problem into a linear or mixed-integer program.\n\n- Declare one variable per decision, named after what it counts or measures.\n- Make a variable integer if it counts whole things (vehicles, trips, people, products, servings). Keep it continuous for divisible quantities (kilograms, acres, hours, money).\n- Variables are >= 0 unless the problem says otherwise.\n- Write every requirement the text states as a constraint, and add none it doesn't state.\n- Use the numbers exactly as given; write percentages as fractions (30% -> 0.3).\n- Every variable must appear with a nonzero coefficient somewhere.",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Imagine a network of highways that connect six major cities in a country. These highways are designed to facilitate the transportation of goods from a central warehouse (City 0) to a main retail hub (City 5). Each highway has a specific transportation capacity, indicating the maximum number of trucks it can accommodate per hour.\n\nHere is the transportation capacity of each highway connecting the cities:\n\n- From City 0 (Warehouse): Can send goods to City 1 (14 trucks), City 2 (15 trucks), City 3 (13 trucks), and City 5 (4 trucks).\n- From City 1: Can send goods to City 0 (10 trucks), City 2 (7 trucks), City 3 (18 trucks), City 4 (9 trucks), and City 5 (5 trucks).\n- From City 2: Can send goods to City 0 (11 trucks), City 3 (7 trucks), City 4 (13 trucks), and City 5 (6 trucks).\n- From City 3: Can send goods to City 0 (7 trucks), City 1 (11 trucks), City 2 (18 trucks), City 4 (17 trucks), and City 5 (2 trucks).\n- From City 4: Can send goods to City 0 (19 trucks), City 1 (8 trucks), City 2 (15 trucks), City 3 (15 trucks), and City 5 (5 trucks).\n- From City 5 (Retail Hub): Can send goods back to City 0 (10 trucks), City 1 (19 trucks), City 2 (17 trucks), City 3 (2 trucks), and City 4 (3 trucks).\n\nA capacity of \"0\" indicates that there is no direct highway link between those two cities.\n\nNow, consider a situation where you're tasked with finding the maximum number of trucks that can be dispatched from the warehouse in City 0 to the retail hub in City 5 per hour, without exceeding the transportation capacity of any highway. \n\nWhat is the maximum number of trucks that can be dispatched from the warehouse to the retail hub per hour, while maintaining the transportation capacity of each highway?"
+   }
+  ],
+  "thinking": {
+   "type": "adaptive",
+   "display": "omitted"
+  },
+  "output_config": {
+   "effort": "medium",
+   "format": {
+    "type": "json_schema",
+    "schema": {
+     "$defs": {
+      "Constraint": {
+       "type": "object",
+       "title": "Constraint",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "A short label, e.g. 'budget'",
+         "title": "Name"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The left-hand side",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        },
+        "sense": {
+         "type": "string",
+         "enum": [
+          "<=",
+          ">=",
+          "=="
+         ],
+         "title": "Sense"
+        },
+        "rhs": {
+         "type": "number",
+         "description": "The right-hand side constant",
+         "title": "Rhs"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name",
+        "terms",
+        "sense",
+        "rhs"
+       ]
+      },
+      "Objective": {
+       "type": "object",
+       "title": "Objective",
+       "properties": {
+        "sense": {
+         "type": "string",
+         "enum": [
+          "min",
+          "max"
+         ],
+         "title": "Sense"
+        },
+        "terms": {
+         "type": "array",
+         "description": "The linear expression to optimize",
+         "title": "Terms",
+         "items": {
+          "$ref": "#/$defs/Term"
+         }
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "sense",
+        "terms"
+       ]
+      },
+      "Term": {
+       "type": "object",
+       "title": "Term",
+       "properties": {
+        "var": {
+         "type": "string",
+         "description": "The name of a declared variable",
+         "title": "Var"
+        },
+        "coef": {
+         "type": "number",
+         "title": "Coef"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "var",
+        "coef"
+       ]
+      },
+      "Variable": {
+       "type": "object",
+       "title": "Variable",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "What the variable counts or measures, e.g. 'trucks'",
+         "title": "Name"
+        },
+        "lower": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Lower bound, or null for none\n\n{default: 0.0}",
+         "title": "Lower"
+        },
+        "upper": {
+         "anyOf": [
+          {
+           "type": "number"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "Upper bound, or null for none\n\n{default: None}",
+         "title": "Upper"
+        },
+        "integer": {
+         "type": "boolean",
+         "description": "True if it counts whole things\n\n{default: False}",
+         "title": "Integer"
+        }
+       },
+       "additionalProperties": false,
+       "required": [
+        "name"
+       ]
+      }
+     },
+     "type": "object",
+     "title": "LPModel",
+     "properties": {
+      "variables": {
+       "type": "array",
+       "title": "Variables",
+       "items": {
+        "$ref": "#/$defs/Variable"
+       }
+      },
+      "objective": {
+       "$ref": "#/$defs/Objective"
+      },
+      "constraints": {
+       "type": "array",
+       "title": "Constraints",
+       "items": {
+        "$ref": "#/$defs/Constraint"
+       }
+      }
+     },
+     "additionalProperties": false,
+     "required": [
+      "variables",
+      "objective",
+      "constraints"
+     ]
+    }
+   }
+  }
+ },
+ "response": {
+  "id": "msg_011ChK7XcPtwfeBy9qxriStk",
+  "container": null,
+  "content": [
+   {
+    "citations": null,
+    "text": "{\"variables\":[{\"name\":\"f01\",\"lower\":0,\"upper\":14,\"integer\":true},{\"name\":\"f02\",\"lower\":0,\"upper\":15,\"integer\":true},{\"name\":\"f03\",\"lower\":0,\"upper\":13,\"integer\":true},{\"name\":\"f05\",\"lower\":0,\"upper\":4,\"integer\":true},{\"name\":\"f10\",\"lower\":0,\"upper\":10,\"integer\":true},{\"name\":\"f12\",\"lower\":0,\"upper\":7,\"integer\":true},{\"name\":\"f13\",\"lower\":0,\"upper\":18,\"integer\":true},{\"name\":\"f14\",\"lower\":0,\"upper\":9,\"integer\":true},{\"name\":\"f15\",\"lower\":0,\"upper\":5,\"integer\":true},{\"name\":\"f20\",\"lower\":0,\"upper\":11,\"integer\":true},{\"name\":\"f23\",\"lower\":0,\"upper\":7,\"integer\":true},{\"name\":\"f24\",\"lower\":0,\"upper\":13,\"integer\":true},{\"name\":\"f25\",\"lower\":0,\"upper\":6,\"integer\":true},{\"name\":\"f30\",\"lower\":0,\"upper\":7,\"integer\":true},{\"name\":\"f31\",\"lower\":0,\"upper\":11,\"integer\":true},{\"name\":\"f32\",\"lower\":0,\"upper\":18,\"integer\":true},{\"name\":\"f34\",\"lower\":0,\"upper\":17,\"integer\":true},{\"name\":\"f35\",\"lower\":0,\"upper\":2,\"integer\":true},{\"name\":\"f40\",\"lower\":0,\"upper\":19,\"integer\":true},{\"name\":\"f41\",\"lower\":0,\"upper\":8,\"integer\":true},{\"name\":\"f42\",\"lower\":0,\"upper\":15,\"integer\":true},{\"name\":\"f43\",\"lower\":0,\"upper\":15,\"integer\":true},{\"name\":\"f45\",\"lower\":0,\"upper\":5,\"integer\":true},{\"name\":\"f50\",\"lower\":0,\"upper\":10,\"integer\":true},{\"name\":\"f51\",\"lower\":0,\"upper\":19,\"integer\":true},{\"name\":\"f52\",\"lower\":0,\"upper\":17,\"integer\":true},{\"name\":\"f53\",\"lower\":0,\"upper\":2,\"integer\":true},{\"name\":\"f54\",\"lower\":0,\"upper\":3,\"integer\":true}],\"objective\":{\"sense\":\"max\",\"terms\":[{\"var\":\"f01\",\"coef\":1},{\"var\":\"f02\",\"coef\":1},{\"var\":\"f03\",\"coef\":1},{\"var\":\"f05\",\"coef\":1},{\"var\":\"f10\",\"coef\":-1},{\"var\":\"f20\",\"coef\":-1},{\"var\":\"f30\",\"coef\":-1},{\"var\":\"f40\",\"coef\":-1},{\"var\":\"f50\",\"coef\":-1}]},\"constraints\":[{\"name\":\"balance_city1\",\"terms\":[{\"var\":\"f01\",\"coef\":1},{\"var\":\"f21\",\"coef\":0},{\"var\":\"f31\",\"coef\":1},{\"var\":\"f41\",\"coef\":1},{\"var\":\"f51\",\"coef\":1},{\"var\":\"f10\",\"coef\":-1},{\"var\":\"f12\",\"coef\":-1},{\"var\":\"f13\",\"coef\":-1},{\"var\":\"f14\",\"coef\":-1},{\"var\":\"f15\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance_city2\",\"terms\":[{\"var\":\"f02\",\"coef\":1},{\"var\":\"f12\",\"coef\":1},{\"var\":\"f32\",\"coef\":1},{\"var\":\"f42\",\"coef\":1},{\"var\":\"f52\",\"coef\":1},{\"var\":\"f20\",\"coef\":-1},{\"var\":\"f23\",\"coef\":-1},{\"var\":\"f24\",\"coef\":-1},{\"var\":\"f25\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance_city3\",\"terms\":[{\"var\":\"f03\",\"coef\":1},{\"var\":\"f13\",\"coef\":1},{\"var\":\"f23\",\"coef\":1},{\"var\":\"f43\",\"coef\":1},{\"var\":\"f53\",\"coef\":1},{\"var\":\"f30\",\"coef\":-1},{\"var\":\"f31\",\"coef\":-1},{\"var\":\"f32\",\"coef\":-1},{\"var\":\"f34\",\"coef\":-1},{\"var\":\"f35\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0},{\"name\":\"balance_city4\",\"terms\":[{\"var\":\"f14\",\"coef\":1},{\"var\":\"f24\",\"coef\":1},{\"var\":\"f34\",\"coef\":1},{\"var\":\"f54\",\"coef\":1},{\"var\":\"f40\",\"coef\":-1},{\"var\":\"f41\",\"coef\":-1},{\"var\":\"f42\",\"coef\":-1},{\"var\":\"f43\",\"coef\":-1},{\"var\":\"f45\",\"coef\":-1}],\"sense\":\"==\",\"rhs\":0}]}",
+    "type": "text"
+   }
+  ],
+  "diagnostics": null,
+  "model": "claude-sonnet-5-5",
+  "role": "assistant",
+  "stop_details": null,
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "type": "message",
+  "usage": {
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "inference_geo": "global",
+   "input_tokens": 2241,
+   "output_tokens": 1486,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": null,
+   "service_tier": "standard",
+   "speed": "standard"
+  }
+ },
+ "info": {
+  "request_sha256": "6bb06788f99f5e764852c1216c64b02c57f54e7434b9e095fe7bf33a01bf729b",
+  "tries": 1,
+  "latency_s": 12.009464791975915,
+  "retry_s": 0.0,
+  "cached": false,
+  "error": null
+ }
+}
