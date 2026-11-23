@@ -174,7 +174,9 @@ Full write-up, with its one deviation (it changes no number):
   dev only, Claude's labels: [details](docs/analysis/limits_claims.md),
   [the ADR's update](docs/adr/0009-what-limits-an-integer-program.md#update-2026-11-21-blind-relabeling)).
 - **One model.** Every number is Claude Haiku 5.5's, and H2 rests on the primary test
-  alone (its caveats are under Results).
+  alone (its caveats are under Results). A pre-registered comparison with Claude Sonnet 5.5 on
+  the harder problems is frozen and waits for its run
+  ([pre-registration](docs/SECOND_MODEL_PREREGISTRATION.md)).
 - **The answer keys aren't perfect, and their errors cut both ways.** On NL4Opt, two LLM
   judges flagged 6 of the 8 shared failures as answer-key errors, not verified by a person
   (exploratory, post hoc). A bug in that key's integrality rule read some countable products
@@ -327,7 +329,8 @@ anyone can rebuild without a key.
   [`docs/amendments/`](docs/amendments/)), the [follow-up](docs/FOLLOWUP_PREREGISTRATION.md)
   (deviations in [`docs/followup/DEVIATIONS.md`](docs/followup/DEVIATIONS.md)) and the
   [resampling study](docs/RESAMPLING_PREREGISTRATION.md) (deviations in
-  [`docs/resampling/DEVIATIONS.md`](docs/resampling/DEVIATIONS.md)).
+  [`docs/resampling/DEVIATIONS.md`](docs/resampling/DEVIATIONS.md)); and the
+  [second-model study](docs/SECOND_MODEL_PREREGISTRATION.md), frozen, not yet run.
 - [`docs/DESIGN.md`](docs/DESIGN.md): a ten-minute tour of the code, the solver checks, the
   agent, the NL4Opt answer key, and the project structure.
 - [`docs/adr/`](docs/adr/README.md): why it's built this way: the options weighed and their costs.

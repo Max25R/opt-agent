@@ -99,6 +99,13 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
    up in `docs/resampling/RESULTS.md`.
    Its hypothesis comes from the exploratory disagreement detector
    (`docs/analysis/disagreement_detector.md`).
+10. [ ] **The second-model study** (2026-11-22, the owner's seven decisions): Claude Sonnet 5.5
+   single-shot on the same 121 problems, paired with Haiku's single-shot sample 0
+   (`runs/followup-test/results.jsonl`); `docs/SECOND_MODEL_PREREGISTRATION.md`, runner
+   `src/opt_agent/second_model.py`, analysis `src/opt_agent/second_model_report.py`, gate
+   `src/opt_agent/second_model_freeze.py`, frozen in `docs/second_model/FREEZE.json` at tag
+   `second-model-freeze`. **Not run: the paid run is the owner's, in December 2026**
+   (`docs/HANDOFF.md`, open item 21).
 
 **Standing rules from the history** (the reasons are in `docs/HISTORY.md`):
 - **The resampling study is done and frozen at `resampling-freeze`.** Never edit
@@ -107,10 +114,19 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
   bool), so `scripts/resampling_results.py` writes it, from the frozen `build()` (deviation
   1). The owner asked Claude to write this study's freeze (2026-11-19); the two older
   studies' approvals stay the owner's steps only.
+- **The second-model study is frozen at `second-model-freeze`, not yet run** (2026-11-22; the
+  owner asked Claude to write its freeze and create that one tag). Never edit
+  `docs/SECOND_MODEL_PREREGISTRATION.md` or `docs/second_model/FREEZE.json`, and never move or
+  delete the tag; a change before the run is an amendment, dated and tagged before any call.
+  Its run refuses unless the tag holds the approval and the inputs here match
+  (`second_model_freeze.ready`), so until the owner's run, change nothing it fingerprints:
+  anything under `src/opt_agent/`, `requirements.lock`, `data/followup/split.json` or
+  `runs/followup-test/results.jsonl` (the owner's command switches to the tag first anyway).
 - `python -m opt_agent.freeze approve` and `python -m opt_agent.followup_freeze approve` are
   **the owner's steps only**, never Claude's. Never edit `docs/FREEZE.json` or
   `docs/followup/FREEZE.json`, and never rewrite git history (it would break the freeze tags).
-- All three studies are done and frozen at their tags. Any change under `src/opt_agent/` or
+- The three run studies are done and frozen at their tags (the second-model study is frozen,
+  not run: above). Any change under `src/opt_agent/` or
   to the lock makes each study's `check()` refuse at HEAD, as it should (it gates a new test
   run); `python -m opt_agent.freeze`, `followup_freeze` and `resampling_freeze` say so and
   report whether the tag verifies. The tag checks read git's objects (CI runs them), and `scripts/reproduce.py`
@@ -166,6 +182,8 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
 
 - `formulate.DEFAULT_MODEL = "claude-haiku-5-5"`: the owner asked for a small, cheap
   model for bulk eval runs. Check model IDs and prices in the docs before changing it.
+  `pricing.PRICES` also has `claude-sonnet-5-5`, for the second-model study only (checked on
+  the pricing page 2026-11-22).
 - Every API call goes through `api.call`: the request is built once
   (`formulate.build_request`, `explain.build_request`), and that same dict is sent,
   hashed (`request_sha256`, logged), cached, and logged. The cache's key is `api.cache_key`
@@ -223,6 +241,9 @@ things stand, every open item and the environment are in `docs/HANDOFF.md`. **St
   (`scripts/paid_explain_limits.py`): cap $0.25, paid $0.0358 (owner's terminal, 2026-11-20;
   `runs/explain-dev-limits/spend.jsonl`). The demo's refresh (`scripts/cache_examples.py`):
   cap $0.15, paid $0.0136 (owner's terminal, 2026-11-21; `logs/spend/demo-examples.jsonl`).
+  The second-model study's run (the owner's, December 2026): hard cap $7.00, and a stop after
+  its first 10 problems if they project more (its pre-registration, section 6); expected
+  about $5.18 at Haiku's token counts.
   Spent so far: $5.47 of the $20 credit (2026-11-21; the ledger is in `docs/HANDOFF.md`).
 - `pricing.PRICES` came from the pricing page on `PRICES_CHECKED`; re-check it before a
   paid run. An unlisted model raises instead of being guessed.
@@ -277,6 +298,10 @@ python -m opt_agent.resampling_freeze         # the resampling study: does the t
 python -m opt_agent.resampling --plan          # its calls left and worst case, no calls (the paid run is the owner's)
 python scripts/resampling_results.py           # results/resampling.json (the frozen build()'s report) + docs/resampling/RESULTS.md (needs the data)
 python scripts/resampling_power.py             # docs/resampling/power.md (seeded)
+python -m opt_agent.second_model_freeze        # the second-model study: may its run start here?
+python -m opt_agent.second_model --plan        # its calls left and worst case, no calls (the paid run is the owner's)
+python -m opt_agent.second_model_report        # results/second_model.json, after the run is committed
+python scripts/second_model_power.py           # docs/second_model/power.md (exact)
 python -m opt_agent.report runs/NAME     # score a run; writes runs/NAME/report.json
 python -m opt_agent.report runs/P --original runs/NAME   # a perturbed run, paired
 python -m opt_agent.blind_grading runs/NAME [--size N]   # review/blind_grading/NAME/, first

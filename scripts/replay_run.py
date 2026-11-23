@@ -7,10 +7,12 @@ For M6's and the follow-up's runs it uses only what both their tags have:
 evaluate.scorable_records, evaluate.evaluate, and the manifest's split, problems, conditions,
 model and samples. The resampling study's run (split "resampling", resampling-freeze) has its
 own runner, so it replays through that: resampling.run, which reads the problems only on the
-frozen inputs and runs every cell through evaluate.run_item. Either way the committed manifest
-goes into the new run directory first, so the runner refuses anything but the same
-experiment. A request that isn't in the cache raises NotInCache: nothing here can reach the
-API.
+frozen inputs and runs every cell through evaluate.run_item. So does the second-model study's
+(split "second-model", second-model-freeze): second_model.run, on the approval alone (a tag's
+tree has no git), up to as many problems as the committed run reached, since its cost guard
+can end a run early. Either way the committed manifest goes into the new run directory first,
+so the runner refuses anything but the same experiment. A request that isn't in the cache
+raises NotInCache: nothing here can reach the API.
 
 Run (inside a tag's tree):  python scripts/replay_run.py runs/test replay/test
 """
@@ -53,12 +55,23 @@ def replay(run: Path, out: Path) -> None:
             from opt_agent import resampling  # only resampling-freeze's tree has it
 
             resampling.run(RefusingClient(), out)  # type: ignore[arg-type]
+        elif manifest["split"] == "second-model":
+            run_second_model(run, out)
         else:
             run_evaluate(manifest, out)
     except NotInCache as miss:
         results = out / "results.jsonl"
         done = len(results.read_text().splitlines()) if results.exists() else 0
         raise SystemExit(f"{run}: the replay stopped after {done} pairs: {miss}") from None
+
+
+def run_second_model(run: Path, out: Path) -> None:
+    from opt_agent import second_model  # only second-model-freeze's tree has it
+
+    entries = [json.loads(line) for line in (run / "results.jsonl").read_text().splitlines()]
+    reached = {e["problem_id"] for e in entries if e["kind"] == "item"}
+    records, digest = second_model.inputs(tag=False)
+    second_model.run(RefusingClient(), out, records, digest, limit=len(reached))  # type: ignore[arg-type]
 
 
 def run_evaluate(manifest: dict, out: Path) -> None:

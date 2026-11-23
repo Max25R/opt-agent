@@ -105,6 +105,18 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
   the 88 labels; the numbers are in its JSON, and its doc says what it misses. No README claim
   changed. It ran while the owner's paid resampling run was going (started 2026-11-19 in this
   checkout, `runs/resampling`): nothing the resampling freeze checks was touched.
+- **The second-model study** (2026-11-22, the owner's seven decisions; open item 21): frozen,
+  not yet run. The runner `src/opt_agent/second_model.py` (the cost guard: a $7.00 hard cap
+  and the 10-problem checkpoint), the gate `src/opt_agent/second_model_freeze.py` (`ready()`:
+  the tag exists, holds the approval, and the inputs match), the analysis
+  `src/opt_agent/second_model_report.py` (tested on fake answers), the power
+  `docs/second_model/power.md` (`scripts/second_model_power.py`, exact), and
+  `scripts/reproduce.py`'s step, which rebuilds `results/second_model.json` in the tag's tree
+  once `runs/second-model` is committed (until then it says "not run yet"; a test runs the
+  whole path on a fake run of all 121 problems). Before the freeze, every Haiku request was
+  checked byte for byte against the one its run sent, and Haiku's 121 sample-0 answers
+  replayed through this code with every recorded field back. `pricing.PRICES` has Sonnet 5.5
+  ($2 / $10 per million input / output tokens, checked 2026-11-22). No API call was made.
 - **The README's first screen** (2026-11-19, the owner's request): a 3-line summary, a
   headline figure (`docs/headline.png`: NL4Opt's accuracy per condition and the follow-up's two
   pre-registered differences, with 95% intervals) and a cost and latency table (per answer:
@@ -370,6 +382,18 @@ decisions is `docs/HISTORY.md` (to M8) and the decision logs at the end of this 
    these labels, the pairs (post hoc, the owner's requests) and Claude's reading of what the
    labeled false claims are: `review/explain_dev_limits/RESULTS.md` and ADR-0009's update,
    from the same record.
+21. **The second-model study's run, the owner's, in December 2026** (after the monthly credit
+   resets). Pre-registered and frozen on 2026-11-22 (`docs/SECOND_MODEL_PREREGISTRATION.md`,
+   tag `second-model-freeze`): Claude Sonnet 5.5 single-shot on the follow-up's 121 unexposed
+   problems, one sample each, paired with Haiku's single-shot sample 0 in
+   `runs/followup-test/results.jsonl`; exact McNemar, two-sided. Hard cap $7.00, and a stop
+   after the first 10 problems if they project more; expected about $5.18. **Until the run,
+   change nothing the freeze fingerprints** (anything under `src/opt_agent/`,
+   `requirements.lock`, the pre-registration, `data/followup/split.json`,
+   `runs/followup-test/results.jsonl`), or the run refuses at `main`; the owner's command
+   switches to the tag first, so it runs either way. After the run: commit `runs/second-model`
+   (`git add -f`), then `python -m opt_agent.second_model_report` writes
+   `results/second_model.json`; a write-up, the README's numbers and their test come then.
 
 ## Environment (read before running anything)
 - **The owner's Mac is Apple Silicon** (`uname -m` says `arm64`), where all three studies ran and
@@ -696,3 +720,35 @@ Logged as the owner asked: the simplest reasonable option, where the request did
   intro says where the exploratory bullets' numbers come from.
 - **Links:** every README link and every link the static demo makes (its saved responses, the
   commit, the analysis, `#try-the-demo`) returned 200 over public HTTP, anchors included.
+
+## Decisions made without the owner (2026-11-22, the second-model study)
+- **The pair is Haiku's sample 0**, chosen as the first sample (the plain request, as Sonnet's
+  one sample is), knowing it's Haiku's lowest-scoring sample on these problems (95 of 121
+  right; samples 1 and 2: 102 and 101). That favors Sonnet by about 3.6 points against Haiku's
+  average, so the pre-registration says so and adds sensitivity rows against samples 1 and 2
+  (no claim). A per-problem random sample or Haiku's majority of three were the alternatives:
+  the first is harder to explain and was just as known in advance, the second asks a different
+  question (one Sonnet sample against three Haiku samples).
+- **The verdicts follow the follow-up's convention:** supported or not supported only on a
+  detected difference (p < 0.05, either way); otherwise inconclusive, with the interval and the
+  follow-up's "no difference larger than X points" rule, never "no difference"; and
+  "incomplete" (no verdict) if the cost guard stops the run. No equivalence margin was added.
+- **The checkpoint continues on its own** when the projection is at most $7.00 ("pauses and
+  projects" read as a check inside the run, not a prompt); it records its numbers in
+  `results.jsonl` either way. Its projection is the mean cost of the answered problems among
+  the first 10 in the follow-up's run order, times 121. On Haiku's costs those 10 (all
+  ComplexLP) project 0.78 of the real total, so the pre-registration calls the checkpoint a
+  noisy early stop and the hard cap the guarantee.
+- **Matching Haiku's run, checked rather than assumed:** the requests byte for byte against the
+  cached ones, and a replay of Haiku's 121 sample-0 answers through the new code (every field
+  back, the reason text included). The code changes since `followup-freeze` are listed as a
+  declared difference anyway. No `fallbacks` parameter: a fallback model would answer some
+  problems, so a refusal stays a reply with no answer.
+- **CI and the tag:** the code commit and the freeze commit (`docs/second_model/FREEZE.json`,
+  whose parent is the approved commit) were pushed together, CI ran on the freeze commit with no
+  tag yet, and the tag was created after CI passed (the owner's order). So no test may need the
+  tag: `test_the_tag_if_it_exists_holds_exactly_the_approval` checks it only once it exists, and
+  the fake-run rebuild test uses the tag's tree when there is one and HEAD's before.
+- **reproduce.py replays a run its cost guard stopped** up to where it stopped
+  (`second_model.run(..., limit=)`); a call still errored after Amendment 1's passes has no
+  cached reply, so a replay of such a run would stop there and need handling then.

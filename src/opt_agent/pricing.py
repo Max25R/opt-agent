@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from opt_agent.api import TokenUsage, canonical_json
 
 PRICING_URL = "https://platform.claude.com/docs/en/about-claude/pricing"
-PRICES_CHECKED = "2026-11-19"  # unchanged since 2026-11-04
+PRICES_CHECKED = "2026-11-22"  # Haiku 5.5's unchanged since 2026-11-04; Sonnet 5.5 added
 
 
 class Prices(BaseModel):
@@ -27,12 +27,16 @@ class Prices(BaseModel):
 
 # Haiku 5.5 is priced by prompt length: a request whose prompt (input, cache reads and
 # cache writes together) is over 100,000 tokens pays the second row for every token.
+# Sonnet 5.5 has one price at every length (the page: its full 1M context at standard
+# pricing), so both rows are the same. Its cache reads are 0.05x input, not 0.1x.
 LONG_PROMPT_TOKENS = 100_000
+_SONNET_5_5 = Prices(input=2.00, output=10.00, cache_write=4.00, cache_read=0.10)
 PRICES: dict[str, tuple[Prices, Prices]] = {
     "claude-haiku-5-5": (
         Prices(input=0.10, output=0.50, cache_write=0.20, cache_read=0.01),
         Prices(input=0.50, output=2.50, cache_write=1.00, cache_read=0.05),
     ),
+    "claude-sonnet-5-5": (_SONNET_5_5, _SONNET_5_5),  # the second-model study's model
 }
 
 # The API adds its own instructions for structured output and thinking, which are billed

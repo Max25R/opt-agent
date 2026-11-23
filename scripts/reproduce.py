@@ -1,7 +1,7 @@
 """Rebuild every reported number from the committed runs, with each study's frozen code and
 no API key, and compare with the committed files.
 
-Each of the three studies runs in its tag's own tree (opt_agent.frozen), so nothing HEAD
+Each study runs in its tag's own tree (opt_agent.frozen), so nothing HEAD
 changes can move a number, and nothing here writes into this checkout. Two checks per study:
 
 1. **Replay** (skip with --no-replay): every pair of every committed run again, from the run's
@@ -19,7 +19,11 @@ changes can move a number, and nothing here writes into this checkout. Two check
    - the resampling study (resampling-freeze): results/resampling.json, the frozen
      analysis's report (opt_agent.resampling_report.build), and docs/resampling/RESULTS.md,
      both by scripts/resampling_results.py, which writes the report because the frozen
-     main() can't (deviation 1, docs/resampling/DEVIATIONS.md).
+     main() can't (deviation 1, docs/resampling/DEVIATIONS.md);
+   - the second-model study (second-model-freeze): results/second_model.json, by its frozen
+     analysis (python -m opt_agent.second_model_report). Its run is the owner's, planned for
+     December 2026; until runs/second-model is committed there's nothing to rebuild, and this
+     says so.
    The write-up scripts were written after the freezes, against the same package, so they're
    copied in from this checkout.
 
@@ -40,12 +44,13 @@ Run:  python scripts/reproduce.py              # rebuild and replay (a few minut
 import argparse
 import difflib
 import json
+import shutil
 import sys
 import tempfile
 import time
 from pathlib import Path
 
-from opt_agent import followup_freeze, resampling_freeze
+from opt_agent import followup_freeze, resampling_freeze, second_model_freeze
 from opt_agent.freeze import FREEZE_TAG as M6_TAG
 from opt_agent.frozen import FrozenError, Tree
 
@@ -60,6 +65,8 @@ FOLLOWUP_OUTPUTS = (f"{FOLLOWUP_RUN}/followup_report.json", "results/followup.js
                     "docs/followup/RESULTS.md")  # fmt: skip
 RESAMPLING_RUN = "runs/resampling"
 RESAMPLING_OUTPUTS = ("results/resampling.json", "docs/resampling/RESULTS.md")
+SECOND_MODEL_RUN = "runs/second-model"
+SECOND_MODEL_OUTPUTS = ("results/second_model.json",)
 # What a replay can't repeat: time, and what was paid or replayed (evaluate.Item).
 NOT_REPLAYED = {"run_id", "latency_s", "retry_s", "wall_s", "cached_calls", "paid_usd",
                 "report_only_paid_usd"}  # fmt: skip
@@ -116,6 +123,36 @@ def rebuild_resampling(workdir: Path) -> dict[str, bytes]:
     """The resampling study's files alone, rebuilt (tests/test_resampling_results.py)."""
     require_data()
     return resampling(workdir, replay=False)[0]
+
+
+def second_model(
+    workdir: Path,
+    replay: bool,
+    run: Path = ROOT / SECOND_MODEL_RUN,
+    tag: str = second_model_freeze.FREEZE_TAG,
+) -> tuple[dict[str, bytes], list[str]]:
+    """The second-model study's results file, rebuilt in its tag's tree, and the replay's
+    differences; nothing while the run isn't here. `run` and `tag` are for a test, which
+    rebuilds a fake run in HEAD's tree before the tag exists."""
+    if not (run / "results.jsonl").exists():
+        return {}, []
+    tree = Tree.extract(tag, workdir / "second-model")
+    tree.copy(LLM4OR)
+    target = tree.root / SECOND_MODEL_RUN
+    target.mkdir(parents=True, exist_ok=True)
+    for name in RUN_FILES:  # a run the cap stopped early still has them all but the ledger
+        if (run / name).exists():
+            shutil.copy2(run / name, target / name)
+    differences = []
+    if replay:
+        shutil.copytree(run / "cache", target / "cache", dirs_exist_ok=True)
+        tree.copy("scripts/replay_run.py")
+        tree.python("scripts/replay_run.py", SECOND_MODEL_RUN, "replay/second-model")
+        differences = item_differences(run / "results.jsonl",
+                                       tree.root / "replay/second-model/results.jsonl",
+                                       SECOND_MODEL_RUN)  # fmt: skip
+    tree.python("-m", "opt_agent.second_model_report", SECOND_MODEL_RUN)
+    return {rel: tree.read(rel) for rel in SECOND_MODEL_OUTPUTS}, differences
 
 
 # ---- the replay ---------------------------------------------------------------------------
@@ -190,10 +227,15 @@ def main(argv: list[str] | None = None) -> None:
     with tempfile.TemporaryDirectory(prefix="reproduce-") as workdir:
         try:
             require_data()
-            studies = (("M6", m6), ("follow-up", followup), ("resampling", resampling))
+            studies = (("M6", m6), ("follow-up", followup), ("resampling", resampling),
+                       ("second model", second_model))  # fmt: skip
             for name, study in studies:
                 start = time.monotonic()
                 files, replay_differences = study(Path(workdir), replay)
+                if not files:
+                    print(f"{name}: not run yet ({SECOND_MODEL_RUN} isn't here), nothing to "
+                          "rebuild")  # fmt: skip
+                    continue
                 rebuilt |= files
                 failures += replay_differences
                 what = "replayed and rebuilt" if replay else "rebuilt"
